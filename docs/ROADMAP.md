@@ -12,7 +12,7 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | read done |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
 | FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read done (v0.2.0), supports not yet |
-| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | research (stat bit mapping unproven) |
+| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read done (v0.3.0) for bases, move, experience, skills, caps; class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | planned |
 | ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | planned |
@@ -38,7 +38,7 @@ Excluded on purpose: online features, machine translation, telemetry, anything t
 ### M0 Read-only inspector (done, v0.1.0)
 Disc identity, 646 items, search, filter, JP/EN comparison. Shipped to `../Berwick Workshop`.
 
-### M1 Read-only data browsers (characters done in v0.2.0, classes next)
+### M1 Read-only data browsers (characters in v0.2.0, classes in v0.3.0; supports remain)
 1. Port character table reader from `reference/BWSTableEditors.py` (`set_base`, `set_growth`, `set_skill`, `set_item`, `set_support`) into `Core/Units.cs`, read side only.
 2. Port class reader (`set_class_base`, `set_class_growth`, `set_class_caps`, `set_class_attribute`, `set_class_skill`) into `Core/Classes.cs`.
 3. Validate against known values (EmblemWiki class and character tables) on both ISOs before showing any field. Unproven fields are shown as raw numbers with an "unconfirmed" label, never guessed.
@@ -48,7 +48,16 @@ Disc identity, 646 items, search, filter, JP/EN comparison. Shipped to `../Berwi
 Verified while building the Characters page (both discs, checked against EmblemWiki tables):
 - Unit and growth tables: both copies identical on both discs; all 35 characters identical between editions.
 - Level, weapon levels (stored x10), HP/Str/Def/Agi growths, weapon growths, personal skill bits, learned skills: match published tables.
-- Stat bonuses over class base: confirmed by the Adel and Leon comparison (same class and level).
+- Stat bonuses over class base: confirmed by the Adel and Leon comparison (same class and level), and again by class base plus bonus matching published base stats for 12 characters in 11 classes (Mind included).
+
+Verified while building the Classes page (v0.3.0):
+- Class ID of each starting character is byte 19 of the unit record (the only byte that matched all 12 known classes; unit records begin with the ASCII tag `UNIT`).
+- Class records are 100 bytes at `(id - 1) * 100`. Both copies identical on both discs; all 217 classes identical between editions.
+- Class base stats are five packed 5-bit fields, in disc order: Strength (byte 0 bit 0), Agility (byte 0 bit 5), Defense (byte 1 bit 2), Mind (byte 2 bit 0), HP (byte 2 bit 5). The upstream editor labels these HP, Strength, Speed, Defense, Mind: every label is shifted by one, which explains community reports that class HP edits change a different stat. Any writer must use the corrected order.
+- Move (byte 8 low nibble) and experience value (byte 4, 7 bits) match the published class table for Lord, Spear Knight, Horseman and Thief, both mounted and dismounted forms.
+- Class skill bits at byte 12 use the same order as personal skill bits; mounted forms carry Canto, Thief carries Locktouch and Hide.
+- Weapon level caps (6-bit fields from byte 28): no starting character's weapon level exceeds its class cap (66 levels checked). No published source to compare values against.
+- Not shown, unverified: class growth rates (bytes 24 to 28). Upstream labels give Thieves 50% Defense and 10% Agility, which looks wrong; reading them in the personal growth order (HP, Str, Def, Agi, Mind) gives Thieves 50% Agility and mages 30% Agility and Mind, which looks right, but needs a source. Upstream mount and type fields overlap the experience field and are also unverified.
 - Learned skill IDs use the skill list without the four unused slots (`Skills2` upstream). 13 of 13 level-learned skills match. The upstream writer already uses this list, so the community Overwatch to Silence report is not explained by ID numbering.
 - Mind growth is stored at twice the published value for every mage checked. Shown as stored.
 - Item range uses the game's own counting: 0 means adjacent only (matches the wiki).

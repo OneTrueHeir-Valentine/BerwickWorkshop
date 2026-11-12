@@ -14,7 +14,8 @@ public partial class MainWindow : Window
     private InspectionResult? primary, comparison;
     private List<ItemRow> rows=[];
     private List<CharacterRow> characterRows=[];
-    private enum View { Items, Characters, Disc }
+    private List<ClassRow> classRows=[];
+    private enum View { Items, Characters, Classes, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -74,7 +75,8 @@ public partial class MainWindow : Window
                 primary=result;comparison=null;
                 Search.Clear();Category.SelectedIndex=0;OnlyDifferences.IsChecked=false;
                 CharacterSearch.Clear();CharacterDifferencesOnly.IsChecked=false;
-                view=result.Supported?(view==View.Characters?View.Characters:View.Items):View.Disc;
+                ClassSearch.Clear();ClassDifferencesOnly.IsChecked=false;StartingClassesOnly.IsChecked=true;
+                view=result.Supported?(view is View.Characters or View.Classes?view:View.Items):View.Disc;
                 if(!result.Supported) Notify("This image does not match a supported edition. Disc details are available, but item data has not been loaded.");
             }
             RefreshDocument();Status.Text="Disc checked. No files changed.";return true;
@@ -117,7 +119,16 @@ public partial class MainWindow : Window
         CharacterChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         if(comparison is not null)
             CharacterComparisonText.Text=$"{primary.Edition} / {comparison.Edition}\n"+(characterDifferences.Count==0?$"All {characterRows.Count} characters match in the compared fields.":$"{characterGroups.Count} characters have differences in the compared fields.");
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();UpdatePage();
+        var classDifferences=comparison is null?[]:ClassComparison.Compare(primary.Classes,comparison.Classes);
+        var classGroups=classDifferences.GroupBy(d=>d.Id).ToDictionary(g=>g.Key,g=>g.ToArray());
+        var starters=primary.Characters.GroupBy(c=>c.ClassId).ToDictionary(g=>g.Key,g=>(IReadOnlyList<string>)g.Select(c=>c.Name).ToList());
+        classRows=primary.Classes.Select(k=>new ClassRow(k,classGroups.TryGetValue(k.Id,out var list)?list:[],comparison is not null,starters.TryGetValue(k.Id,out var s)?s:[])).ToList();
+        ClassesNav.IsEnabled=primary.Supported;
+        ClassComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
+        ClassChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
+        if(comparison is not null)
+            ClassComparisonText.Text=$"{primary.Edition} / {comparison.Edition}\n"+(classDifferences.Count==0?$"All {classRows.Count} classes match in the compared fields.":$"{classGroups.Count} classes have differences in the compared fields.");
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
     private void PopulateDiscDetails()
@@ -128,6 +139,7 @@ public partial class MainWindow : Window
         AddInfo(DiscFields,"Executable CRC",primary.Crc);AddInfo(DiscFields,"Image SHA-256",primary.Sha256);
         AddInfo(DiscFields,"Executable SHA-256",primary.ExecutableSha256);AddInfo(DiscFields,"File",primary.Path);
         if(primary.Supported) AddInfo(DiscFields,"Character tables",primary.CharacterCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
+        if(primary.Supported) AddInfo(DiscFields,"Class tables",primary.ClassCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported) AddInfo(DiscFields,"Item tables",primary.DifferentTableRecords==0?"Both copies match in the compared fields.":$"{primary.DifferentTableRecords} records differ between copies.");
         FilesGrid.ItemsSource=primary.Files;
     }
@@ -180,19 +192,22 @@ public partial class MainWindow : Window
     }
     private void ShowItems(object sender,RoutedEventArgs e) { view=View.Items;UpdatePage(); }
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
+    private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
     private void UpdatePage()
     {
         if(view!=View.Disc && primary is not null && !primary.Supported) view=View.Disc;
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", _=>"Item library" };
+        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
+        ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         EmptyState.Visibility=primary is null?Visibility.Visible:Visibility.Collapsed;
         var active=new SolidColorBrush(Color.FromRgb(60,84,69));
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
+        ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
     }
     private void ApplyCharacterFilter()
@@ -218,8 +233,13 @@ public partial class MainWindow : Window
     private void CharacterSelected(object sender,SelectionChangedEventArgs e)
     {
         if(CharacterGrid.SelectedItem is not CharacterRow row){ClearCharacter();return;}
-        var c=row.Character;CharacterName.Text=c.Name;CharacterIdentity.Text=$"{c.IdText} · Level {c.Level}";
+        var c=row.Character;CharacterName.Text=c.Name;CharacterIdentity.Text=$"{c.IdText} · {c.ClassName} · Level {c.Level}";
         CharacterFields.Children.Clear();
+        if(primary?.ClassOf(c) is { } k)
+        {
+            Section("Base stats");
+            foreach(var (label,value) in new[]{("HP",k.Hp+c.HpBonus),("Strength",k.Strength+c.StrengthBonus),("Defense",k.Defense+c.DefenseBonus),("Agility",k.Agility+c.AgilityBonus),("Mind",k.Mind+c.MindBonus),("Move",k.Move)}) Pair(label,value.ToString());
+        }
         Section("Bonus over class base");
         foreach(var (label,value) in new[]{("HP",c.HpBonus),("Strength",c.StrengthBonus),("Defense",c.DefenseBonus),("Agility",c.AgilityBonus),("Mind",c.MindBonus)}) Pair(label,CharacterRecord.Signed(value));
         Section("Growth rates");
@@ -233,6 +253,48 @@ public partial class MainWindow : Window
         Section("Starting items");
         if(c.Items.Count==0)Text("None");else foreach(var i in c.Items)Pair(i.Name,i.Durability.ToString());
         CharacterComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This character's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    private void ApplyClassFilter()
+    {
+        if(!ready)return;
+        string query=ClassSearch.Text.Trim();ClassSearchHint.Visibility=query.Length==0?Visibility.Visible:Visibility.Collapsed;
+        int? selected=(ClassGrid.SelectedItem as ClassRow)?.Class.Id;
+        var filtered=classRows.Where(r=>(StartingClassesOnly.IsChecked!=true || r.StartingCharacters.Count>0)
+            && (ClassDifferencesOnly.IsChecked!=true || comparison is null || r.Differences.Count>0)
+            && (query.Length==0 || r.Class.Name.Contains(query,StringComparison.OrdinalIgnoreCase)
+                || r.Class.IdText.Equals(query,StringComparison.OrdinalIgnoreCase) || r.Class.Id.ToString()==query)).ToList();
+        ClassGrid.ItemsSource=filtered;
+        NoClasses.Visibility=filtered.Count==0?Visibility.Visible:Visibility.Collapsed;
+        ClassCount.Text=$"{filtered.Count:N0} of {classRows.Count:N0} classes";
+        if(filtered.Count>0) ClassGrid.SelectedItem=filtered.FirstOrDefault(r=>r.Class.Id==selected)??filtered[0];
+        else ClearClass();
+    }
+    private void ClassFilterChanged(object sender,TextChangedEventArgs e)=>ApplyClassFilter();
+    private void ClassOptionChanged(object sender,RoutedEventArgs e)=>ApplyClassFilter();
+    private void ClearClass()
+    {
+        if(ClassName is null)return;ClassName.Text="Select a class";ClassIdentity.Text="";ClassFields.Children.Clear();ClassComparisonDetail.Text="";
+    }
+    private void ClassSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(ClassGrid.SelectedItem is not ClassRow row){ClearClass();return;}
+        var k=row.Class;ClassName.Text=k.Name;ClassIdentity.Text=k.IdText;
+        ClassFields.Children.Clear();
+        AddSection(ClassFields,"Base stats");
+        foreach(var (label,value) in new[]{("HP",k.Hp),("Strength",k.Strength),("Defense",k.Defense),("Agility",k.Agility),("Mind",k.Mind),("Move",k.Move),("Experience value",k.Experience)}) AddPair(ClassFields,label,value.ToString());
+        AddSection(ClassFields,"Class skills");AddText(ClassFields,k.SkillText);
+        AddSection(ClassFields,"Weapon level caps");
+        if(k.WeaponCaps.Count==0)AddText(ClassFields,"None");else foreach(var w in k.WeaponCaps)AddPair(ClassFields,w.Weapon,w.Value.ToString());
+        AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
+        ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    private void AddSection(Panel panel,string title)=>panel.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
+    private static void AddText(Panel panel,string text)=>panel.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
+    private void AddPair(Panel panel,string label,string value)
+    {
+        var grid=new Grid {Margin=new Thickness(0,0,0,7)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+        grid.Children.Add(new TextBlock {Text=label,Foreground=(Brush)FindResource("Muted"),FontSize=13,TextWrapping=TextWrapping.Wrap});
+        var v=new TextBlock {Text=value,FontWeight=FontWeights.SemiBold,Margin=new Thickness(12,0,0,0)};Grid.SetColumn(v,1);grid.Children.Add(v);panel.Children.Add(grid);
     }
     private void Section(string title)=>CharacterFields.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
     private void Text(string text)=>CharacterFields.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
@@ -263,8 +325,8 @@ public partial class MainWindow : Window
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
         if(e.Key==Key.F && primary?.Supported==true)
         {
-            if(view!=View.Characters)view=View.Items;
-            UpdatePage();var box=view==View.Characters?CharacterSearch:Search;box.Focus();box.SelectAll();e.Handled=true;
+            if(view is not (View.Characters or View.Classes))view=View.Items;
+            UpdatePage();var box=view switch { View.Characters=>CharacterSearch, View.Classes=>ClassSearch, _=>Search };box.Focus();box.SelectAll();e.Handled=true;
         }
     }
     private void ShowHelp(object sender,RoutedEventArgs e)
@@ -275,7 +337,8 @@ public partial class MainWindow : Window
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its item data is shown. Other editions can be inspected, but their item tables are not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
-            ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item and character fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
+            ("Classes","Lists base stats, movement, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Keeping your files safe","This version only reads your discs. It does not edit game files, memory cards, save states, or emulator settings. No internet connection is used."),
             ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Escape cancels a disc check.")})
         {

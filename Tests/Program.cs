@@ -87,6 +87,20 @@ Test("Learned skill numbering skips unused bits",()=>{
 });
 Test("Weapon levels show tenths only when present",()=>{Equal("21",CharacterRecord.WeaponLevel(210));Equal("0.8",CharacterRecord.WeaponLevel(8));});
 Test("Roster has 35 distinct characters",()=>{var r=CharacterDecoder.LoadRoster();Equal(35,r.Count);Equal(35,r.Select(c=>c.Id).Distinct().Count());Equal("Reese",r[0].Name);});
+Test("Class record decodes base stats in disc order",()=>{
+    var c=new byte[100];
+    c[0]=7|(6&7)<<5;c[1]=(byte)(6>>3|7<<2);c[2]=(byte)(0|(30&7)<<5);c[3]=(byte)(30>>3);
+    c[4]=25;c[8]=7;c[12+1/8]|=1<<1;c[29]=(byte)((40&7)<<5);c[30]=(byte)(40>>3|(40&31)<<3);c[31]=(byte)(40>>5);
+    var r=ClassDecoder.Decode(0x1E,"Veteran Knight (mounted)",c);
+    Equal(30,r.Hp);Equal(7,r.Strength);Equal(7,r.Defense);Equal(6,r.Agility);Equal(0,r.Mind);Equal(7,r.Move);Equal(25,r.Experience);
+    Equal("Canto",r.Skills.Single());Equal("Sword:40,Spear:40",string.Join(",",r.WeaponCaps.Select(w=>$"{w.Weapon}:{w.Value}")));
+});
+Test("Class names read naturally",()=>{
+    Equal("Veteran Knight (mounted)",ClassDecoder.DisplayName("VeteranKnight_R"));Equal("Thief (female)",ClassDecoder.DisplayName("Thief_F"));
+    Equal("Wyvern Knight (Larentia) (mounted)",ClassDecoder.DisplayName("WyvernKnightLarentia_R"));Equal("Chevalier (mounted)",ClassDecoder.DisplayName("Chevalire_R"));
+    Equal("Verian Knight 2",ClassDecoder.DisplayName("VerianKnight2"));
+});
+Test("Class list has one entry per ID",()=>{var l=ClassDecoder.LoadList();Equal(l.Count,l.Select(c=>c.Id).Distinct().Count());Equal("Thief (male)",l.Single(c=>c.Id==0x57).Name);});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length==2)
 {
@@ -129,6 +143,35 @@ if(args.Length==2)
         Equal("Fortune 20",$"{C("Dean").Learned.Single().Skill} {C("Dean").Learned.Single().Level}");
         Equal("Sword:60,Shield:80",string.Join(",",reese.WeaponGrowths.Select(w=>$"{w.Weapon}:{w.Value}")));
     });
+    Test("Class tables: both copies match on both discs",()=>{Equal(true,jp!.ClassCopiesMatch);Equal(true,en!.ClassCopiesMatch);});
+    Test("Class base plus personal bonus equals published base stats",()=>{
+        var expected=new Dictionary<string,(string Class,int Hp,int Str,int Def,int Agi,int Mind)>{
+            ["Reese"]=("Lord (mounted)",26,5,5,6,0),["Ward"]=("Veteran Knight (mounted)",38,11,10,9,0),["Elbert"]=("Cavalier (mounted)",33,8,7,9,0),
+            ["Christine"]=("Lady Knight (mounted)",25,3,4,8,0),["Adel"]=("Spear Knight (mounted)",29,4,3,8,0),["Leon"]=("Spear Knight (mounted)",28,6,4,7,0),
+            ["Sherlock"]=("Horseman (mounted)",27,4,2,10,0),["Izerna"]=("Cleric",21,0,0,1,5),["Czene"]=("Thief (female)",20,1,0,12,0),
+            ["Aegina"]=("Wind Mage",21,0,0,4,3),["Daoud"]=("Axe Soldier",36,11,9,8,0),["Enid"]=("Fencer",22,4,3,9,2)};
+        foreach(var (name,e) in expected)
+        {
+            var c=en!.Characters.Single(x=>x.Name==name);var k=en.ClassOf(c)!;
+            Equal($"{name} {e.Class} {e.Hp}/{e.Str}/{e.Def}/{e.Agi}/{e.Mind}",$"{name} {c.ClassName} {k.Hp+c.HpBonus}/{k.Strength+c.StrengthBonus}/{k.Defense+c.DefenseBonus}/{k.Agility+c.AgilityBonus}/{k.Mind+c.MindBonus}");
+        }
+    });
+    Test("Class move, experience and skills match published class table",()=>{
+        ClassRecord K(int id)=>en!.Classes.Single(c=>c.Id==id);
+        Equal("4/7/18",$"{K(0x02).Move}/{K(0x01).Move}/{K(0x01).Experience}");
+        Equal("4/7/22",$"{K(0x97).Move}/{K(0x96).Move}/{K(0x96).Experience}");
+        Equal("4/7/15",$"{K(0xE0).Move}/{K(0xDF).Move}/{K(0xDF).Experience}");
+        Equal("4/13/10",$"{K(0x57).Move}/{K(0x57).Experience}/{K(0x58).Experience}");
+        Equal(true,K(0x01).Skills.Contains("Canto"));Equal(true,K(0x57).Skills.Contains("Locktouch") && K(0x57).Skills.Contains("Hide"));
+    });
+    Test("No character starts above a class weapon cap",()=>{
+        foreach(var c in en!.Characters)
+        {
+            var caps=en.ClassOf(c)!.WeaponCaps.ToDictionary(w=>w.Weapon,w=>w.Value);
+            foreach(var w in c.WeaponLevels) if(caps.TryGetValue(w.Weapon,out int cap) && w.Value>cap*10) throw new Exception($"{c.Name} {w.Weapon} {w.Value} over {cap}");
+        }
+    });
+    Test("Class data is identical between editions",()=>Equal(0,ClassComparison.Compare(jp!.Classes,en!.Classes).Count));
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");
 }

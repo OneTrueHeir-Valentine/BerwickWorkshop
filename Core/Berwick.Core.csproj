@@ -8,5 +8,6 @@
   <ItemGroup>
     <EmbeddedResource Include="../reference/items.csv" LogicalName="items.csv" />
     <EmbeddedResource Include="../reference/characters.csv" LogicalName="characters.csv" />
+    <EmbeddedResource Include="../reference/classes.csv" LogicalName="classes.csv" />
   </ItemGroup>
 </Project>
