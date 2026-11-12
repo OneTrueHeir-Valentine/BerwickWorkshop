@@ -11,14 +11,16 @@ public sealed record GameProfile(string Name, string Sha256, long ItemTable, lon
     public long SecondUnitTable { get; init; }
     public long GrowthTable { get; init; }
     public long SecondGrowthTable { get; init; }
+    public string ExecutableSha256 { get; init; } = "";
+    public long Data3Length { get; init; }
     public long ClassTable { get; init; }
     public long SecondClassTable { get; init; }
 }
 public static class Profiles
 {
     public static IReadOnlyList<GameProfile> All { get; } = Array.AsReadOnly(new[] {
-        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0 },
-        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0 }
+        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0,ExecutableSha256="bb6f98ecac7eba7cbcb5d618150df92d06c4a3e1e27b3e08c67c8adcde4be462",Data3Length=1073741824 },
+        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0,ExecutableSha256="c9fa5ea707ac1074ed15f607998b084cee50fe09957ffe5cf066103d82fabb6f",Data3Length=1073741824 }
     });
     public static GameProfile? Match(string hash) => All.FirstOrDefault(p=>string.Equals(p.Sha256,hash,StringComparison.OrdinalIgnoreCase));
 }
@@ -26,7 +28,8 @@ public sealed record InspectionProgress(double Fraction, string Message);
 public sealed record InspectionResult(string Path, long Size, string Serial, string DiscVersion, string Crc, string Sha256, string ExecutableSha256, GameProfile? Profile, IReadOnlyList<IsoEntry> Files, IReadOnlyList<ItemRecord> Items, int DifferentTableRecords)
 {
     public bool Supported => Profile is not null;
-    public string Edition => Profile?.Name ?? "Unrecognized edition";
+    public bool IsModified { get; init; }
+    public string Edition => Profile is null ? "Unrecognized edition" : IsModified ? $"Modified {Profile.Name}" : Profile.Name;
     public IReadOnlyList<CharacterRecord> Characters { get; init; } = [];
     public bool CharacterCopiesMatch { get; init; } = true;
     public IReadOnlyList<ClassRecord> Classes { get; init; } = [];
@@ -63,7 +66,13 @@ public static class Inspector
         }
         cancellation.ThrowIfCancellationRequested();
         string hash=Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
-        var profile=Profiles.Match(hash);
+        var profile=Profiles.Match(hash);bool modified=false;
+        if(profile is null)
+        {
+            var byExecutable=Profiles.All.FirstOrDefault(p=>p.ExecutableSha256==exeHash);
+            var data3=iso.Entries.FirstOrDefault(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
+            if(byExecutable is not null && data3 is not null && data3.Length==byExecutable.Data3Length){profile=byExecutable;modified=true;}
+        }
         var items=new List<ItemRecord>();int tableDifferences=0;var itemBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
         {
@@ -113,6 +122,6 @@ public static class Inspector
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,IsModified=modified };
     }
 }

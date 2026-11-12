@@ -98,6 +98,10 @@ public partial class MainWindow : Window
     {
         OpenButton.IsEnabled=!busy;EmptyOpenButton.IsEnabled=!busy;
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
+        OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
+        ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
+        if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;EditItemButton.IsEnabled=false;}
+        else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;EditItemButton.IsEnabled=true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
         Progress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
     }
@@ -106,8 +110,9 @@ public partial class MainWindow : Window
         if(primary is null)return;
         DiscStrip.Visibility=Visibility.Visible;EmptyState.Visibility=Visibility.Collapsed;DiscNav.IsEnabled=true;
         EditionText.Text=primary.Edition;FileText.Text=Path.GetFileName(primary.Path);FileText.ToolTip=primary.Path;
-        VerifiedText.Text=primary.Supported?"Verified disc":"Unknown disc";
-        VerifiedText.Foreground=primary.Supported?(Brush)FindResource("Accent"):Brushes.DarkGoldenrod;
+        VerifiedText.Text=!primary.Supported?"Unknown disc":primary.IsModified?"Modified disc":"Verified disc";
+        VerifiedText.ToolTip=primary.IsModified?$"Not an original release. Recognized from its game program and data layout as a modified copy of {primary.Profile!.Name}.":null;
+        VerifiedText.Foreground=!primary.Supported?Brushes.DarkGoldenrod:primary.IsModified?new SolidColorBrush(Color.FromRgb(138,106,31)):(Brush)FindResource("Accent");
         var items=session?.EditedItems()??primary.Items;
         var differences=comparison is null?[]:ItemComparison.Compare(items,comparison.Items);
         var groups=differences.GroupBy(d=>d.Id).ToDictionary(g=>g.Key,g=>g.ToArray());
@@ -142,7 +147,8 @@ public partial class MainWindow : Window
     private void PopulateDiscDetails()
     {
         DiscFields.Children.Clear();if(primary is null)return;
-        AddInfo(DiscFields,"Edition",primary.Edition);AddInfo(DiscFields,"Serial",primary.Serial);
+        AddInfo(DiscFields,"Edition",primary.Edition);
+        if(primary.Supported) AddInfo(DiscFields,"Recognized by",primary.IsModified?"Game program and data layout. This disc differs from the original release.":"Exact match with the original release.");AddInfo(DiscFields,"Serial",primary.Serial);
         AddInfo(DiscFields,"Disc version",primary.DiscVersion);AddInfo(DiscFields,"Size",$"{primary.Size:N0} bytes");
         AddInfo(DiscFields,"Executable CRC",primary.Crc);AddInfo(DiscFields,"Image SHA-256",primary.Sha256);
         AddInfo(DiscFields,"Executable SHA-256",primary.ExecutableSha256);AddInfo(DiscFields,"File",primary.Path);
@@ -358,7 +364,8 @@ public partial class MainWindow : Window
         ProjectName.Text=ProjectTitle;
         string count=session.ChangeCount switch { 0=>"No changes", 1=>"1 change", var n=>$"{n} changes" };
         ProjectState.Text=session.IsDirty?$"{count} · Not saved":count;
-        UndoButton.IsEnabled=session.CanUndo;RedoButton.IsEnabled=session.CanRedo;
+        UndoButton.IsEnabled=session.CanUndo && loading is null;RedoButton.IsEnabled=session.CanRedo && loading is null;
+        ExportButton.IsEnabled=session.ChangeCount>0 && loading is null;
         Title=session.FilePath is null && !session.IsDirty?"Berwick Workshop":$"{ProjectTitle}{(session.IsDirty?" (not saved)":"")} · Berwick Workshop";
     }
     private bool ConfirmDiscard()
@@ -391,7 +398,7 @@ public partial class MainWindow : Window
     private void SaveProject(object sender,RoutedEventArgs e)=>SaveProjectFile(false);
     private void OpenProject(object sender,RoutedEventArgs e)
     {
-        if(primary?.Supported!=true || !ConfirmDiscard())return;
+        if(primary?.Supported!=true || loading is not null || !ConfirmDiscard())return;
         var picker=new OpenFileDialog {Title="Open project",Filter="Berwick Workshop project (*.bwproj)|*.bwproj",CheckFileExists=true};
         picker.InitialDirectory=session?.FilePath is { } current?Path.GetDirectoryName(current):Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         if(picker.ShowDialog(this)!=true)return;
@@ -403,11 +410,50 @@ public partial class MainWindow : Window
         catch(EditException ex){Notify(ex.Message);}
         catch(Exception ex) when (ex is IOException or UnauthorizedAccessException){Notify("The project could not be opened. Check that the file is available.");}
     }
-    private void UndoEdit(object sender,RoutedEventArgs e){if(session?.CanUndo!=true)return;EndEdit();session.Undo();RefreshDocument();Status.Text="Undone.";}
-    private void RedoEdit(object sender,RoutedEventArgs e){if(session?.CanRedo!=true)return;EndEdit();session.Redo();RefreshDocument();Status.Text="Redone.";}
+    private async void ExportDisc(object sender,RoutedEventArgs e)
+    {
+        if(loading is not null || primary?.Supported!=true || session is null || session.ChangeCount==0)return;
+        if(editingId is not null){Notify("Apply or cancel the item you are editing before exporting.");return;}
+        string folder=Path.GetDirectoryName(primary.Path)??Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        var picker=new SaveFileDialog {Title="Export patched disc",Filter="ISO disc images (*.iso)|*.iso",DefaultExt=".iso",AddExtension=true,InitialDirectory=folder,
+            FileName=$"{Path.GetFileNameWithoutExtension(primary.Path)} ({ProjectTitle}).iso"};
+        if(picker.ShowDialog(this)!=true)return;
+        string target=Path.GetFullPath(picker.FileName);
+        if(new[]{primary.Path,comparison?.Path}.Any(p=>p is not null && string.Equals(Path.GetFullPath(p),target,StringComparison.OrdinalIgnoreCase)))
+        {Notify("Choose a new file name. Open disc images are never overwritten.");return;}
+        int items=session.Changes.Select(c=>c.Id).Distinct().Count();
+        string summary=$"Export a patched copy of {primary.Edition}?\n\nOriginal: {Path.GetFileName(primary.Path)} (not changed)\nNew file: {Path.GetFileName(target)}\nChanges: {session.ChangeCount} {(session.ChangeCount==1?"value":"values")} in {items} {(items==1?"item":"items")}\n\nThis writes a full copy of the disc, about {primary.Size/(1024.0*1024*1024):0.0} GB.";
+        if(MessageBox.Show(this,summary,"Export disc",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;
+        await RunExport(target);
+    }
+    private async Task RunExport(string target)
+    {
+        if(loading is not null || primary?.Supported!=true || session is null)return;
+        using var cancellation=new CancellationTokenSource();loading=cancellation;
+        SetBusy(true);MessageBar.Visibility=Visibility.Collapsed;Progress.Value=0;Status.Text="Exporting disc";
+        var progress=new Progress<InspectionProgress>(p=>
+        {
+            if(closing || loading!=cancellation)return;
+            Progress.Value=p.Fraction*100;Status.Text=$"{p.Message} · {p.Fraction:P0}";
+        });
+        var disc=primary;var edits=session;
+        try
+        {
+            var result=await Task.Run(()=>Exporter.Export(disc.Path,disc.Sha256,target,Exporter.PatchesFor(edits,disc),progress,cancellation.Token));
+            if(closing)return;
+            Status.Text="Disc exported. The original disc image was not changed.";
+            Notify($"Exported {Path.GetFileName(result.Path)}. Load it in PCSX2 to play with your changes, or open it here to check it.");
+        }
+        catch(OperationCanceledException){if(!closing)Status.Text="Export canceled. No file was written.";}
+        catch(EditException ex){if(!closing){Notify(ex.Message);Status.Text="Disc not exported";}}
+        catch(Exception ex) when (ex is IOException or UnauthorizedAccessException){if(!closing){Notify("The disc could not be exported. Check that the folder can be written to and that the original disc image is available.");Status.Text="Disc not exported";}}
+        finally{loading=null;if(!closing){SetBusy(false);UpdateProjectBar();}}
+    }
+    private void UndoEdit(object sender,RoutedEventArgs e){if(session?.CanUndo!=true || loading is not null)return;EndEdit();session.Undo();RefreshDocument();Status.Text="Undone.";}
+    private void RedoEdit(object sender,RoutedEventArgs e){if(session?.CanRedo!=true || loading is not null)return;EndEdit();session.Redo();RefreshDocument();Status.Text="Redone.";}
     private void BeginEdit(object sender,RoutedEventArgs e)
     {
-        if(session is null || ItemGrid.SelectedItem is not ItemRow row)return;
+        if(session is null || loading is not null || ItemGrid.SelectedItem is not ItemRow row)return;
         int id=row.Item.Id;editingId=id;editors.Clear();EditorPanel.Children.Clear();
         foreach(var field in ItemEncoder.Fields)
         {
@@ -487,13 +533,15 @@ public partial class MainWindow : Window
         var content=new StackPanel {Margin=new Thickness(28)};
         content.Children.Add(new TextBlock {Text="Berwick Workshop",FontFamily=new FontFamily("Georgia"),FontSize=26,Margin=new Thickness(0,0,0,18)});
         foreach(var (title,text) in new[]{
-            ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its item data is shown. Other editions can be inspected, but their item tables are not loaded."),
+            ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Editing items","Select an item and choose Edit to change its might, accuracy, weight, range, critical, level, base price, durability grade or durability pool. Apply updates the list right away and marks the item as edited. Undo and Redo step through your changes. Restore original values puts an item back the way the disc has it."),
-            ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects. This version does not yet write a patched disc."),
+            ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),
+            ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of the item table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
+            ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),
             ("Keeping your files safe","Berwick Workshop never changes your ISO files, memory cards, save states, or emulator settings. No internet connection is used."),
             ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
         {

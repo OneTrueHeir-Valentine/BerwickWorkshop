@@ -9,16 +9,17 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | Source tool feature | Berwick Workshop equivalent | Milestone | Status |
 |---|---|---|---|
 | ReWeaver: verify game dump, detect version | Exact SHA-256 + ELF CRC profiles for JP and EN | M0 | done |
-| FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | editing done in project (v0.4.0); writing to a disc is M3 |
+| FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | done: edit in project (v0.4.0), export to disc (v0.5.0) |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
 | FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read done (v0.2.0), supports not yet |
 | FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read done (v0.3.0) for bases, move, experience, skills, caps; class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
-| ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | save done; export is M3 |
+| ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | done (v0.5.0) |
+| ReWeaver: diff between versions (modded vs vanilla) | Open a modified disc (exports, Redux) and compare it with the original | M3 | done (v0.5.0) |
 | FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | undo/redo done; change list panel not yet |
 | FEBuilder: lint / error checker | Validation rules plus hazard list from `editor_hazards.json` | M2 | planned |
-| FEBuilder: UPS export | Export patched ISO copy and an xdelta patch against the clean disc | M3 | planned |
+| FEBuilder: UPS export | Export patched ISO copy and an xdelta patch against the clean disc | M3 | ISO export done (v0.5.0); xdelta patch not yet |
 | ReWeaver: export to emulator folder, backups | Export into a chosen folder, keep previous exports in a backups folder | M3 | planned |
 | ReWeaver: first-time setup | Setup: locate ISOs, PCSX2 folder, memory cards, export folder | M3 | planned |
 | FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT) | M5 | research (`extract_berwick_tarc_file_v2.py`) |
@@ -69,10 +70,11 @@ Verified while building the Classes page (v0.3.0):
 4. Undo/redo (one step per Apply), unsaved marker in the title and project bar, prompts before closing or opening another disc or project. A change list panel is still to do.
 5. Writing both table copies to a disc is part of M3; the session already produces the full edited 56-byte record per item (`EditSession.EditedBytes`).
 
-### M3 Export
-1. Copy the clean ISO to a new file, patch DATA3 regions in place (tables do not change size), verify by re-reading.
-2. Optional xdelta export (compatible with DeltaPatcher).
-3. Setup screen, export folder, backups, logs.
+### M3 Export (ISO export and modified discs done in v0.5.0)
+1. Done. `Core/Export.cs`: one streaming pass copies the source, hashes it (must equal the hash taken at open, else abort), applies byte patches in memory as buffers pass, and hashes the output. Writes to `<name>.partial`, reads every patched range back, then renames. Partial file is deleted on cancel or error. Refuses the source path, overlapping or out-of-range patches, and too little free space. Each edited item is written to both table copies (56 bytes each).
+2. Done. Modified-disc recognition: if the full hash is unknown but the executable SHA-256 and the DATA3.DAT length match a profile, the disc loads with that profile and `IsModified`. Exports and Redux v1.4.1 open this way. Redux v1.4.1 differs from English v2.3 in 103 items, 29 characters and 5 classes; its item table copies agree.
+3. Verified: a real export of an edited English disc (4,321,804,288 bytes, 12 bytes changed) reopens as Modified English v2.3 with exactly the project's item values and unchanged characters and classes; the in-app export, compared against the live session, matches on all 646 items. Not yet tested by booting an export in PCSX2.
+4. Not done: xdelta patch output (DeltaPatcher compatible). The user's `bws-rc-v2.3.xdelta` could validate a VCDIFF decoder before writing an encoder. Also not done: setup screen, export folder preference, logs.
 
 ### M4 Character and class editing
 Only for fields proven in M1. Shared-class warning when a class is used by playable units.

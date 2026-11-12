@@ -128,8 +128,48 @@ Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Field("nonsense"));
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
+Test("Export copies the source and applies patches across buffer edges",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        var data=new byte[10*1024*1024+123];new Random(11).NextBytes(data);
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
+        var patches=new[]{new DiscPatch(0,new byte[]{1,2,3}),new DiscPatch(4*1024*1024-10,Enumerable.Repeat((byte)0xAB,30).ToArray()),new DiscPatch(data.Length-5,new byte[]{9,9,9,9,9})};
+        var expected=(byte[])data.Clone();foreach(var p in patches)p.Bytes.CopyTo(expected,p.Offset);
+        int differing=expected.Zip(data).Count(z=>z.First!=z.Second);
+        var result=Exporter.Export(src,sha,dst,patches);
+        var written=File.ReadAllBytes(dst);
+        Equal(true,written.AsSpan().SequenceEqual(expected));Equal(differing,result.ChangedBytes);Equal(3,result.PatchCount);
+        Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expected)).ToLowerInvariant(),result.Sha256);
+        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
+        Equal(false,File.Exists(dst+".partial"));
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Export refuses unsafe requests and leaves no partial file",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        var data=new byte[100000];new Random(5).NextBytes(data);
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
+        var one=new[]{new DiscPatch(10,new byte[]{1})};
+        Throws<EditException>(()=>Exporter.Export(src,sha,src,one));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[]));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,new[]{new DiscPatch(10,new byte[4]),new DiscPatch(12,new byte[4])}));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,new[]{new DiscPatch(data.Length-1,new byte[2])}));
+        Throws<EditException>(()=>Exporter.Export(src,new string('0',64),dst,one));
+        Equal(false,File.Exists(dst));Equal(false,File.Exists(dst+".partial"));
+        using var cancel=new CancellationTokenSource();cancel.Cancel();
+        Throws<OperationCanceledException>(()=>Exporter.Export(src,sha,dst,one,null,cancel.Token));
+        Equal(false,File.Exists(dst));Equal(false,File.Exists(dst+".partial"));
+        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
+    }
+    finally{Directory.Delete(dir,true);}
+});
 Console.WriteLine($"{passed} passed, {failed} failed");
-if(args.Length==2)
+if(args.Length>=2)
 {
     Test("Japanese secondary table matches all primary records",()=>{
         using var iso=new IsoImage(File.OpenRead(args[0]));
@@ -237,6 +277,35 @@ if(args.Length==2)
         try{s.Save(path,"0.4.0");Equal(false,s.IsDirty);Equal(3,EditSession.Load(disc,path).ChangeCount);}
         finally{File.Delete(path);}
     });
+    Test("Real export: edited English disc opens as modified with exactly the project's values",()=>{
+        var disc=en!;
+        var drive=new DriveInfo(Path.GetPathRoot(Path.GetTempPath())!);
+        if(drive.AvailableFreeSpace<disc.Size*2){Console.WriteLine("  skipped: not enough free space");return;}
+        var s=new EditSession(disc);
+        s.Apply(34,new Dictionary<string,int>{["might"]=s.OriginalValue(34,"might")+2,["price"]=777});
+        s.Apply(506,new Dictionary<string,int>{["durability"]=0,["accuracy"]=99});
+        string dst=Path.Combine(Path.GetTempPath(),$"bw-real-export-{Guid.NewGuid():N}.iso");
+        try
+        {
+            var patches=Exporter.PatchesFor(s,disc);Equal(4,patches.Count);
+            var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
+            Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
+            var back=Inspector.Inspect(dst);
+            Equal(true,back.IsModified);Equal("Modified English v2.3",back.Edition);Equal(result.Sha256,back.Sha256);
+            Equal(0,back.DifferentTableRecords);
+            Equal(0,ItemComparison.Compare(s.EditedItems(),back.Items).Count);
+            Equal(0,RecordComparison.Compare(disc.Characters,back.Characters).Count);
+            Equal(0,ClassComparison.Compare(disc.Classes,back.Classes).Count);
+            var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
+        }
+        finally{File.Delete(dst);}
+    });
+    if(args.Length>=3)
+        Test("A modified disc built on English v2.3 is recognized",()=>{
+            var redux=Inspector.Inspect(args[2]);
+            Equal(true,redux.IsModified);Equal("Modified English v2.3",redux.Edition);
+            Console.WriteLine($"  {Path.GetFileName(args[2])}: {ItemComparison.Compare(en!.Items,redux.Items).Select(d=>d.Id).Distinct().Count()} items, {RecordComparison.Compare(en.Characters,redux.Characters).Select(d=>d.Id).Distinct().Count()} characters, {ClassComparison.Compare(en.Classes,redux.Classes).Select(d=>d.Id).Distinct().Count()} classes differ from English v2.3; item copies differing: {redux.DifferentTableRecords}");
+        });
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");
 }
