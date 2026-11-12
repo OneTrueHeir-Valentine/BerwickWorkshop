@@ -14,3 +14,15 @@ public sealed record ClassRow(ClassRecord Class, IReadOnlyList<ItemDifference> D
     public bool Edited { get; init; }
     public string EditedText => Edited ? "Edited" : "";
 }
+
+public sealed record MovementRow(MovementTypeRecord Type, IReadOnlyList<string> Classes)
+{
+    public int ClassCount => Classes.Count;
+    public string Plain => Type.Cost(0);
+    public string Forest => Type.Cost(4);
+    public string MountainFoot => Type.Cost(6);
+    public string Sand => Type.Cost(3);
+    public string SnowForest => Type.Cost(50);
+    public bool Edited { get; init; }
+    public string EditedText => Edited ? "Edited" : "";
+}

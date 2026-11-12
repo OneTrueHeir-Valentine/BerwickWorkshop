@@ -14,6 +14,9 @@ public sealed record TableField(string Key, string Label, int Offset, int Bit, i
     public IReadOnlyList<string>? Choices { get; init; }
     /// <summary>The value is an item ID (0 means empty).</summary>
     public bool ItemReference { get; init; }
+    /// <summary>A stored value with its own meaning, shown as text instead of a number (for example a terrain that cannot be entered).</summary>
+    public int? SpecialValue { get; init; }
+    public string SpecialText { get; init; } = "";
     public bool IsFlag => Width == 1 && Min == 0 && Max == 1;
 }
 
@@ -29,8 +32,7 @@ public static class FieldCodec
 
     public static void Write(Span<byte> record, TableField field, int value)
     {
-        if (value < field.Min || value > field.Max)
-            throw new EditException($"{field.Label} must be between {Format(field, field.Min)} and {Format(field, field.Max)}.");
+        if (value < field.Min || value > field.Max) throw new EditException(RangeError(field));
         int bytes = (field.Bit + field.Width + 7) / 8;
         if (field.Offset + bytes > record.Length) throw new InvalidDataException("A record is incomplete.");
         uint current = 0;
@@ -40,8 +42,24 @@ public static class FieldCodec
         for (int n = 0; n < bytes; n++) record[field.Offset + n] = (byte)(current >> (8 * n));
     }
 
+    /// <summary>The allowed range as shown to the user, including a special value when the field has one.</summary>
+    public static string RangeText(TableField field)
+    {
+        int max = field.SpecialValue == field.Max ? field.Max - 1 : field.Max;
+        string range = $"{Format(field, field.Min)} to {Format(field, max)}";
+        return field.SpecialValue is int ? $"{range}, or {field.SpecialText}" : range;
+    }
+
+    public static string RangeError(TableField field)
+    {
+        int max = field.SpecialValue == field.Max ? field.Max - 1 : field.Max;
+        string range = $"{field.Label} must be between {Format(field, field.Min)} and {Format(field, max)}";
+        return field.SpecialValue is int ? $"{range}, or {field.SpecialText} if it cannot be entered." : range + ".";
+    }
+
     public static string Format(TableField field, int value) =>
-        field.IsFlag ? (value != 0 ? "Yes" : "No")
+        field.SpecialValue == value ? field.SpecialText
+        : field.IsFlag ? (value != 0 ? "Yes" : "No")
         : field.Choices is { } choices && value - field.Min >= 0 && value - field.Min < choices.Count ? choices[value - field.Min]
         : field.Display == 1 ? value.ToString(CultureInfo.InvariantCulture)
         : (value * field.Display).ToString(field.Display < 1 ? "0.#" : "0", CultureInfo.InvariantCulture);
@@ -50,6 +68,8 @@ public static class FieldCodec
     {
         value = 0; error = "";
         text = text.Trim().Replace(",", "");
+        if (field.SpecialValue is int special && (text == field.SpecialText || text.Equals("x", StringComparison.OrdinalIgnoreCase)))
+        { value = special; return true; }
         if (field.Choices is { } choices)
         {
             int index = choices.ToList().FindIndex(c => c.Equals(text, StringComparison.OrdinalIgnoreCase));
@@ -63,7 +83,7 @@ public static class FieldCodec
             error = field.Display > 1 ? $"{field.Label} must be a multiple of {field.Display}." : field.Display < 1 ? $"{field.Label} can have at most one decimal place." : $"{field.Label} must be a whole number.";
             return false;
         }
-        if (raw < field.Min || raw > field.Max) { error = $"{field.Label} must be between {Format(field, field.Min)} and {Format(field, field.Max)}."; return false; }
+        if (raw < field.Min || raw > field.Max || raw == field.SpecialValue) { error = RangeError(field); return false; }
         value = (int)raw;
         return true;
     }
@@ -170,6 +190,7 @@ public static class ClassFields
         new("mind", "Mind", 2, 0, 5, 0, 31),
         new("move", "Move", 8, 0, 4, 0, 15),
         new("experience", "Experience value", 4, 0, 7, 0, 127),
+        new("movementType", "Movement type", 6, 1, 8, 0, TerrainData.Types - 1) { Choices = TerrainData.TypeNames },
     }.Concat(Caps.Select(c => new TableField(CharacterFields.Key(c.Name, "Cap"), c.Name, c.Offset, c.Bit, 6, 0, 63) { Group = "Weapon level caps" }))
      .Concat(CharacterFields.SkillFlags(12, "Class skills")).ToArray());
 }
@@ -191,8 +212,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Rules = "rules";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Rules];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", Rules = "rules";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Terrain, Rules];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -232,6 +253,7 @@ public sealed class EditSession
             }),
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
             [Classes] = new(Classes, "class", ClassFields.Fields, disc.ClassBytes),
+            [Terrain] = new(Terrain, "movement type", TerrainData.Fields, disc.TerrainBytes),
             [Rules] = new(Rules, "rule", GameRules.All.Select(r => r.Field).ToList(), disc.RuleWords),
         };
     }
@@ -323,6 +345,9 @@ public sealed class EditSession
     }
     public IReadOnlyList<ClassRecord> EditedClasses() => disc.Classes.Select(c => EditedClass(c.Id)).ToList();
 
+    public MovementTypeRecord EditedMovementType(int id) => TerrainData.Decode(id, EditedBytes(Terrain, id));
+    public IReadOnlyList<MovementTypeRecord> EditedMovementTypes() => disc.MovementTypes.Select(m => EditedMovementType(m.Id)).ToList();
+
     // State capture for undo
 
     private RecordState Capture(string table, int id) => new(
@@ -374,8 +399,7 @@ public sealed class EditSession
             foreach (var e in group)
             {
                 var field = t.Field(e.Field);
-                if (e.Value < field.Min || e.Value > field.Max)
-                    throw new EditException($"{field.Label} must be between {FieldCodec.Format(field, field.Min)} and {FieldCodec.Format(field, field.Max)}.");
+                if (e.Value < field.Min || e.Value > field.Max) throw new EditException(FieldCodec.RangeError(field));
                 merged[e.Field] = e.Value;
             }
             string problem = t.Validate(merged);
@@ -456,6 +480,7 @@ public sealed class EditSession
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
         Characters or Growths => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
+        Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,
         Rules => GameRules.All.FirstOrDefault(r => r.Id == id)?.Name,
         _ => null,
     };
@@ -524,7 +549,7 @@ public sealed class EditSession
             if (session.OriginalValue(change.Table!, change.Id, change.Field) != change.Original)
                 throw new EditException($"The disc does not match this project: {field.Label} of {table.Noun} 0x{change.Id:X3} differs from what the project expects.");
             if (change.Value < field.Min || change.Value > field.Max)
-                throw new EditException($"{Capitalize(table.Noun)} 0x{change.Id:X3}: {field.Label} must be between {FieldCodec.Format(field, field.Min)} and {FieldCodec.Format(field, field.Max)}.");
+                throw new EditException($"{Capitalize(table.Noun)} 0x{change.Id:X3}: {FieldCodec.RangeError(field)}");
             session.Set(change.Table!, change.Id, change.Field, change.Value);
         }
         foreach (var (tableName, id) in session.EditedRecords)

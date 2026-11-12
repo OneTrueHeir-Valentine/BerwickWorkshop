@@ -20,7 +20,7 @@ public sealed record Mechanic(string Section, string Name, string Formula, strin
 public static class Mechanics
 {
     private const string Wiki = "EmblemWiki, Berwick Saga Calculations";
-    private const string Items = "items", Characters = "characters", Classes = "classes", Rules = "rules";
+    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", Rules = "rules";
 
     public static IReadOnlyList<Mechanic> All { get; } = Array.AsReadOnly(new Mechanic[]
     {
@@ -116,14 +116,12 @@ public static class Mechanics
             MechanicStatus.Located, "Program reading", [], "Needs a test in game before it can be offered."),
 
         // Movement
-        new("Movement", "Movement range", "A unit moves until the terrain costs it has paid reach its class Move",
-            "Each hex costs points by terrain and by the class's movement type (table below). Mounted and dismounted forms are separate classes with their own Move and movement type, so changing Move changes how far a unit goes but not which terrain it can cross or what that terrain costs.",
-            MechanicStatus.Published, "Class records on the disc; EmblemWiki class table; gamekouryaku.com terrain list", [new("Class Move", Classes)],
-            "Movement type is read from the class record and shown on the Classes page; it is not editable until it is checked in a running game. Terrain costs are not yet found in the game data."),
-        new("Movement", "Movement type", "Class record byte 6, bits 1 to 4: Cavalry, Horseman, Flying, Knight, Armor, Infantry, Thief, Civilian, Special, Snow, War priest, Fighter, Priest",
-            "Every class has one movement type, and terrain costs depend on it. The mount state (on foot, mounted, flying) sits in byte 3 and always agrees with the type.",
-            MechanicStatus.Located, "Class records on the disc, matched against the EmblemWiki class groups (37 of 40)", [new("Classes page", Classes)],
-            "Shown read-only until checked in a running game."),
+        new("Movement", "Movement range", "A unit can enter a hex while (costs paid so far + terrain cost) <= Move",
+            "Each hex costs points by its terrain and by the class's movement type. Costs are kept in tenths of a point, so 1.5 works. Mounted and dismounted forms are separate classes with their own Move and movement type.",
+            MechanicStatus.Confirmed, "Terrain cost table in the game data, checked in a running game", [new("Class Move", Classes), new("Terrain costs", Movement)]),
+        new("Movement", "Movement type", "Class record: one of 14 movement types (Cavalry, Horseman, Flying, Knight, Armor, Infantry, Thief, Civilian, Special, Snow, War priest, Fighter, Priest, and one unused)",
+            "Every class points to one row of the terrain cost table. Changing it changes where the class can go: a class given Flying crosses water and cliffs. The mount state (on foot, mounted, flying) is stored separately and always agrees with the type on the original discs.",
+            MechanicStatus.Confirmed, "Class records and terrain table on the disc, checked in a running game", [new("Class movement type", Classes), new("Terrain costs", Movement)]),
     });
 
     /// <summary>Published terrain costs (gamekouryaku.com terrain list). Null means the terrain cannot be entered.</summary>

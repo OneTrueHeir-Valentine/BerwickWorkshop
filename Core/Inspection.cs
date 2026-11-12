@@ -15,12 +15,15 @@ public sealed record GameProfile(string Name, string Sha256, long ItemTable, lon
     public long Data3Length { get; init; }
     public long ClassTable { get; init; }
     public long SecondClassTable { get; init; }
+    /// <summary>Start of the terrain cost table header (terrain count, type count), followed by one row per movement type.</summary>
+    public long TerrainTable { get; init; }
+    public long SecondTerrainTable { get; init; }
 }
 public static class Profiles
 {
     public static IReadOnlyList<GameProfile> All { get; } = Array.AsReadOnly(new[] {
-        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0,ExecutableSha256="bb6f98ecac7eba7cbcb5d618150df92d06c4a3e1e27b3e08c67c8adcde4be462",Data3Length=1073741824 },
-        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0,ExecutableSha256="c9fa5ea707ac1074ed15f607998b084cee50fe09957ffe5cf066103d82fabb6f",Data3Length=1073741824 }
+        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0,TerrainTable=0x0CD7928,SecondTerrainTable=0x08EB3BFC,ExecutableSha256="bb6f98ecac7eba7cbcb5d618150df92d06c4a3e1e27b3e08c67c8adcde4be462",Data3Length=1073741824 },
+        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0,TerrainTable=0x0CCE128,SecondTerrainTable=0x08ECB3FC,ExecutableSha256="c9fa5ea707ac1074ed15f607998b084cee50fe09957ffe5cf066103d82fabb6f",Data3Length=1073741824 }
     });
     public static GameProfile? Match(string hash) => All.FirstOrDefault(p=>string.Equals(p.Sha256,hash,StringComparison.OrdinalIgnoreCase));
 }
@@ -37,6 +40,9 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> UnitBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> GrowthBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ClassBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyList<MovementTypeRecord> MovementTypes { get; init; } = [];
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> TerrainBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public bool TerrainCopiesMatch { get; init; } = true;
     public IReadOnlyDictionary<int, int> CharacterOffsets { get; init; } = new Dictionary<int, int>();
     /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
@@ -105,6 +111,7 @@ public static class Inspector
         var classes=new List<ClassRecord>();bool classCopiesMatch=true;
         var unitBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var growthBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
         var classBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var characterOffsets=new Dictionary<int,int>();
+        var terrainBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var movementTypes=new List<MovementTypeRecord>();bool terrainCopiesMatch=true;
         if (profile is not null)
         {
             var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
@@ -127,6 +134,17 @@ public static class Inspector
                 var raw=classData.AsSpan((id-1)*ClassDecoder.RecordLength,ClassDecoder.RecordLength).ToArray();classBytes[id]=raw;
                 classes.Add(ClassDecoder.Decode(id,name,raw));
             }
+            foreach(long start in new[]{profile.TerrainTable,profile.SecondTerrainTable}) if(start+TerrainData.TableLength>data.Length) throw new InvalidDataException("The terrain tables are incomplete.");
+            var terrain=iso.ReadRange(data.Offset+profile.TerrainTable,TerrainData.TableLength,64*1024);
+            if(TerrainData.HeaderValid(terrain))
+            {
+                terrainCopiesMatch=terrain.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondTerrainTable,TerrainData.TableLength,64*1024));
+                for(int t=0;t<TerrainData.Types;t++)
+                {
+                    var row=terrain.AsSpan(TerrainData.HeaderLength+t*TerrainData.RowLength,TerrainData.RowLength).ToArray();
+                    terrainBytes[t]=row;movementTypes.Add(TerrainData.Decode(t,row));
+                }
+            }
             var classNames=classes.ToDictionary(c=>c.Id,c=>c.Name);
             var itemNames=items.ToDictionary(i=>i.Id,i=>i.DisplayName);
             foreach(var entry in roster)
@@ -145,6 +163,6 @@ public static class Inspector
                 if(rule.Decode(GameRules.WordsAt(exe,rule)) is int setting) ruleWords[rule.Id]=rule.EncodeBytes(setting);
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
     }
 }

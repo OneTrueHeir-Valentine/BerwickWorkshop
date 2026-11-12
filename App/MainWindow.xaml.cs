@@ -17,7 +17,8 @@ public partial class MainWindow : Window
     private List<ItemRow> rows=[];
     private List<CharacterRow> characterRows=[];
     private List<ClassRow> classRows=[];
-    private enum View { Items, Characters, Classes, Rules, Mechanics, Disc }
+    private List<MovementRow> movementRows=[];
+    private enum View { Items, Characters, Classes, Movement, Rules, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -104,7 +105,7 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton}) b.IsEnabled=!busy;
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton,EditMovementButton}) b.IsEnabled=!busy;
         if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
         else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
@@ -151,8 +152,12 @@ public partial class MainWindow : Window
         ClassChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         if(comparison is not null)
             ClassComparisonText.Text=$"{primary.Edition} / {comparison.Edition}\n"+(classDifferences.Count==0?$"All {classRows.Count} classes match in the compared fields.":$"{classGroups.Count} classes have differences in the compared fields.");
+        var byType=classes.GroupBy(k=>k.MovementType).ToDictionary(g=>g.Key,g=>(IReadOnlyList<string>)g.Select(k=>k.Name).ToList());
+        movementRows=(session?.EditedMovementTypes()??primary.MovementTypes).Select(m=>new MovementRow(m,byType.TryGetValue(m.Id,out var names)?names:[])
+            { Edited=session?.IsEdited(EditSession.Terrain,m.Id)==true }).ToList();
+        MovementNav.IsEnabled=primary.Supported && movementRows.Count>0;
         RulesNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
     private void PopulateDiscDetails()
@@ -166,6 +171,7 @@ public partial class MainWindow : Window
         AddInfo(DiscFields,"Executable SHA-256",primary.ExecutableSha256);AddInfo(DiscFields,"File",primary.Path);
         if(primary.Supported) AddInfo(DiscFields,"Character tables",primary.CharacterCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported) AddInfo(DiscFields,"Class tables",primary.ClassCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
+        if(primary.Supported && primary.MovementTypes.Count>0) AddInfo(DiscFields,"Terrain tables",primary.TerrainCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported) AddInfo(DiscFields,"Item tables",primary.DifferentTableRecords==0?"Both copies match in the compared fields.":$"{primary.DifferentTableRecords} records differ between copies.");
         FilesGrid.ItemsSource=primary.Files;
     }
@@ -252,6 +258,7 @@ public partial class MainWindow : Window
     private void ShowItems(object sender,RoutedEventArgs e) { view=View.Items;UpdatePage(); }
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
+    private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
     private void ShowRules(object sender,RoutedEventArgs e) { view=View.Rules;UpdatePage(); }
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
@@ -259,12 +266,13 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
+        MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
@@ -273,6 +281,7 @@ public partial class MainWindow : Window
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
+        MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
@@ -363,6 +372,40 @@ public partial class MainWindow : Window
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
         AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    private void ApplyMovementList()
+    {
+        if(!ready)return;
+        int? selected=(MovementGrid.SelectedItem as MovementRow)?.Type.Id;
+        MovementGrid.ItemsSource=movementRows;
+        MovementCount.Text=$"{movementRows.Count} movement types, {TerrainData.Terrains} kinds of terrain";
+        if(movementRows.Count>0) MovementGrid.SelectedItem=movementRows.FirstOrDefault(r=>r.Type.Id==selected)??movementRows[0];
+        else ClearMovement();
+    }
+    private void ClearMovement()
+    {
+        if(MovementName is null)return;MovementName.Text="Select a movement type";MovementIdentity.Text="";MovementFields.Children.Clear();
+    }
+    private void MovementSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(MovementGrid.SelectedItem is not MovementRow row){ClearMovement();return;}
+        var m=row.Type;
+        if(editing?.Page==View.Movement && editing.Id!=m.Id) EndEdit();
+        UpdateEditButtons();
+        MovementName.Text=m.Name;
+        MovementIdentity.Text=$"{m.MountText} · {(row.ClassCount==1?"1 class":$"{row.ClassCount} classes")}";
+        MovementFields.Children.Clear();
+        AddSection(MovementFields,"Cost per hex");
+        int hidden=0;
+        for(int t=0;t<TerrainData.Terrains;t++)
+        {
+            if(TerrainData.TerrainNames[t]=="Blocked" && m.Costs[t]==TerrainData.Blocked){hidden++;continue;}
+            AddPair(MovementFields,TerrainData.TerrainLabel(t),m.Cost(t));
+        }
+        if(hidden>0) AddText(MovementFields,$"Walls and doors ({hidden} kinds) cannot be entered. Edit to open them up.");
+        AddSection(MovementFields,"Classes with this movement type");
+        AddText(MovementFields,row.ClassCount==0?"None":string.Join(", ",row.Classes));
+        AddChangeList(MovementFields,ch=>ch.Id==m.Id && ch.Table==EditSession.Terrain,()=>session!.Revert(EditSession.Terrain,m.Id));
     }
     private void AddSection(Panel panel,string title)=>panel.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
     private static void AddText(Panel panel,string text)=>panel.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
@@ -604,6 +647,18 @@ public partial class MainWindow : Window
             new("Class skills",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Class skills").ToList()),
         ],warning));
     }
+    private void BeginMovementEdit(object sender,RoutedEventArgs e)
+    {
+        if(MovementGrid.SelectedItem is not MovementRow row)return;
+        string warning=row.ClassCount==0
+            ?"No class uses this movement type yet. Give a class this type on the Classes page to use these costs."
+            :$"Changes apply to every unit of these {row.ClassCount} classes, including enemies. Enter costs in movement points, such as 2 or 1.5, or × if the terrain cannot be entered.";
+        OpenEditor(new(View.Movement,row.Type.Id,"Movement type",MovementEditorPanel,MovementFields,EditMovementButton,
+        [
+            new("Cost per hex",EditSession.Terrain,TerrainData.Fields.Where(f=>f.Group.Length==0).ToList()),
+            new("Walls and doors",EditSession.Terrain,TerrainData.Fields.Where(f=>f.Group=="Blocked").ToList()),
+        ],warning));
+    }
     private void OpenEditor(EditTarget target)
     {
         if(session is null || loading is not null)return;
@@ -655,7 +710,7 @@ public partial class MainWindow : Window
                 }
                 else input=new TextBox {Text=FieldCodec.Format(field,current),Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right};
                 System.Windows.Automation.AutomationProperties.SetName(input,section.Title.Length>0?$"{section.Title}: {field.Label}":field.Label);
-                input.ToolTip=$"{FieldCodec.Format(field,field.Min)} to {FieldCodec.Format(field,field.Max)}";
+                input.ToolTip=FieldCodec.RangeText(field);
                 Grid.SetColumn(input,1);grid.Children.Add(input);host.Children.Add(grid);
                 var fieldError=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,-4,0,8),Visibility=Visibility.Collapsed};
                 host.Children.Add(fieldError);editors.Add((section.Table,field,input,fieldError));
@@ -713,12 +768,13 @@ public partial class MainWindow : Window
     }
     private void UpdateEditButtons()
     {
-        if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null)return;
+        if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null || EditMovementButton is null)return;
         bool can=session is not null && editing is null;
         NewItemButton.Visibility=session is not null?Visibility.Visible:Visibility.Collapsed;NewItemButton.IsEnabled=can && loading is null;
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
+        EditMovementButton.Visibility=can && MovementGrid.SelectedItem is MovementRow?Visibility.Visible:Visibility.Collapsed;
     }
     private void BuildMechanics()
     {
@@ -758,7 +814,7 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, _=>View.Rules };UpdatePage();
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, _=>View.Rules };UpdatePage();
                         };
                         links.Children.Add(b);
                     }
@@ -795,7 +851,7 @@ public partial class MainWindow : Window
         }
         var stack=new StackPanel();
         stack.Children.Add(new DockPanel {Children={new TextBlock {Text="Terrain costs by movement type",FontSize=16,FontWeight=FontWeights.SemiBold}}});
-        stack.Children.Add(new TextBlock {Text="Movement points each hex costs; × means the terrain cannot be entered. Avoid % is the terrain's avoid bonus. Published by players and not yet found in the game data, so these values cannot be edited yet.",
+        stack.Children.Add(new TextBlock {Text="Movement points each hex costs, as published by players; × means the terrain cannot be entered. Avoid % is the terrain's avoid bonus. The game's own table matches these costs and can be edited on the Movement page.",
             TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,4,0,8)});
         stack.Children.Add(new ScrollViewer {Content=grid,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});
         foreach(var t in Mechanics.Terrain.Where(t=>t.Note.Length>0))
@@ -931,7 +987,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
@@ -949,9 +1005,10 @@ public partial class MainWindow : Window
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
-            ("Classes","Lists base stats, movement, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Classes","Lists base stats, movement, movement type, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: shield block can be left normal, made to always succeed or never succeed, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
@@ -961,7 +1018,7 @@ public partial class MainWindow : Window
             ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of each changed table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
             ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),
             ("Keeping your files safe","Berwick Workshop never changes your ISO files, memory cards, save states, or emulator settings. No internet connection is used."),
-            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item, character or class. Ctrl+N creates a new item. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
+            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item, character, class or movement type. Ctrl+N creates a new item. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
         {
             content.Children.Add(new TextBlock {Text=title,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,10,0,5)});
             content.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),LineHeight=21});

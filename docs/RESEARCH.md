@@ -56,11 +56,13 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - The add-and-store routine `0x00174550` (table `0x004A4020`, writers in `0x004A3FE0`) holds a second copy of the same limits and is the one level ups call. Live test 2: with both copies at 0, a level up raised nothing. Both copies together are the stat limits; offered as rules in v0.11.0.
 - Next leads: two sibling 15-entry tables at `0x004A3FE0` and `0x004A4020` with a routine at `0x00174550` that writes the stat bytes (likely get and set attribute), and the level-up code after `0x002245A0`.
 
-### Movement (2026-11-12)
-- Movement type is class record byte 6, bits 1 to 4: 0 cavalry, 1 horseman (light cavalry), 2 flying, 3 knight, 4 armor, 5 infantry, 6 thief, 7 civilian, 8 special (ballistician), 9 snow, 10 war priest, 11 fighter (light infantry), 12 priest. Matches the EmblemWiki class groups for 37 of 40 classes; the 3 misses are likely name pairing in the comparison.
+### Movement (2026-11-12, confirmed in a running game)
+- Movement type is an 8-bit field in the class record starting at byte 6 bit 1 (the program loads the halfword at offset 6 and keeps bits 1 to 8). Values: 0 cavalry, 1 horseman (light cavalry), 2 flying, 3 knight, 4 armor, 5 infantry, 6 thief, 7 civilian, 8 special (ballistician), 9 snow, 10 war priest, 11 fighter (light infantry), 12 priest, 13 unused by any class. Original classes use 0 to 12.
 - Mount state is class record byte 3, bits 4 to 5: 0 on foot, 1 mounted, 2 flying. It agrees with the movement type for every class on both discs.
-- Terrain costs per movement type and terrain avoid are published at gamekouryaku.com (terrain list). Searches for those rows as byte, halfword and word tables, in game order and in the site's column order, with wildcards for impassable, found nothing in the program, a battle RAM dump or the first 256 MB of DATA3. The data may be packed differently or loaded per map.
-- In RAM the class table sits at `0x006DA3A0` (copy at `0x018FA58C`); a pointer to it is stored at `0x004B4768`.
+- Terrain cost table: in DATA3.DAT, two identical copies. English `0x00CCE128` and `0x08ECB3FC`, Japanese `0x00CD7928` and `0x08EB3BFC` (header start). Header: terrain count 64, type count 14 (two 32-bit values). Then 14 rows of 68 bytes: byte 0 mount state, byte 1 unknown (7 7 6 4 3 4 4 3 2 4 3 4 3 7), bytes 2 and 3 zero, bytes 4 to 67 the cost of terrain kinds 0 to 63 in tenths of a point; 255 means it cannot be entered.
+- Earlier searches missed it because the costs are stored as tenths (forest for cavalry is 40, not 4). The rows match the gamekouryaku.com terrain list (snow forest is terrain 50: 7 6 1 4 4 4 3 2 3 3 2). Terrain names are not stored as plain text, so kinds are named by the published row they match.
+- Program: the class table pointer is at gp minus 0x7B88 (`0x004B4768`, gp `0x004BC2F0`); class IDs count from 1 with 100-byte records. `0x0017CEB0` returns a unit's movement type; `0x0017CF20` returns a class's cost row from the table pointer at `0x004B4784`.
+- Live tests (PCSX2, English v2.3, first battle): all enterable terrain set to 4 shrank every movement area; class 0x01 set to Flying let Reese move as a flier; open ground at 1.5 limited Move 4 units to 2 hexes. So the table, the class field and tenths all work.
 - Old cheat code pages (atwiki, archived) list program patches for Canto on any unit and full move after moving; leads for the speed prototypes.
 
 ### Editors

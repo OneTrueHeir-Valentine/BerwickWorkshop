@@ -9,12 +9,11 @@ public sealed record ClassRecord(
     IReadOnlyList<string> Skills, IReadOnlyList<WeaponValue> WeaponCaps)
 {
     public string IdText => $"0x{Id:X2}";
-    /// <summary>Class record byte 6 bits 1 to 4. Matches the published class groups for 37 of 40 classes checked.</summary>
+    /// <summary>Class record byte 6 bit 1 through byte 7 bit 0: the row of the terrain cost table this class uses.</summary>
     public int MovementType { get; init; }
     /// <summary>Class record byte 3 bits 4 to 5: 0 on foot, 1 mounted, 2 flying.</summary>
     public int Mount { get; init; }
-    public static readonly string[] MovementTypes = ["Cavalry", "Horseman", "Flying", "Knight", "Armor", "Infantry", "Thief", "Civilian", "Special", "Snow", "War priest", "Fighter", "Priest"];
-    public string MovementTypeText => MovementType < MovementTypes.Length ? MovementTypes[MovementType] : $"Type {MovementType}";
+    public string MovementTypeText => MovementType < TerrainData.TypeNames.Length ? TerrainData.TypeNames[MovementType] : $"Type {MovementType}";
     public string MountText => Mount switch { 0 => "On foot", 1 => "Mounted", 2 => "Flying", _ => $"Mount {Mount}" };
     public string SkillText => Skills.Count == 0 ? "None" : string.Join(", ", Skills);
 
@@ -60,7 +59,7 @@ public static class ClassDecoder
         return new(id, name,
             Hp: B(record, 2, 5, 5), Strength: B(record, 0, 0, 5), Defense: B(record, 1, 2, 5), Agility: B(record, 0, 5, 5), Mind: B(record, 2, 0, 5),
             Move: B(record, 8, 0, 4), Experience: B(record, 4, 0, 7), Skills: skills.AsReadOnly(), WeaponCaps: caps.AsReadOnly())
-        { MovementType = B(record, 6, 1, 4), Mount = B(record, 3, 4, 2) };
+        { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2) };
     }
 
     public static string DisplayName(string raw)

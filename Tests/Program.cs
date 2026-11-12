@@ -260,6 +260,16 @@ Test("Shown values parse back to stored values",()=>{
     var bonus=CharacterFields.Record.Single(f=>f.Key=="strengthBonus");
     Equal(true,FieldCodec.TryParse(bonus,"-3",out v,out _));Equal(-3,v);Equal(false,FieldCodec.TryParse(bonus,"16",out _,out _));
 });
+Test("Terrain costs show tenths and the impassable mark, and parse back",()=>{
+    var forest=TerrainData.Fields[4];
+    Equal("4. Forest",forest.Label);Equal("2",FieldCodec.Format(forest,20));Equal("1.5",FieldCodec.Format(forest,15));Equal("×",FieldCodec.Format(forest,255));
+    Equal(true,FieldCodec.TryParse(forest,"1.5",out int v,out _));Equal(15,v);
+    Equal(true,FieldCodec.TryParse(forest,"x",out v,out _));Equal(255,v);Equal(true,FieldCodec.TryParse(forest,"×",out v,out _));Equal(255,v);
+    Equal(false,FieldCodec.TryParse(forest,"25.5",out _,out _));Equal(false,FieldCodec.TryParse(forest,"0",out _,out _));Equal(false,FieldCodec.TryParse(forest,"1.55",out _,out _));
+    Equal("0.1 to 25.4, or ×",FieldCodec.RangeText(forest));
+    Equal(TerrainData.Terrains,TerrainData.Fields.Count);Equal(TerrainData.Terrains,TerrainData.TerrainNames.Length);Equal(TerrainData.Types,TerrainData.TypeNames.Length);
+    var row=new byte[TerrainData.RowLength];row[0]=2;row[4+50]=70;var m=TerrainData.Decode(2,row);Equal("Flying/Flying/7",$"{m.Name}/{m.MountText}/{m.Cost(50)}");
+});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length>=2)
 {
@@ -333,6 +343,18 @@ if(args.Length>=2)
         }
         Equal(true,Mechanics.Terrain.All(t=>t.Costs.Length==Mechanics.TerrainColumns.Length));
     });
+    Test("Terrain tables: both copies match and the costs match the published list",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(true,disc.TerrainCopiesMatch);Equal(TerrainData.Types,disc.MovementTypes.Count);
+            int[] published=[0,1,2,3,4,5,11,6,12,7,8];
+            string Row(int terrain)=>string.Join(" ",published.Select(t=>disc.MovementTypes[t].Cost(terrain)));
+            Equal("7 6 1 4 4 4 3 2 3 3 2",Row(50));Equal("4 3 1 2 2 2 2 1 2 3 2",Row(4));Equal("6 4 1 4 × 3 2 2 3 3 2",Row(6));
+            Equal("4 3 1 3 × 2 1 1 1 2 ×",Row(3));Equal("1 1 1 1 1 1 1 1 1 1 1",Row(24));
+            Equal(true,disc.Classes.All(k=>k.MovementType<TerrainData.Types && disc.MovementTypes[k.MovementType].Mount==k.Mount));
+        }
+        Equal(true,Enumerable.Range(0,TerrainData.Types).All(t=>jp!.TerrainBytes[t].Span.SequenceEqual(en!.TerrainBytes[t].Span)));
+    });
     Test("No character starts above a class weapon cap",()=>{
         foreach(var c in en!.Characters)
         {
@@ -395,6 +417,8 @@ if(args.Length>=2)
             int newSlot=s.FreeItemSlots()[0];s.CreateItem(newSlot,0x22,"Test Blade");s.Apply(newSlot,new Dictionary<string,int>{["might"]=33});
             s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50),new(EditSession.Rules,4,"strengthLimit",12)});
             s.Apply(EditSession.Characters,0x54,new Dictionary<string,int>{["item5"]=newSlot});
+            s.Apply(new FieldEdit[]{new(EditSession.Terrain,5,"cost4",15),new(EditSession.Terrain,5,"cost15",10),new(EditSession.Classes,0x1E,"movementType",2)});
+            Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedMovementType(5).Costs[4]==15);
             var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
             Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
@@ -415,7 +439,9 @@ if(args.Length>=2)
             Equal(true,vk.Skills.Contains("Fortune"));
             Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
             Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
-            Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);
+            Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);Equal(true,back.TerrainCopiesMatch);
+            Equal("1.5/1/Flying",$"{back.MovementTypes[5].Cost(4)}/{back.MovementTypes[5].Cost(15)}/{vk.MovementTypeText}");
+            Equal(true,Enumerable.Range(0,TerrainData.Types).Where(t=>t!=5).All(t=>back.TerrainBytes[t].Span.SequenceEqual(disc.TerrainBytes[t].Span)));
             Equal(1,GameRules.ById(1).Decode(back.RuleWords[1].Span));Equal(50,GameRules.ById(2).Decode(back.RuleWords[2].Span));Equal(12,GameRules.ById(4).Decode(back.RuleWords[4].Span));
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
