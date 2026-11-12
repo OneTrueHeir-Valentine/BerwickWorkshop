@@ -94,7 +94,13 @@ Verified while building the Classes page (v0.3.0):
 Needed before data expansion is useful: a new item or class has no name in game until its text entry can be written. Steps: locate the item, class, character and skill name tables and descriptions in the DATA files (TARC archives; see `..\berwick-redux2-r6\tools\extract_berwick_tarc_file_v2.py`) and the font encoding for each edition; read-only text browser; then editing with length limits; then export. Japanese and English text are different formats and must be handled separately.
 
 ### M6 Game rules (formulas, level ups, brackets)
-Best lead (see `RESEARCH.md`): working 2005 CodeBreaker codes for the Japanese release change experience gain, guarantee level ups, guarantee shield blocks and raise class skill activation. They are encrypted; decrypting them with a CodeBreaker v7 converter gives exact program addresses for that logic in the Japanese executable, which can then be matched to the English executable by surrounding instruction patterns.
+Status: the 2005 Japanese codes are decrypted and the locations they patch are identical in both executables (see `RESEARCH.md`). Two are confirmed in a running game: the shield parry roll (`0x002274EC`) and the experience gain step (`0x00224580`). Also located, not yet confirmed: the random range function, the percent roll, the attribute add and cap routine (hard-coded stat and experience caps) and one unidentified rate formula.
+
+First rules to offer, in this order:
+1. Shield parry: Normal, Always (never take the failed-roll branch: `bne zero, zero`), Never (always take it: unconditional branch). One instruction, both editions.
+2. Experience after a fight: Normal, or a fixed amount 1 to 100 (`addiu s3, zero, N` at `0x00224580`). A multiplier needs a few extra instructions, so it waits until free space inside the executable is found (the 2005 code used RAM below the executable, which an exported disc cannot use).
+3. Stat and experience caps in the attribute add routine, once each attribute index is mapped to a stat live.
+Export: patch `SLPS_254.97` inside the copied ISO at (executable's file offset in the ISO) + (program address minus 0xFFF00), reusing the verified export path, and refuse to write a rule unless the original instruction is present. Tests: original words on both editions, only the intended words change, and reopening shows the rule state.
 The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
 - Avoid = Attack Speed x 2 (+ terrain, x 2 terrain at range 2+); Attack Speed = Speed minus (weapon weight + shield weight minus Strength / 2).
 - Accuracy = weapon precision x 10 + weapon skill + bonuses.
