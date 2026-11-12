@@ -41,11 +41,11 @@ Both executables have the same layout (one load segment; program address = file 
 - `0x0013A7E0`: percent roll. 66 call sites; two are followed by 50% checks.
 - `0x00174A90`: add to a unit attribute and clamp it to a hard-coded per-attribute cap (caps seen: 15, 20, 30, 50 or 100, 199, 999, 100000). This is where stat and experience caps live. Which index is which stat is not mapped yet.
 - `0x00224570` to `0x002245A0`: experience gained after battle is added here (attribute 2). The old "always level up" code forced this amount to 100, and the experience multiplier code shifted it left.
-- `0x002274DC` to `0x002274EC`: shield parry roll: a random 0 to 99 compared against the unit's shield rate (stored at offset 0xA0 of the battle unit).
+- `0x002274DC` to `0x002274EC`: shield block roll: a random 0 to 99 compared against the unit's shield rate (stored at offset 0xA0 of the battle unit).
 - `0x0022CE0C`: a rate formula that subtracts 50, then subtracts 50 or 75 and halves. Not identified yet.
 Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and written over PINE):
 - All seven locations above hold exactly the executable's code while the game runs (8 words each), and 395 of 400 random words across the program match the file (the rest are data that changes during play). The code is not relocated, so changes written into the executable on disc land where expected.
-- Shield parry roll confirmed: changing the branch at `0x002274EC` so the failed-roll path is never taken made shield units parry every attack.
+- Shield block roll confirmed: changing the branch at `0x002274EC` so the failed-roll path is never taken made shield units parry every attack.
 - Experience gain confirmed: replacing the instruction at `0x00224580` so the gained amount is 100 made a unit level up after one fight.
 - Both changes were temporary (emulator memory only) and were reverted.
 

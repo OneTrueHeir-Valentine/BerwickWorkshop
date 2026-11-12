@@ -17,7 +17,7 @@ public partial class MainWindow : Window
     private List<ItemRow> rows=[];
     private List<CharacterRow> characterRows=[];
     private List<ClassRow> classRows=[];
-    private enum View { Items, Characters, Classes, Rules, Disc }
+    private enum View { Items, Characters, Classes, Rules, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         foreach(string type in ItemDecoder.Types) Category.Items.Add(type);
         Category.Items.Add("Other"); Category.SelectedIndex=0;
         DiscNav.IsEnabled=false; ready=true;
+        BuildMechanics();
     }
 
     private string? PickIso(string title)
@@ -158,7 +159,7 @@ public partial class MainWindow : Window
     {
         DiscFields.Children.Clear();if(primary is null)return;
         AddInfo(DiscFields,"Edition",primary.Edition);
-        if(primary.Supported && primary.RuleWords.Count>0) AddInfo(DiscFields,"Game rules",string.Join(", ",GameRules.All.Where(r=>primary.RuleWords.ContainsKey(r.Id)).Select(r=>$"{r.Name}: {r.Describe(r.Decode(BitConverter.ToUInt32(primary.RuleWords[r.Id].Span))??0)}")));
+        if(primary.Supported && primary.RuleWords.Count>0) AddInfo(DiscFields,"Game rules",string.Join(", ",GameRules.All.Where(r=>r.Confirmed && primary.RuleWords.ContainsKey(r.Id)).Select(r=>$"{r.Name}: {r.Describe(r.Decode(primary.RuleWords[r.Id].Span)??r.Default)}")));
         if(primary.Supported) AddInfo(DiscFields,"Recognized by",primary.IsModified?"Game program and data layout. This disc differs from the original release.":"Exact match with the original release.");AddInfo(DiscFields,"Serial",primary.Serial);
         AddInfo(DiscFields,"Disc version",primary.DiscVersion);AddInfo(DiscFields,"Size",$"{primary.Size:N0} bytes");
         AddInfo(DiscFields,"Executable CRC",primary.Crc);AddInfo(DiscFields,"Image SHA-256",primary.Sha256);
@@ -252,24 +253,28 @@ public partial class MainWindow : Window
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowRules(object sender,RoutedEventArgs e) { view=View.Rules;UpdatePage(); }
+    private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
     private void UpdatePage()
     {
-        if(view!=View.Disc && primary is not null && !primary.Supported) view=View.Disc;
+        if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Rules=>"Game rules", _=>"Item library" };
+        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
-        EmptyState.Visibility=primary is null?Visibility.Visible:Visibility.Collapsed;
+        MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
+        if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
+        EmptyState.Visibility=primary is null && view!=View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         var active=new SolidColorBrush(Color.FromRgb(60,84,69));
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
+        MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
     }
     private void ApplyCharacterFilter()
@@ -715,6 +720,56 @@ public partial class MainWindow : Window
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
     }
+    private void BuildMechanics()
+    {
+        MechanicsList.Children.Clear();
+        MechanicsList.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
+            Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
+                Text="How the game's systems work, as far as they are known. Each entry says how sure that knowledge is: published by players, found in the game program, or confirmed in a running game. Change it shows what you can edit today: a rule, or the item, character and class values the formula uses."}});
+        foreach(var section in Mechanics.All.GroupBy(m=>m.Section))
+        {
+            MechanicsList.Children.Add(new TextBlock {Text=section.Key,FontSize=20,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,10)});
+            foreach(var m in section)
+            {
+                var card=new StackPanel();
+                MechanicsList.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,14,18,14),Margin=new Thickness(0,0,0,10),Child=card});
+                var head=new DockPanel();
+                var (bg,fg)=m.Status switch
+                {
+                    MechanicStatus.Confirmed=>(Color.FromRgb(225,235,221),Color.FromRgb(36,60,47)),
+                    MechanicStatus.Located=>(Color.FromRgb(255,241,217),Color.FromRgb(114,82,33)),
+                    _=>(Color.FromRgb(238,240,236),Color.FromRgb(90,98,92)),
+                };
+                var chip=new Border {Background=new SolidColorBrush(bg),CornerRadius=new CornerRadius(10),Padding=new Thickness(9,2,9,3),VerticalAlignment=VerticalAlignment.Center,
+                    Child=new TextBlock {Text=Mechanics.StatusText(m.Status),FontSize=11,Foreground=new SolidColorBrush(fg)}};
+                DockPanel.SetDock(chip,Dock.Right);head.Children.Add(chip);
+                head.Children.Add(new TextBlock {Text=m.Name,FontSize=16,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
+                card.Children.Add(head);
+                card.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(246,247,243)),CornerRadius=new CornerRadius(4),Padding=new Thickness(10,6,10,6),Margin=new Thickness(0,8,0,8),
+                    Child=new TextBlock {Text=m.Formula,TextWrapping=TextWrapping.Wrap,FontFamily=new FontFamily("Consolas"),FontSize=13}});
+                card.Children.Add(new TextBlock {Text=m.Explanation,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20});
+                if(m.Changes.Count>0)
+                {
+                    var links=new WrapPanel {Margin=new Thickness(0,10,0,0)};
+                    links.Children.Add(new TextBlock {Text="Change it:",FontSize=12,Foreground=(Brush)FindResource("Muted"),VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,8,4)});
+                    foreach(var link in m.Changes)
+                    {
+                        var b=new Button {Content=link.Label,Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0,0,6,4)};
+                        b.Click+=(_,_)=>
+                        {
+                            if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, _=>View.Rules };UpdatePage();
+                        };
+                        links.Children.Add(b);
+                    }
+                    card.Children.Add(links);
+                }
+                if(m.NotYetEditable is { } note)
+                    card.Children.Add(new TextBlock {Text=note,TextWrapping=TextWrapping.Wrap,FontSize=12,FontStyle=FontStyles.Italic,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,8,0,0)});
+                card.Children.Add(new TextBlock {Text=$"Source: {m.Source}",FontSize=11,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,6,0,0)});
+            }
+        }
+    }
     private void BuildRules()
     {
         RulesList.Children.Clear();
@@ -723,7 +778,7 @@ public partial class MainWindow : Window
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
                 Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Each rule here was checked in a running game before being offered."}};
         RulesList.Children.Add(intro);
-        foreach(var rule in GameRules.All)
+        foreach(var rule in GameRules.All.Where(r=>r.Confirmed))
         {
             var card=new StackPanel();
             var border=new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card};
@@ -750,7 +805,22 @@ public partial class MainWindow : Window
                 }
                 catch(EditException ex){error.Text=ex.Message;}
             }
-            if(rule.Choices is { } choices)
+            if(rule.Kind==RuleKind.Limit)
+            {
+                var limit=new TextBox {Width=70,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};
+                var applyLimit=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(8,0,0,0)};
+                System.Windows.Automation.AutomationProperties.SetName(limit,rule.Name);
+                void ApplyLimit()
+                {
+                    if(!int.TryParse(limit.Text.Trim(),out int n) || n<rule.Min || n>rule.Max){error.Text=$"Enter a whole number from {rule.Min} to {rule.Max}.";return;}
+                    error.Text="";Set(n);
+                }
+                applyLimit.Click+=(_,_)=>ApplyLimit();
+                limit.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyLimit();e.Handled=true;}};
+                row.Children.Add(limit);row.Children.Add(applyLimit);
+                row.Children.Add(new TextBlock {Text=$"Game default {rule.Default}, highest {rule.Max}",Foreground=(Brush)FindResource("Muted"),FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(12,0,0,0)});
+            }
+            else if(rule.Choices is { } choices)
             {
                 var combo=new ComboBox {Width=180,Padding=new Thickness(8,5,8,5),ItemsSource=choices,SelectedIndex=current};
                 System.Windows.Automation.AutomationProperties.SetName(combo,rule.Name);
@@ -850,7 +920,8 @@ public partial class MainWindow : Window
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
-            ("Game rules","The Rules page changes how the game plays: shield parry can be left normal, made to always succeed or never succeed, and experience after a fight can follow the game's formula or be a fixed amount. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
+            ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
+            ("Game rules","The Rules page changes how the game plays: shield block can be left normal, made to always succeed or never succeed, and experience after a fight can follow the game's formula or be a fixed amount. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
             ("New items","New item turns one of the disc's unused item slots into a new item. It starts as a full copy of an item you choose, including properties not shown in the editor, and can then be edited and given to characters as a starting item. Your name for it is saved in the project; until text editing is added, the game shows the slot's own name. Remove new item frees the slot again."),
             ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps stats within 3 of it; Tight keeps them closer; None lets them drift (only Daoud and Lynette use None). Loose and None are confirmed from published play notes; the exact range of Tight is not yet measured."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),

@@ -238,11 +238,11 @@ public sealed class EditSession
 
     // Rule records hold one instruction word; their value is the rule's setting rather than a bit field.
     private static int ReadValue(string table, int id, ReadOnlySpan<byte> bytes, TableField field) =>
-        table == Rules ? GameRules.ById(id).Decode(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes)) ?? 0 : FieldCodec.Read(bytes, field);
+        table == Rules ? GameRules.ById(id).Decode(bytes) ?? GameRules.ById(id).Default : FieldCodec.Read(bytes, field);
 
     private static void WriteValue(string table, int id, Span<byte> bytes, TableField field, int value)
     {
-        if (table == Rules) System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes, GameRules.ById(id).Encode(value));
+        if (table == Rules) GameRules.ById(id).EncodeBytes(value).CopyTo(bytes);
         else FieldCodec.Write(bytes, field, value);
     }
 

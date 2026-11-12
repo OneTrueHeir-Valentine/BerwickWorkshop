@@ -75,7 +75,7 @@ Verified while building the Classes page (v0.3.0):
 ### M3 Export (ISO export and modified discs done in v0.5.0)
 1. Done. `Core/Export.cs`: one streaming pass copies the source, hashes it (must equal the hash taken at open, else abort), applies byte patches in memory as buffers pass, and hashes the output. Writes to `<name>.partial`, reads every patched range back, then renames. Partial file is deleted on cancel or error. Refuses the source path, overlapping or out-of-range patches, and too little free space. Each edited item is written to both table copies (56 bytes each).
 2. Done. Modified-disc recognition: if the full hash is unknown but the executable SHA-256 and the DATA3.DAT length match a profile, the disc loads with that profile and `IsModified`. Exports and Redux v1.4.1 open this way. Redux v1.4.1 differs from English v2.3 in 103 items, 29 characters and 5 classes; its item table copies agree.
-3. Verified: a real export of an edited English disc (4,321,804,288 bytes, 12 bytes changed) reopens as Modified English v2.3 with exactly the project's item values and unchanged characters and classes; the in-app export, compared against the live session, matches on all 646 items. Not yet tested by booting an export in PCSX2.
+3. Verified: a real export of an edited English disc (4,321,804,288 bytes, 12 bytes changed) reopens as Modified English v2.3 with exactly the project's item values and unchanged characters and classes; the in-app export, compared against the live session, matches on all 646 items. Booted in PCSX2 in v0.9.0: an exported disc's item, rule and experience changes all showed in the first battle (see M6). Not yet tested over a full campaign.
 4. Not done: xdelta patch output (DeltaPatcher compatible). The user's `bws-rc-v2.3.xdelta` could validate a VCDIFF decoder before writing an encoder. Also not done: setup screen, export folder preference, logs.
 
 ### M4 Character and class editing (done in v0.6.0 for proven fields)
@@ -94,9 +94,9 @@ Verified while building the Classes page (v0.3.0):
 Needed before data expansion is useful: a new item or class has no name in game until its text entry can be written. Steps: locate the item, class, character and skill name tables and descriptions in the DATA files (TARC archives; see `..\berwick-redux2-r6\tools\extract_berwick_tarc_file_v2.py`) and the font encoding for each edition; read-only text browser; then editing with length limits; then export. Japanese and English text are different formats and must be handled separately.
 
 ### M6 Game rules (formulas, level ups, brackets)
-Status: the 2005 Japanese codes are decrypted and the locations they patch are identical in both executables (see `RESEARCH.md`). Two are confirmed in a running game: the shield parry roll (`0x002274EC`) and the experience gain step (`0x00224580`). Also located, not yet confirmed: the random range function, the percent roll, the attribute add and cap routine (hard-coded stat and experience caps) and one unidentified rate formula.
+Status: the 2005 Japanese codes are decrypted and the locations they patch are identical in both executables (see `RESEARCH.md`). Two are confirmed in a running game: the shield block roll (`0x002274EC`) and the experience gain step (`0x00224580`). Also located, not yet confirmed: the random range function, the percent roll, the attribute add and cap routine (hard-coded stat and experience caps) and one unidentified rate formula.
 
-Done in v0.9.0 (`Core/Rules.cs`, Rules page): shield parry (Normal, Always via `bne zero, zero`, Never via an unconditional branch) and experience after a fight (Normal, or fixed 1 to 100 via `addiu s3, zero, N`). Rules are a fifth editable table (`rules`; record = the 4-byte instruction; setting decoded from the word). A rule is offered only if the disc's word is one the rule recognises, so other mods' code is left alone. Export patches `SLPS_254.97` inside the copied ISO (`Exporter.RecordLocations` now returns file plus offset). Recognition of modified discs hashes the executable with every recognised rule site reset to the original, so ruled exports still open as "Modified <edition>".
+Done in v0.9.0 (`Core/Rules.cs`, Rules page; renamed Shield block in v0.10.0 to avoid confusion with the Parry skill, key still `shieldParry`): shield block (Normal, Always via `bne zero, zero`, Never via an unconditional branch) and experience after a fight (Normal, or fixed 1 to 100 via `addiu s3, zero, N`). Rules are a fifth editable table (`rules`; record = the 4-byte instruction; setting decoded from the word). A rule is offered only if the disc's word is one the rule recognises, so other mods' code is left alone. Export patches `SLPS_254.97` inside the copied ISO (`Exporter.RecordLocations` now returns file plus offset). Recognition of modified discs hashes the executable with every recognised rule site reset to the original, so ruled exports still open as "Modified <edition>".
 Confirmed in game: an exported English disc with Rapier might 7 to 20, parry Always and experience 50 was booted in PCSX2 2.9.78 by the user; all three changes showed in the first battle. This is also the first in-game confirmation of an exported data table edit.
 Next rules: stat and experience caps in the attribute add routine (map each attribute index to a stat live first); an experience multiplier (needs a few free instruction words inside the executable; the 2005 code used RAM below it, which an exported disc cannot use).
 The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
@@ -115,6 +115,40 @@ Stage A, reuse free slots (lowest risk):
 - Units: a new recruitable unit also needs a chapter event to add it to the army, so this depends on chapter script research (M8+, maps and events). Reusing an existing but unused unit record is the likely first route.
 - Names for anything new depend on M5.
 Stage B, grow tables beyond their fixed size: the bytes after the last item record belong to another table, so growing a table means moving it to free space and changing every place the program finds it. Research the program's table loading first; this is the highest risk feature and comes last.
+
+### Stat limits (in progress)
+- The limits exist twice: in the routine that measures a gain (`0x00174A90`, table `0x004A4060`) and in the routine that adds and stores it (`0x00174550`, table `0x004A4020`; the store itself goes through the field writers in table `0x004A3FE0`). Level ups call the add-and-store routine nine times and the measuring routine only for experience.
+- Live test 1: zeroing the measuring copy did not stop a level-up Strength gain. Live test 2 (zero the add-and-store copy too) is the confirmation still needed.
+- Rules are defined and tested in code (HP bonus 0 to 127, default 50; Strength, Agility, Defense, Mind bonus 0 to 15, default 15; Luck 0 to 31, default 20), each changing both copies, but hidden from the Rules page until live test 2 passes. Level limit (30) needs three linked constants and its own test.
+
+### Mechanics reference (started in v0.10.0)
+The Mechanics page lists each known formula with an explanation, its verification status (published, found in the program, confirmed in game) and links to what can be changed today. Every new rule or decoded field should update `Core/Mechanics.cs`. A formula only becomes editable once its code is located and confirmed; until then the page says so.
+
+### Evaluation tools (priority from design review)
+Design goal: evaluate a rule change before playing it. Results must say whether they rest on confirmed game behaviour or on a proposed formula.
+1. Movement and range analysis (highest priority). Needs the class movement type and terrain cost data mapped first (class record fields beyond Move are unverified; upstream names a movement type at byte 6 and unit type at byte 4, both overlapping verified fields, so they are not trusted). Then: reachable hexes after one and two activations, attackable hexes after moving (range and terrain), turns and actions needed to reach mission objectives, mounted against dismounted forms, and how a Move change shifts player and enemy threat ranges. Start with controlled test maps, then real chapter maps once the map format is known.
+2. Historical comparison: clean vanilla, Redux 1.4.1, the current project and proposed rules, field by field, with the affected characters, classes and items. The comparison view already does disc against disc; extend it to project against disc and to three-way.
+3. Combat simulator: expected and worst-case damage, survival chance, follow-ups and counters for chosen encounters under different rule sets, using only confirmed formulas or clearly labelled proposed ones.
+4. Dependency checker: shared classes (player and enemy), unsupported or unverified fields, rule conflicts, invalid item references, equipment that a class cannot use, and changes that reach the enemy roster.
+
+### Design studies (from review; need code located first)
+- Hybrid shields: a passive defense bonus whenever a usable shield is equipped, with the existing block roll giving the full bonus. Options: a percentage of shield Might (keeps shield identity, favours heavy shields), a flat amount by shield size (clear small, medium, large roles), a bonus scaled by shield level (rewards training, may dominate), or a defensive stance (player control, may become mandatory). Starting preference: a modest share of shield Might, block chance from shield level. Prerequisite: locate where shield Might is added to defense in the damage routine. Open questions: whether the passive part costs durability, and how it interacts with large and special shields and very high Defense units.
+- Shield training and Vantage: units like Adel lose shield level gains when Vantage stops the attack first. Proposal: count qualifying defensive engagements for shield experience even when Vantage intercepts, with limits that stop repeatable training. Needs the shield experience routine located.
+- Speed: compare three prototypes before changing any formula. S1 tactical mobility (selected agile classes or skills gain limited repositioning, without simply giving everyone Canto); S2 conditional offensive tempo (a limited extra attack for clearly faster attackers; dangerous with Pursuit, Adept, Deathmatch, critical hits and multi-hit weapons); S3 defensive reactions (predictable positioning or limited responses; technically hard). Preference: class or skill specific S1 first, S2 only as an experiment.
+
+### Audit (from design review, 2026-11-12)
+| Finding | Why it matters | Priority |
+|---|---|---|
+| Class edits also change enemies in that class | A player buff can strengthen many enemies | Critical: the editor warns, but should list enemy users once chapter data is mapped |
+| Learned-skill writes have unresolved corruption reports | May create invalid character states | Critical: stays locked |
+| Some items have more than one special effect | A single-effect editor would misrepresent them | High: effects are not editable yet; decode all effect slots before allowing it |
+| Class movement type not mapped | Limits movement redesign | High (evaluation tool 1) |
+| Class growth data unverified | Incomplete class progression editing | High |
+| New item slots lack verified map references | A free slot might be used by chapter data | High |
+| Item and class text editing unfinished | New content shows the slot's old name | High (M5) |
+| Level-up limits not yet confirmed in game | Stat limit rules incomplete | High (test 2 above) |
+| Only first-battle export testing | Full campaign behaviour untested | High: plan a longer playtest with a project of mixed edits |
+| Independent code review outstanding | Data safety needs a second check | High |
 
 ### M8 and later
 PCSX2 link and PNACH, saves, patch packs, audio, maps and events, and Berwick specific systems (food, Pavilion). Each starts with a read-only viewer and a round-trip test before any writes.

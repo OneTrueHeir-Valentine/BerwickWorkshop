@@ -142,7 +142,7 @@ public static class Inspector
         var ruleWords=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
             foreach(var rule in GameRules.All)
-                if(rule.Decode(GameRules.WordAt(exe,rule)) is not null) ruleWords[rule.Id]=exe.AsSpan((int)rule.FileOffset,4).ToArray();
+                if(rule.Decode(GameRules.WordsAt(exe,rule)) is int setting) ruleWords[rule.Id]=rule.EncodeBytes(setting);
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
         return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };

@@ -25,8 +25,7 @@ public static class Exporter
             EditSession.Rules => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
-        if (table == EditSession.Rules)
-            return [(disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc."), GameRules.ById(id).FileOffset)];
+        if (table == EditSession.Rules) throw new EditException("Rules are written instruction by instruction; use PatchesFor.");
         return inData.Select(o => (data, o)).ToList();
     }
 
@@ -38,6 +37,20 @@ public static class Exporter
         {
             var original = session.Table(table).Records[id].Span;
             var edited = session.EditedBytes(table, id);
+            if (table == EditSession.Rules)
+            {
+                // Each instruction of a rule lives at its own address in the game program.
+                var exe = disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc.");
+                var rule = GameRules.ById(id);
+                for (int i = 0; i < rule.Sites.Count; i++)
+                {
+                    if (edited.AsSpan(i * 4, 4).SequenceEqual(original.Slice(i * 4, 4))) continue;
+                    long at = rule.Sites[i].FileOffset;
+                    if (at < 0 || at + 4 > exe.Length) throw new InvalidDataException("The game program is incomplete.");
+                    patches.Add(new(exe.Offset + at, edited.AsSpan(i * 4, 4).ToArray()));
+                }
+                continue;
+            }
             var runs = new List<(int Start, int Length)>();
             for (int i = 0; i < edited.Length; i++)
             {

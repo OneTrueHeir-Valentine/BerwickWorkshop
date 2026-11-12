@@ -233,15 +233,22 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     foreach(var rule in GameRules.All)
     {
         for(int s=rule.Min;s<=rule.Max;s++) Equal($"{rule.Key}={s}",$"{rule.Key}={rule.Decode(rule.Encode(s))}");
-        Equal<int?>(null,rule.Decode(0xDEADBEEF));
+        Equal<int?>(null,rule.Decode(Enumerable.Repeat(0xDEADBEEFu,rule.Sites.Count).ToArray()));
         Throws<EditException>(()=>rule.Encode(rule.Max+1));
+        Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
-    var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original);Equal(0x14000000u,parry.Encode(1));Equal(0x1000000Cu,parry.Encode(2));
-    var exp=GameRules.ById(2);Equal(0x0040982Du,exp.Original);Equal(0x24130064u,exp.Encode(100));Equal<int?>(null,exp.Decode(0x24130065));
-    Equal(0x1275ECL,parry.FileOffset);
-    var exe=new byte[0x200000];BitConverter.GetBytes(parry.Encode(1)).CopyTo(exe,parry.FileOffset);BitConverter.GetBytes(exp.Encode(40)).CopyTo(exe,exp.FileOffset);
-    var norm=GameRules.Normalize(exe);Equal(parry.Original,GameRules.WordAt(norm,parry));Equal(exp.Original,GameRules.WordAt(norm,exp));
-    BitConverter.GetBytes(0xDEADBEEFu).CopyTo(exe,parry.FileOffset);Equal(0xDEADBEEFu,GameRules.WordAt(GameRules.Normalize(exe),parry));
+    var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
+    Equal("Shield block",parry.Name);
+    var exp=GameRules.ById(2);Equal(0x0040982Du,exp.Original[0]);Equal(0x24130064u,exp.Encode(100)[0]);Equal<int?>(null,exp.Decode(new[]{0x24130065u}));
+    Equal(0x1275ECL,parry.Sites[0].FileOffset);
+    var str=GameRules.ById(4);Equal("2411000F,2412000F",string.Join(",",str.Original.Select(x=>x.ToString("X8"))));
+    Equal<int?>(null,str.Decode(new[]{0x2411000Au,0x2412000Fu}));Equal("2411000A,2412000A",string.Join(",",str.Encode(10).Select(x=>x.ToString("X8"))));
+    var exe=new byte[0x200000];
+    void Put(GameRule r,int s){var ws=r.Encode(s);for(int i=0;i<ws.Length;i++)BitConverter.GetBytes(ws[i]).CopyTo(exe,r.Sites[i].FileOffset);}
+    foreach(var r in GameRules.All) Put(r,r.Default);
+    Put(parry,1);Put(exp,40);Put(str,5);
+    var norm=GameRules.Normalize(exe);foreach(var r in GameRules.All) Equal($"{r.Key}={r.Default}",$"{r.Key}={r.Decode(GameRules.WordsAt(norm,r))}");
+    BitConverter.GetBytes(0xDEADBEEFu).CopyTo(exe,parry.Sites[0].FileOffset);Equal(0xDEADBEEFu,GameRules.WordAt(GameRules.Normalize(exe),parry.Sites[0]));
 });
 Test("Shown values parse back to stored values",()=>{
     var level=CharacterFields.Record.Single(f=>f.Key=="swordLevel");var growth=CharacterFields.Growth.Single(f=>f.Key=="swordGrowth");
@@ -376,7 +383,7 @@ if(args.Length>=2)
                 new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45),
                 new(EditSession.Characters,0x54,"skill15",1),new(EditSession.Characters,0x54,"item5Uses",77),new(EditSession.Growths,0x54,"bracket",1),new(EditSession.Classes,0x1E,"skill19",1)});
             int newSlot=s.FreeItemSlots()[0];s.CreateItem(newSlot,0x22,"Test Blade");s.Apply(newSlot,new Dictionary<string,int>{["might"]=33});
-            s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50)});
+            s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50),new(EditSession.Rules,4,"strengthLimit",12)});
             s.Apply(EditSession.Characters,0x54,new Dictionary<string,int>{["item5"]=newSlot});
             var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
@@ -399,13 +406,13 @@ if(args.Length>=2)
             Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
             Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
             Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);
-            Equal(1,GameRules.ById(1).Decode(BitConverter.ToUInt32(back.RuleWords[1].Span)));Equal(50,GameRules.ById(2).Decode(BitConverter.ToUInt32(back.RuleWords[2].Span)));
+            Equal(1,GameRules.ById(1).Decode(back.RuleWords[1].Span));Equal(50,GameRules.ById(2).Decode(back.RuleWords[2].Span));Equal(12,GameRules.ById(4).Decode(back.RuleWords[4].Span));
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
@@ -472,7 +479,8 @@ if(args.Length>=2)
         {
             Equal(GameRules.All.Count,disc.RuleWords.Count);
             var s=new EditSession(disc);
-            foreach(var rule in GameRules.All) Equal(0,s.Value(EditSession.Rules,rule.Id,rule.Key));
+            foreach(var rule in GameRules.All) Equal(rule.Default,s.Value(EditSession.Rules,rule.Id,rule.Key));
+            s.Apply(EditSession.Rules,4,new Dictionary<string,int>{["strengthLimit"]=9});Equal(9,s.Value(EditSession.Rules,4,"strengthLimit"));s.Undo();
             s.Apply(EditSession.Rules,1,new Dictionary<string,int>{["shieldParry"]=2});
             s.Apply(EditSession.Rules,2,new Dictionary<string,int>{["battleExperience"]=60});
             Equal(2,s.Value(EditSession.Rules,1,"shieldParry"));Equal(0x2413003Cu,BitConverter.ToUInt32(s.EditedBytes(EditSession.Rules,2)));
