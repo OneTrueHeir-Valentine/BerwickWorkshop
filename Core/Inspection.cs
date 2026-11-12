@@ -38,6 +38,9 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> GrowthBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ClassBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, int> CharacterOffsets { get; init; } = new Dictionary<int, int>();
+    /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IsoEntry? ExecutableFile { get; init; }
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -59,6 +62,8 @@ public static class Inspector
             throw new InvalidDataException("The disc does not contain a supported PS2 executable.");
         uint crc=0;for(int i=0;i+4<=exe.Length;i+=4)crc^=BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(i));
         string exeHash=Convert.ToHexString(SHA256.HashData(exe)).ToLowerInvariant();
+        string normalExeHash=Convert.ToHexString(SHA256.HashData(GameRules.Normalize(exe))).ToLowerInvariant();
+        var exeEntry=iso.Entries.First(e=>e.Name.Equals(bootName.Split(';')[0],StringComparison.OrdinalIgnoreCase));
         stream.Position=0;
         using var sha=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer=new byte[4*1024*1024];long done=0;int bytes;
@@ -73,7 +78,8 @@ public static class Inspector
         var profile=Profiles.Match(hash);bool modified=false;
         if(profile is null)
         {
-            var byExecutable=Profiles.All.FirstOrDefault(p=>p.ExecutableSha256==exeHash);
+            // Rule sites are put back to the game's own instructions first, so a disc exported with rules is still recognised.
+            var byExecutable=Profiles.All.FirstOrDefault(p=>p.ExecutableSha256==exeHash || p.ExecutableSha256==normalExeHash);
             var data3=iso.Entries.FirstOrDefault(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
             if(byExecutable is not null && data3 is not null && data3.Length==byExecutable.Data3Length){profile=byExecutable;modified=true;}
         }
@@ -133,8 +139,12 @@ public static class Inspector
                 characters.Add(character with { ClassName=classNames.TryGetValue(character.ClassId,out var cn)?cn:$"Class 0x{character.ClassId:X2}" });
             }
         }
+        var ruleWords=new Dictionary<int,ReadOnlyMemory<byte>>();
+        if (profile is not null)
+            foreach(var rule in GameRules.All)
+                if(rule.Decode(GameRules.WordAt(exe,rule)) is not null) ruleWords[rule.Id]=exe.AsSpan((int)rule.FileOffset,4).ToArray();
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,CharacterOffsets=characterOffsets,IsModified=modified };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
     }
 }

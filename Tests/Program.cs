@@ -229,6 +229,20 @@ Test("Skill, starting item and bracket fields agree with the decoders",()=>{
     Equal("Yes",FieldCodec.Format(CharacterFields.Record.First(f=>f.IsFlag),1));
     Equal("S",FieldCodec.Format(ItemEncoder.Field("durability"),0));
 });
+Test("Game rules encode and decode every setting, and reject unknown code",()=>{
+    foreach(var rule in GameRules.All)
+    {
+        for(int s=rule.Min;s<=rule.Max;s++) Equal($"{rule.Key}={s}",$"{rule.Key}={rule.Decode(rule.Encode(s))}");
+        Equal<int?>(null,rule.Decode(0xDEADBEEF));
+        Throws<EditException>(()=>rule.Encode(rule.Max+1));
+    }
+    var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original);Equal(0x14000000u,parry.Encode(1));Equal(0x1000000Cu,parry.Encode(2));
+    var exp=GameRules.ById(2);Equal(0x0040982Du,exp.Original);Equal(0x24130064u,exp.Encode(100));Equal<int?>(null,exp.Decode(0x24130065));
+    Equal(0x1275ECL,parry.FileOffset);
+    var exe=new byte[0x200000];BitConverter.GetBytes(parry.Encode(1)).CopyTo(exe,parry.FileOffset);BitConverter.GetBytes(exp.Encode(40)).CopyTo(exe,exp.FileOffset);
+    var norm=GameRules.Normalize(exe);Equal(parry.Original,GameRules.WordAt(norm,parry));Equal(exp.Original,GameRules.WordAt(norm,exp));
+    BitConverter.GetBytes(0xDEADBEEFu).CopyTo(exe,parry.FileOffset);Equal(0xDEADBEEFu,GameRules.WordAt(GameRules.Normalize(exe),parry));
+});
 Test("Shown values parse back to stored values",()=>{
     var level=CharacterFields.Record.Single(f=>f.Key=="swordLevel");var growth=CharacterFields.Growth.Single(f=>f.Key=="swordGrowth");
     Equal("21",FieldCodec.Format(level,210));Equal("0.8",FieldCodec.Format(level,8));Equal("60",FieldCodec.Format(growth,6));
@@ -362,8 +376,9 @@ if(args.Length>=2)
                 new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45),
                 new(EditSession.Characters,0x54,"skill15",1),new(EditSession.Characters,0x54,"item5Uses",77),new(EditSession.Growths,0x54,"bracket",1),new(EditSession.Classes,0x1E,"skill19",1)});
             int newSlot=s.FreeItemSlots()[0];s.CreateItem(newSlot,0x22,"Test Blade");s.Apply(newSlot,new Dictionary<string,int>{["might"]=33});
+            s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50)});
             s.Apply(EditSession.Characters,0x54,new Dictionary<string,int>{["item5"]=newSlot});
-            var patches=Exporter.PatchesFor(s,disc);Equal(0,patches.Count%2);
+            var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
             Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
             var back=Inspector.Inspect(dst);
@@ -384,6 +399,15 @@ if(args.Length>=2)
             Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
             Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
             Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);
+            Equal(1,GameRules.ById(1).Decode(BitConverter.ToUInt32(back.RuleWords[1].Span)));Equal(50,GameRules.ById(2).Decode(BitConverter.ToUInt32(back.RuleWords[2].Span)));
+            Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
+            using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
+            {
+                var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
+                var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
+                Equal(2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
+            }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
         }
         finally{File.Delete(dst);}
@@ -442,6 +466,21 @@ if(args.Length>=2)
         Equal(true,chain.EditedBytes(a2).AsSpan().SequenceEqual(chain.EditedBytes(0x22)));
         var chainBack=EditSession.FromJson(disc,chain.ToJson());Equal(true,chainBack.EditedBytes(a2).AsSpan().SequenceEqual(chain.EditedBytes(a2)));
         var plain=new EditSession(disc);plain.Apply(1,new Dictionary<string,int>{["price"]=5});Equal(true,plain.ToJson().Contains("\"formatVersion\": 1"));
+    });
+    Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(GameRules.All.Count,disc.RuleWords.Count);
+            var s=new EditSession(disc);
+            foreach(var rule in GameRules.All) Equal(0,s.Value(EditSession.Rules,rule.Id,rule.Key));
+            s.Apply(EditSession.Rules,1,new Dictionary<string,int>{["shieldParry"]=2});
+            s.Apply(EditSession.Rules,2,new Dictionary<string,int>{["battleExperience"]=60});
+            Equal(2,s.Value(EditSession.Rules,1,"shieldParry"));Equal(0x2413003Cu,BitConverter.ToUInt32(s.EditedBytes(EditSession.Rules,2)));
+            Throws<EditException>(()=>s.Apply(EditSession.Rules,2,new Dictionary<string,int>{["battleExperience"]=101}));
+            var back=EditSession.FromJson(disc,s.ToJson());Equal(60,back.Value(EditSession.Rules,2,"battleExperience"));
+            s.Undo();Equal(0,s.Value(EditSession.Rules,2,"battleExperience"));
+            Throws<EditException>(()=>EditSession.FromJson(disc,back.ToJson().Replace("\"field\": \"shieldParry\"","\"field\": \"battleExperience\"")));
+        }
     });
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");

@@ -191,8 +191,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Rules = "rules";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Rules];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -232,8 +232,21 @@ public sealed class EditSession
             }),
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
             [Classes] = new(Classes, "class", ClassFields.Fields, disc.ClassBytes),
+            [Rules] = new(Rules, "rule", GameRules.All.Select(r => r.Field).ToList(), disc.RuleWords),
         };
     }
+
+    // Rule records hold one instruction word; their value is the rule's setting rather than a bit field.
+    private static int ReadValue(string table, int id, ReadOnlySpan<byte> bytes, TableField field) =>
+        table == Rules ? GameRules.ById(id).Decode(System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes)) ?? 0 : FieldCodec.Read(bytes, field);
+
+    private static void WriteValue(string table, int id, Span<byte> bytes, TableField field, int value)
+    {
+        if (table == Rules) System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes, GameRules.ById(id).Encode(value));
+        else FieldCodec.Write(bytes, field, value);
+    }
+
+    public bool IsRuleAvailable(int id) => disc.RuleWords.ContainsKey(id);
 
     public InspectionResult Disc => disc;
     public string? FilePath { get; private set; }
@@ -251,8 +264,8 @@ public sealed class EditSession
     /// <summary>The bytes a record starts from: the disc record, or the record it was copied from.</summary>
     private ReadOnlyMemory<byte> BaseRecord(string table, int id) => copies.TryGetValue((table, id), out int from) ? Record(table, from) : Record(table, id);
 
-    public int OriginalValue(string table, int id, string field) => FieldCodec.Read(Record(table, id).Span, Table(table).Field(field));
-    private int BaseValue(string table, int id, string field) => FieldCodec.Read(BaseRecord(table, id).Span, Table(table).Field(field));
+    public int OriginalValue(string table, int id, string field) => ReadValue(table, id, Record(table, id).Span, Table(table).Field(field));
+    private int BaseValue(string table, int id, string field) => ReadValue(table, id, BaseRecord(table, id).Span, Table(table).Field(field));
     public int Value(string table, int id, string field) => values.TryGetValue((table, id, field), out int v) ? v : BaseValue(table, id, field);
     public bool IsEdited(string table, int id) => values.Keys.Any(k => k.Table == table && k.Id == id) || copies.ContainsKey((table, id)) || names.ContainsKey((table, id));
     public int? CopiedFrom(string table, int id) => copies.TryGetValue((table, id), out int from) ? from : null;
@@ -263,7 +276,7 @@ public sealed class EditSession
         var bytes = BaseRecord(table, id).ToArray();
         var t = Table(table);
         foreach (var ((tableName, recordId, field), value) in values)
-            if (tableName == table && recordId == id) FieldCodec.Write(bytes, t.Field(field), value);
+            if (tableName == table && recordId == id) WriteValue(table, id, bytes, t.Field(field), value);
         return bytes;
     }
 
@@ -443,6 +456,7 @@ public sealed class EditSession
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
         Characters or Growths => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
+        Rules => GameRules.All.FirstOrDefault(r => r.Id == id)?.Name,
         _ => null,
     };
 
@@ -505,6 +519,7 @@ public sealed class EditSession
             var table = session.Table(change.Table ?? "");
             if (!table.Records.ContainsKey(change.Id)) throw new EditException($"This project changes {table.Noun} 0x{change.Id:X3}, which is not on this disc.");
             var field = table.Field(change.Field);
+            if (change.Table == Rules && GameRules.ById(change.Id).Key != change.Field) throw new EditException("This project contains a rule change this version cannot open.");
             if (!seen.Add((change.Table!, change.Id, change.Field))) throw new EditException("This project lists the same change twice.");
             if (session.OriginalValue(change.Table!, change.Id, change.Field) != change.Original)
                 throw new EditException($"The disc does not match this project: {field.Label} of {table.Noun} 0x{change.Id:X3} differs from what the project expects.");

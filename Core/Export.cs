@@ -10,25 +10,29 @@ public static class Exporter
     private const int BufferSize = 4 * 1024 * 1024;
     private const long SpaceMargin = 64L * 1024 * 1024;
 
-    /// <summary>Positions of a record inside DATA3.DAT, one for each copy of its table.</summary>
-    public static long[] RecordLocations(InspectionResult disc, string table, int id)
+    /// <summary>Where a record lives on the disc: the file that holds it and its offset inside that file, once for each copy.</summary>
+    public static IReadOnlyList<(IsoEntry File, long Offset)> RecordLocations(InspectionResult disc, string table, int id)
     {
         if (disc.Profile is not { } p) throw new EditException("Only a verified disc can be exported.");
-        return table switch
+        var data = disc.Files.Single(e => e.Name.Equals("DATA3.DAT", StringComparison.OrdinalIgnoreCase));
+        long[] inData = table switch
         {
             EditSession.Items => [p.ItemTable + (id - 1) * 56L, p.SecondItemTable + (id - 1) * 56L],
             EditSession.Characters => disc.CharacterOffsets.TryGetValue(id, out int offset)
                 ? [p.UnitTable + offset, p.SecondUnitTable + offset] : throw new EditException($"Character 0x{id:X3} is not on this disc."),
             EditSession.Growths => [p.GrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength, p.SecondGrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength],
             EditSession.Classes => [p.ClassTable + (id - 1) * (long)ClassDecoder.RecordLength, p.SecondClassTable + (id - 1) * (long)ClassDecoder.RecordLength],
+            EditSession.Rules => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
+        if (table == EditSession.Rules)
+            return [(disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc."), GameRules.ById(id).FileOffset)];
+        return inData.Select(o => (data, o)).ToList();
     }
 
     /// <summary>Byte patches for every edited record: only the bytes that differ, written to both copies of each table.</summary>
     public static IReadOnlyList<DiscPatch> PatchesFor(EditSession session, InspectionResult disc)
     {
-        var data = disc.Files.Single(e => e.Name.Equals("DATA3.DAT", StringComparison.OrdinalIgnoreCase));
         var patches = new List<DiscPatch>();
         foreach (var (table, id) in session.EditedRecords)
         {
@@ -42,10 +46,10 @@ public static class Exporter
                 while (i < edited.Length && edited[i] != original[i]) i++;
                 runs.Add((start, i - start));
             }
-            foreach (long location in RecordLocations(disc, table, id))
+            foreach (var (file, location) in RecordLocations(disc, table, id))
             {
-                if (location < 0 || location + edited.Length > data.Length) throw new InvalidDataException("The game tables are incomplete.");
-                foreach (var (start, length) in runs) patches.Add(new(data.Offset + location + start, edited.AsSpan(start, length).ToArray()));
+                if (location < 0 || location + edited.Length > file.Length) throw new InvalidDataException("The game data is incomplete.");
+                foreach (var (start, length) in runs) patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray()));
             }
         }
         return patches.AsReadOnly();
