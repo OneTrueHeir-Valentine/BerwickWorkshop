@@ -52,7 +52,8 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 ### Stat caps (static map plus one live test, 2026-11-12)
 - The attribute add routine at `0x00174A90` uses a 15-entry jump table at `0x004A4060` (same in both editions). The unit record in memory has the disc starting-record layout without its 4-byte tag, and the cases map to: HP bonus (cap 50), Strength, Agility, Defense and Mind bonuses (cap 15 each), Luck (cap 20), level (cap 30), and experience (cap 199, 100 at level 29, 0 at level 30). Five indexes are not identified.
 - Live units in memory (English v2.3, first chapter): a starting copy from `0x01E13C8C` (stride 0x234) and the current army from `0x01E17F9C`; all decoded fields match the game.
-- Live test: with all six stat caps in this routine set to 0, a level up still raised Strength. So level-up gains do not use these caps; this routine likely covers other gains such as stat-boost items. Not offered as rules yet.
+- Live test 1: with all six stat caps in this routine set to 0, a level up still raised Strength.
+- The add-and-store routine `0x00174550` (table `0x004A4020`, writers in `0x004A3FE0`) holds a second copy of the same limits and is the one level ups call. Live test 2: with both copies at 0, a level up raised nothing. Both copies together are the stat limits; offered as rules in v0.11.0.
 - Next leads: two sibling 15-entry tables at `0x004A3FE0` and `0x004A4020` with a routine at `0x00174550` that writes the stat bytes (likely get and set attribute), and the level-up code after `0x002245A0`.
 
 ### Editors

@@ -238,7 +238,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Shield block",parry.Name);
+    Equal("Shield block",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
     var exp=GameRules.ById(2);Equal(0x0040982Du,exp.Original[0]);Equal(0x24130064u,exp.Encode(100)[0]);Equal<int?>(null,exp.Decode(new[]{0x24130065u}));
     Equal(0x1275ECL,parry.Sites[0].FileOffset);
     var str=GameRules.ById(4);Equal("2411000F,2412000F",string.Join(",",str.Original.Select(x=>x.ToString("X8"))));

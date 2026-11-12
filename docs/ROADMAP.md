@@ -116,10 +116,10 @@ Stage A, reuse free slots (lowest risk):
 - Names for anything new depend on M5.
 Stage B, grow tables beyond their fixed size: the bytes after the last item record belong to another table, so growing a table means moving it to free space and changing every place the program finds it. Research the program's table loading first; this is the highest risk feature and comes last.
 
-### Stat limits (in progress)
+### Stat limits (done in v0.11.0)
 - The limits exist twice: in the routine that measures a gain (`0x00174A90`, table `0x004A4060`) and in the routine that adds and stores it (`0x00174550`, table `0x004A4020`; the store itself goes through the field writers in table `0x004A3FE0`). Level ups call the add-and-store routine nine times and the measuring routine only for experience.
-- Live test 1: zeroing the measuring copy did not stop a level-up Strength gain. Live test 2 (zero the add-and-store copy too) is the confirmation still needed.
-- Rules are defined and tested in code (HP bonus 0 to 127, default 50; Strength, Agility, Defense, Mind bonus 0 to 15, default 15; Luck 0 to 31, default 20), each changing both copies, but hidden from the Rules page until live test 2 passes. Level limit (30) needs three linked constants and its own test.
+- Live test 1: zeroing the measuring copy did not stop a level-up Strength gain. Live test 2: zeroing both copies stopped every stat gain on Reese's level up (level 2 to 3, all stats unchanged). Confirmed.
+- Rules on the Rules page since v0.11.0: HP bonus limit 0 to 127 (default 50); Strength, Agility, Defense and Mind bonus limits 0 to 15 (default 15, the field maximum); Luck limit 0 to 31 (default 20). Each changes both copies. Level limit (30) needs three linked constants and its own test.
 
 ### Mechanics reference (started in v0.10.0)
 The Mechanics page lists each known formula with an explanation, its verification status (published, found in the program, confirmed in game) and links to what can be changed today. Every new rule or decoded field should update `Core/Mechanics.cs`. A formula only becomes editable once its code is located and confirmed; until then the page says so.
@@ -146,7 +146,7 @@ Design goal: evaluate a rule change before playing it. Results must say whether 
 | Class growth data unverified | Incomplete class progression editing | High |
 | New item slots lack verified map references | A free slot might be used by chapter data | High |
 | Item and class text editing unfinished | New content shows the slot's old name | High (M5) |
-| Level-up limits not yet confirmed in game | Stat limit rules incomplete | High (test 2 above) |
+| Level-up limits confirmed in game (v0.11.0) | Stat limit rules now offered | Done |
 | Only first-battle export testing | Full campaign behaviour untested | High: plan a longer playtest with a project of mixed edits |
 | Independent code review outstanding | Data safety needs a second check | High |
 

@@ -98,10 +98,11 @@ public static class Mechanics
             [new("Growth rates and bracket", Characters)], "The level-up routine is located in part; the bracket logic is not yet read."),
         new("Growth", "Empty level ups", "If no stat rises, the game re-rolls for a weapon level; if every weapon level is capped, Luck rises by 1",
             "This keeps level ups from being wasted.", MechanicStatus.Published, Wiki, [], "Not located in the game program yet."),
-        new("Growth", "Stat bonus limits", "HP bonus up to 50; Strength, Agility, Defense and Mind bonuses up to 15; Luck up to 20; level up to 30",
-            "Bonuses are what a character has above the class base. The limits are written twice in the program, once in the routine that measures a gain and once in the routine that stores it; level ups use the second.",
-            MechanicStatus.Located, "Program reading; the measuring copy was tested in game",
-            [new("Limit rules (after testing)", Rules)], "Being confirmed in game before being offered as rules."),
+        new("Growth", "Stat bonus limits", "HP bonus up to 50; Strength, Agility, Defense and Mind bonuses up to 15; Luck up to 20",
+            "Bonuses are what a character has above the class base. Each limit is written twice in the program, once where a gain is measured and once where it is stored; level ups use the second, and the limit rules change both. Strength, Agility, Defense and Mind cannot go above 15 because the game stores them in a small field.",
+            MechanicStatus.Confirmed, "Program reading, checked in game",
+            [new("HP bonus limit", Rules, 3), new("Strength bonus limit", Rules, 4), new("Agility bonus limit", Rules, 5),
+             new("Luck limit", Rules, 6), new("Defense bonus limit", Rules, 7), new("Mind bonus limit", Rules, 8)]),
 
         // Experience
         new("Experience", "Experience from a defeat", "Enemy class experience value + a modifier",

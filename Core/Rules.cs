@@ -93,7 +93,7 @@ public static class GameRules
 
     private static GameRule Limit(int id, string key, string name, string description, int max, int normal, uint addAddress, uint storeAddress) =>
         new(id, key, name, description, RuleKind.Limit, 0, max, normal, null,
-            [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: false);
+            [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: true);
 
     public static IReadOnlyList<GameRule> All { get; } = Array.AsReadOnly(new[]
     {
