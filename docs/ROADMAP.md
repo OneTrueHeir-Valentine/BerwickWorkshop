@@ -12,7 +12,7 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | done: edit in project (v0.4.0), export to disc (v0.5.0) |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
 | FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read (v0.2.0); edit level, bonuses, growths, weapon levels and growth (v0.6.0); skills, starting items, bracket (v0.7.0); supports not yet |
-| FEBuilder: game rule patches | Formulas, level-up rules, brackets as named rules written into the program | M6 | research plan written |
+| FEBuilder: game rule patches | Formulas, level-up rules, brackets as named rules written into the program | M6 | first two rules done and confirmed in game (v0.9.0) |
 | FEBuilder: table expansion | New items, classes and units, first by reusing free slots, later by growing tables | M7 | new items in free slots done (v0.8.0); classes and units not yet |
 | FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read (v0.3.0); edit bases, move, experience, caps (v0.6.0), class skills (v0.7.0); class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
@@ -96,11 +96,9 @@ Needed before data expansion is useful: a new item or class has no name in game 
 ### M6 Game rules (formulas, level ups, brackets)
 Status: the 2005 Japanese codes are decrypted and the locations they patch are identical in both executables (see `RESEARCH.md`). Two are confirmed in a running game: the shield parry roll (`0x002274EC`) and the experience gain step (`0x00224580`). Also located, not yet confirmed: the random range function, the percent roll, the attribute add and cap routine (hard-coded stat and experience caps) and one unidentified rate formula.
 
-First rules to offer, in this order:
-1. Shield parry: Normal, Always (never take the failed-roll branch: `bne zero, zero`), Never (always take it: unconditional branch). One instruction, both editions.
-2. Experience after a fight: Normal, or a fixed amount 1 to 100 (`addiu s3, zero, N` at `0x00224580`). A multiplier needs a few extra instructions, so it waits until free space inside the executable is found (the 2005 code used RAM below the executable, which an exported disc cannot use).
-3. Stat and experience caps in the attribute add routine, once each attribute index is mapped to a stat live.
-Export: patch `SLPS_254.97` inside the copied ISO at (executable's file offset in the ISO) + (program address minus 0xFFF00), reusing the verified export path, and refuse to write a rule unless the original instruction is present. Tests: original words on both editions, only the intended words change, and reopening shows the rule state.
+Done in v0.9.0 (`Core/Rules.cs`, Rules page): shield parry (Normal, Always via `bne zero, zero`, Never via an unconditional branch) and experience after a fight (Normal, or fixed 1 to 100 via `addiu s3, zero, N`). Rules are a fifth editable table (`rules`; record = the 4-byte instruction; setting decoded from the word). A rule is offered only if the disc's word is one the rule recognises, so other mods' code is left alone. Export patches `SLPS_254.97` inside the copied ISO (`Exporter.RecordLocations` now returns file plus offset). Recognition of modified discs hashes the executable with every recognised rule site reset to the original, so ruled exports still open as "Modified <edition>".
+Confirmed in game: an exported English disc with Rapier might 7 to 20, parry Always and experience 50 was booted in PCSX2 2.9.78 by the user; all three changes showed in the first battle. This is also the first in-game confirmation of an exported data table edit.
+Next rules: stat and experience caps in the attribute add routine (map each attribute index to a stat live first); an experience multiplier (needs a few free instruction words inside the executable; the 2005 code used RAM below it, which an exported disc cannot use).
 The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
 - Avoid = Attack Speed x 2 (+ terrain, x 2 terrain at range 2+); Attack Speed = Speed minus (weapon weight + shield weight minus Strength / 2).
 - Accuracy = weapon precision x 10 + weapon skill + bonuses.
