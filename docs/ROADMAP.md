@@ -13,7 +13,7 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
 | FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read (v0.2.0); edit level, bonuses, growths, weapon levels and growth (v0.6.0); skills, starting items, bracket (v0.7.0); supports not yet |
 | FEBuilder: game rule patches | Formulas, level-up rules, brackets as named rules written into the program | M6 | research plan written |
-| FEBuilder: table expansion | New items, classes and units, first by reusing free slots, later by growing tables | M7 | research plan written; 156 free item slots found |
+| FEBuilder: table expansion | New items, classes and units, first by reusing free slots, later by growing tables | M7 | new items in free slots done (v0.8.0); classes and units not yet |
 | FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read (v0.3.0); edit bases, move, experience, caps (v0.6.0), class skills (v0.7.0); class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
@@ -88,12 +88,13 @@ Verified while building the Classes page (v0.3.0):
 ### M4b Skills, starting items, growth bracket (done in v0.7.0)
 - Personal skills (unit record byte 56) and class skills (class record byte 12) are editable as one flag per skill, using the same bit order the decoders verified against the wiki.
 - Starting items: slots 1 to 5 (unit record 0xBC + 8 per slot: item ID 16-bit, durability or uses 8-bit at +2 bit 4). The record has room for 8 slots, but only 5 are proven in use (Owen fills all 5); slots 6 to 8 stay locked until the game's inventory size is confirmed. Item IDs must exist in the item table.
-- Growth bracket: growth record byte 2 bits 5 to 6, values 1 to 3, named None, Loose, Tight after the earlier community editor. Every character has one (Daoud and Lynette are 1, the rest 2 or 3). No published source explains its effect; see M6.
+- Growth bracket: growth record byte 2 bits 5 to 6, values 1 to 3. A player write-up explains the system (stats stay within a band around start + growth x levels) and names Daoud and Lynette as the only uncorrected characters, which are exactly the two with value 1; Reese (value 2) has a weak ±3 correction. Labels: None, Loose (±3), Tight. See `RESEARCH.md`.
 
 ### M5 Text (names and descriptions)
 Needed before data expansion is useful: a new item or class has no name in game until its text entry can be written. Steps: locate the item, class, character and skill name tables and descriptions in the DATA files (TARC archives; see `..\berwick-redux2-r6\tools\extract_berwick_tarc_file_v2.py`) and the font encoding for each edition; read-only text browser; then editing with length limits; then export. Japanese and English text are different formats and must be handled separately.
 
 ### M6 Game rules (formulas, level ups, brackets)
+Best lead (see `RESEARCH.md`): working 2005 CodeBreaker codes for the Japanese release change experience gain, guarantee level ups, guarantee shield blocks and raise class skill activation. They are encrypted; decrypting them with a CodeBreaker v7 converter gives exact program addresses for that logic in the Japanese executable, which can then be matched to the English executable by surrounding instruction patterns.
 The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
 - Avoid = Attack Speed x 2 (+ terrain, x 2 terrain at range 2+); Attack Speed = Speed minus (weapon weight + shield weight minus Strength / 2).
 - Accuracy = weapon precision x 10 + weapon skill + bonuses.
@@ -105,7 +106,7 @@ Method, per edition: find candidate code by searching the executable for the con
 
 ### M7 Data expansion (new items, classes, units)
 Stage A, reuse free slots (lowest risk):
-- Items: 156 catalogue entries are unused placeholders (named DUMMY upstream; their records hold data, not zeros). "New item" would copy an existing item's fields into a free slot. Before offering a slot, confirm nothing in the game references it (shops, chests, drops, starting items).
+- Items (done in v0.8.0): New item copies the whole 56-byte record of an existing item (as edited in the project) into one of the 156 placeholder slots, gives it a project name, and then edits like any item. Free slots exclude any item a character starts with. Projects with new items save as format version 2 (`copies` and `names` lists), so older versions refuse them. Item Type is now editable. Still open: shops, chests and drops are not mapped, so a slot could be referenced by chapter data; the in-game name stays the slot's own until M5.
 - Classes: 27 class IDs inside the known range have no name in `classes.csv` and records after 0xF4 also hold data. They may be enemy or unused classes; confirm which are unused before offering them.
 - Units: a new recruitable unit also needs a chapter event to add it to the army, so this depends on chapter script research (M8+, maps and events). Reusing an existing but unused unit record is the likely first route.
 - Names for anything new depend on M5.

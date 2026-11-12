@@ -7,8 +7,10 @@ namespace Berwick.Core;
 public sealed record ItemRecord(int Id, string Name, int Might, int Accuracy, int Weight, int Price, int MinRange, int MaxRange, int Critical, int Uses, int Level, int Durability, int EffectValue, int EffectSelector, string Effects)
 {
     public int Type { get; init; }
-    public bool IsUnused => Name.StartsWith("DUMMY", StringComparison.OrdinalIgnoreCase);
-    public string DisplayName => IsUnused ? $"Unused item {Id:X3}" : Regex.Replace(Name, @"(?<=[a-z])(?=[A-Z])", " ").Replace("Thiefs", "Thief's").Replace("Assassins", "Assassin's");
+    /// <summary>A name given in a project, for items created in a free slot.</summary>
+    public string? CustomName { get; init; }
+    public bool IsUnused => CustomName is null && Name.StartsWith("DUMMY", StringComparison.OrdinalIgnoreCase);
+    public string DisplayName => CustomName ?? (IsUnused ? $"Unused item {Id:X3}" : Regex.Replace(Name, @"(?<=[a-z])(?=[A-Z])", " ").Replace("Thiefs", "Thief's").Replace("Assassins", "Assassin's"));
     public string IdText => $"0x{Id:X3}";
     public string Category => Type < ItemDecoder.Types.Length && Type >= 0 ? ItemDecoder.Types[Type] : "Other";
     public string Range => MinRange == MaxRange ? MinRange.ToString(CultureInfo.InvariantCulture) : $"{MinRange} to {MaxRange}";

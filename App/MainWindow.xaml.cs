@@ -199,12 +199,14 @@ public partial class MainWindow : Window
     {
         if(ItemGrid.SelectedItem is not ItemRow row){ClearItem();return;}
         var item=row.Item;ItemName.Text=item.DisplayName;ItemIdentity.Text=$"{item.IdText} · {item.Category}";
+        int? createdFrom=session?.CopiedFrom(EditSession.Items,item.Id);
+        if(createdFrom is int fromId) ItemIdentity.Text+=$" · New item based on {primary?.Items.FirstOrDefault(i=>i.Id==fromId)?.DisplayName??$"0x{fromId:X3}"}";
         if(editing?.Page==View.Items && editing.Id!=item.Id) EndEdit();
         UpdateEditButtons();
         DetailFields.Children.Clear();
         string Was(params string[] keys)
         {
-            if(session is null || !keys.Any(k=>session.Value(item.Id,k)!=session.OriginalValue(item.Id,k)))return "";
+            if(session is null || createdFrom is not null || !keys.Any(k=>session.Value(item.Id,k)!=session.OriginalValue(item.Id,k)))return "";
             int O(string k)=>session.OriginalValue(item.Id,k);
             return keys switch
             {
@@ -225,9 +227,17 @@ public partial class MainWindow : Window
         }
         if(session?.IsEdited(item.Id)==true)
         {
-            var revert=new Button {Content="Restore original values",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
-            revert.Click+=(_,_)=>{session.Revert(item.Id);RefreshDocument();Status.Text="Item restored. Save the project to keep this change.";};
-            DetailFields.Children.Add(revert);
+            var actions=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,4,0,0)};
+            if(createdFrom is not null)
+            {
+                var rename=new Button {Content="Rename",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0,0,6,0)};
+                rename.Click+=(_,_)=>RenameItem(item.Id,item.DisplayName);
+                actions.Children.Add(rename);
+            }
+            var revert=new Button {Content=createdFrom is null?"Restore original values":"Remove new item",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0)};
+            revert.Click+=(_,_)=>{session.Revert(item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
+            actions.Children.Add(revert);
+            DetailFields.Children.Add(actions);
         }
         ItemEffect.Text=item.EffectDescription;
         ItemComparisonText.Text=!row.HasComparison?"":row.Differences.Count==0?"This item's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
@@ -473,10 +483,82 @@ public partial class MainWindow : Window
     private sealed record EditSection(string Title,string Table,IReadOnlyList<TableField> Fields);
     private sealed record Choice(int Value,string Text);
     private List<Choice> ItemChoices() =>
-        [new(0,"Empty"),..(session?.Disc.Items??[]).OrderBy(i=>i.IsUnused).ThenBy(i=>i.DisplayName).Select(i=>new Choice(i.Id,$"{i.DisplayName} ({i.IdText})"))];
+        [new(0,"Empty"),..(session?.EditedItems()??[]).OrderBy(i=>i.IsUnused).ThenBy(i=>i.DisplayName).Select(i=>new Choice(i.Id,$"{i.DisplayName} ({i.IdText})"))];
+    private void NewItem(object sender,RoutedEventArgs e)
+    {
+        if(session is null || loading is not null || primary is null)return;
+        EndEdit();
+        var free=session.FreeItemSlots();
+        if(free.Count==0){Notify("There are no free item slots left on this disc.");return;}
+        var items=session.EditedItems();
+        var templates=items.Where(i=>!i.IsUnused).OrderBy(i=>i.DisplayName).Select(i=>new Choice(i.Id,$"{i.DisplayName} ({i.Category})")).ToList();
+        string SlotText(int id){var placeholder=primary.Items.First(i=>i.Id==id);return $"{placeholder.IdText} (among {placeholder.Category} items)";}
+        var slots=free.Select(id=>new Choice(id,SlotText(id))).ToList();
+
+        var dialog=new Window {Title="New item",Owner=this,Width=480,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,ShowInTaskbar=false};
+        var panel=new StackPanel {Margin=new Thickness(24)};
+        TextBlock Label(string text)=>new() {Text=text,Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)};
+        var name=new TextBox {Margin=new Thickness(0,0,0,14)};
+        var template=new ComboBox {ItemsSource=templates,DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,14)};
+        template.ItemsPanel=new ItemsPanelTemplate(new FrameworkElementFactory(typeof(VirtualizingStackPanel)));
+        var slot=new ComboBox {ItemsSource=slots,DisplayMemberPath="Text",SelectedValuePath="Value",Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,14)};
+        template.SelectionChanged+=(_,_)=>
+        {
+            if(template.SelectedValue is not int t)return;
+            int type=items.First(i=>i.Id==t).Type;
+            int match=free.FirstOrDefault(id=>primary.Items.First(i=>i.Id==id).Type==type);
+            slot.SelectedValue=match!=0?match:free[0];
+        };
+        int start=ItemGrid.SelectedItem is ItemRow selected && !selected.Item.IsUnused?selected.Item.Id:templates[0].Value;
+        template.SelectedValue=start;if(slot.SelectedValue is null)slot.SelectedValue=free[0];
+        var error=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,0,0,10)};
+        panel.Children.Add(Label("Name"));panel.Children.Add(name);
+        panel.Children.Add(Label("Start from"));panel.Children.Add(template);
+        panel.Children.Add(Label("Slot"));panel.Children.Add(slot);
+        panel.Children.Add(new TextBlock {Text="The new item starts as a full copy of the item you choose, then you can edit it like any other item. It uses one of the disc's unused item slots. Your name is used in Berwick Workshop and saved in the project; the game shows the slot's own name until text editing is available.",
+            TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=12,LineHeight=18,Margin=new Thickness(0,0,0,14)});
+        panel.Children.Add(error);
+        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var cancel=new Button {Content="Cancel",IsCancel=true,Margin=new Thickness(0,0,8,0)};
+        var create=new Button {Content="Create",IsDefault=true,Style=(Style)FindResource("PrimaryButton")};
+        create.Click+=(_,_)=>
+        {
+            try
+            {
+                if(template.SelectedValue is not int t || slot.SelectedValue is not int s){error.Text="Choose an item to start from and a slot.";return;}
+                session.CreateItem(s,t,name.Text);
+                dialog.DialogResult=true;
+            }
+            catch(EditException ex){error.Text=ex.Message;}
+        };
+        buttons.Children.Add(cancel);buttons.Children.Add(create);panel.Children.Add(buttons);
+        dialog.Content=panel;dialog.Loaded+=(_,_)=>name.Focus();
+        if(dialog.ShowDialog()!=true)return;
+        int createdSlot=(int)slot.SelectedValue;
+        Search.Clear();Category.SelectedIndex=0;
+        RefreshDocument();
+        ItemGrid.SelectedItem=rows.FirstOrDefault(r=>r.Item.Id==createdSlot);ItemGrid.ScrollIntoView(ItemGrid.SelectedItem);
+        Status.Text="New item created. Edit it, give it to a character, then save the project.";
+    }
+    private void RenameItem(int id,string current)
+    {
+        if(session is null)return;
+        var dialog=new Window {Title="Rename item",Owner=this,Width=420,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,ShowInTaskbar=false};
+        var panel=new StackPanel {Margin=new Thickness(24)};
+        var name=new TextBox {Text=current,Margin=new Thickness(0,4,0,10)};
+        var error=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,0,0,10)};
+        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var cancel=new Button {Content="Cancel",IsCancel=true,Margin=new Thickness(0,0,8,0)};
+        var ok=new Button {Content="Rename",IsDefault=true,Style=(Style)FindResource("PrimaryButton")};
+        ok.Click+=(_,_)=>{try{session.Rename(EditSession.Items,id,name.Text);dialog.DialogResult=true;}catch(EditException ex){error.Text=ex.Message;}};
+        buttons.Children.Add(cancel);buttons.Children.Add(ok);
+        panel.Children.Add(new TextBlock {Text="Name",Foreground=(Brush)FindResource("Muted"),FontSize=13});panel.Children.Add(name);panel.Children.Add(error);panel.Children.Add(buttons);
+        dialog.Content=panel;dialog.Loaded+=(_,_)=>{name.Focus();name.SelectAll();};
+        if(dialog.ShowDialog()==true){RefreshDocument();Status.Text="Item renamed. Save the project to keep this change.";}
+    }
     private string DescribeValue(TableField field,int value)
     {
-        if(field.ItemReference) return value==0?"Empty":session?.Disc.Items.FirstOrDefault(i=>i.Id==value)?.DisplayName??$"Item 0x{value:X3}";
+        if(field.ItemReference) return value==0?"Empty":session?.Disc.ItemBytes.ContainsKey(value)==true?session.EditedItem(value).DisplayName:$"Item 0x{value:X3}";
         if(field.IsFlag) return value!=0?"Added":"Removed";
         return FieldCodec.Format(field,value);
     }
@@ -623,6 +705,7 @@ public partial class MainWindow : Window
     {
         if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null)return;
         bool can=session is not null && editing is null;
+        NewItemButton.Visibility=session is not null?Visibility.Visible:Visibility.Collapsed;NewItemButton.IsEnabled=can && loading is null;
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
@@ -662,6 +745,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.S && session is not null){e.Handled=true;SaveProjectFile(shift);return;}
         if(!typing && (e.Key==Key.Y || (e.Key==Key.Z && shift))){e.Handled=true;RedoEdit(this,new());return;}
         if(!typing && e.Key==Key.Z){e.Handled=true;UndoEdit(this,new());return;}
+        if(e.Key==Key.N && session is not null && editing is null && view==View.Items){e.Handled=true;NewItem(this,new());return;}
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
@@ -687,12 +771,13 @@ public partial class MainWindow : Window
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
-            ("Growth bracket","Each character has a growth bracket of None, Loose or Tight, named as in earlier community tools. Its exact effect on level ups has not been measured yet, so change it with care."),
+            ("New items","New item turns one of the disc's unused item slots into a new item. It starts as a full copy of an item you choose, including properties not shown in the editor, and can then be edited and given to characters as a starting item. Your name for it is saved in the project; until text editing is added, the game shows the slot's own name. Remove new item frees the slot again."),
+            ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps stats within 3 of it; Tight keeps them closer; None lets them drift (only Daoud and Lynette use None). Loose and None are confirmed from published play notes; the exact range of Tight is not yet measured."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),
             ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of each changed table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
             ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),
             ("Keeping your files safe","Berwick Workshop never changes your ISO files, memory cards, save states, or emulator settings. No internet connection is used."),
-            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item, character or class. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
+            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item, character or class. Ctrl+N creates a new item. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
         {
             content.Children.Add(new TextBlock {Text=title,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,10,0,5)});
             content.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),LineHeight=21});

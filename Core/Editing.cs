@@ -73,6 +73,7 @@ public static class ItemEncoder
 {
     public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(new TableField[]
     {
+        new("type", "Type", 0, 0, 5, 0, 24) { Choices = ItemDecoder.Types },
         new("might", "Might", 0, 5, 6, 0, 63),
         new("accuracy", "Accuracy", 1, 7, 7, 0, 127),
         new("weight", "Weight", 2, 6, 5, 0, 31),
@@ -147,7 +148,7 @@ public static class CharacterFields
         new("defenseGrowth", "Defense growth", 1, 6, 7, 0, 127),
         new("agilityGrowth", "Agility growth", 4, 2, 7, 0, 127),
         new("mindGrowth", "Mind growth (stored value)", 5, 0, 7, 0, 127),
-        new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose", "Tight"] },
+        new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose (±3)", "Tight"] },
     }.Concat(CharacterDecoder.GrowthWeapons.Select((w, i) => new TableField(Key(w, "Growth"), w, 8 + i / 2, 4 * (i % 2), 4, 0, 15) { Display = 10, Group = "Weapon growth" })).ToArray());
 }
 
@@ -193,7 +194,13 @@ public sealed class EditSession
     public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes";
     private static readonly string[] TableOrder = [Items, Characters, Growths, Classes];
 
-    private sealed record Step(IReadOnlyList<(string Table, int Id, string Field, int Before, int After)> Edits);
+    /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
+    private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
+    {
+        public bool SameAs(RecordState other) => CopyFrom == other.CopyFrom && Name == other.Name
+            && Values.Count == other.Values.Count && Values.All(v => other.Values.TryGetValue(v.Key, out int o) && o == v.Value);
+    }
+    private sealed record Step(IReadOnlyList<(string Table, int Id, RecordState Before, RecordState After)> Records);
 
     private readonly InspectionResult disc;
     private readonly Dictionary<string, EditTable> tables;
@@ -201,6 +208,8 @@ public sealed class EditSession
     private readonly Dictionary<int, CharacterRecord> originalCharacters;
     private readonly Dictionary<int, ClassRecord> originalClasses;
     private readonly Dictionary<(string Table, int Id, string Field), int> values = [];
+    private readonly Dictionary<(string Table, int Id), int> copies = [];
+    private readonly Dictionary<(string Table, int Id), string> names = [];
     private readonly List<Step> steps = [];
     private int position, savedPosition;
 
@@ -231,7 +240,7 @@ public sealed class EditSession
     public bool IsDirty => position != savedPosition;
     public bool CanUndo => position > 0;
     public bool CanRedo => position < steps.Count;
-    public int ChangeCount => values.Count;
+    public int ChangeCount => values.Count + copies.Count + names.Count;
 
     public EditTable Table(string name) => tables.TryGetValue(name, out var t) ? t : throw new EditException("This project contains changes this version cannot open.");
 
@@ -239,13 +248,19 @@ public sealed class EditSession
         Table(table).Records.TryGetValue(id, out var bytes) ? bytes : throw new EditException($"{Capitalize(Table(table).Noun)} 0x{id:X3} is not on this disc.");
     private static string Capitalize(string s) => char.ToUpperInvariant(s[0]) + s[1..];
 
+    /// <summary>The bytes a record starts from: the disc record, or the record it was copied from.</summary>
+    private ReadOnlyMemory<byte> BaseRecord(string table, int id) => copies.TryGetValue((table, id), out int from) ? Record(table, from) : Record(table, id);
+
     public int OriginalValue(string table, int id, string field) => FieldCodec.Read(Record(table, id).Span, Table(table).Field(field));
-    public int Value(string table, int id, string field) => values.TryGetValue((table, id, field), out int v) ? v : OriginalValue(table, id, field);
-    public bool IsEdited(string table, int id) => values.Keys.Any(k => k.Table == table && k.Id == id);
+    private int BaseValue(string table, int id, string field) => FieldCodec.Read(BaseRecord(table, id).Span, Table(table).Field(field));
+    public int Value(string table, int id, string field) => values.TryGetValue((table, id, field), out int v) ? v : BaseValue(table, id, field);
+    public bool IsEdited(string table, int id) => values.Keys.Any(k => k.Table == table && k.Id == id) || copies.ContainsKey((table, id)) || names.ContainsKey((table, id));
+    public int? CopiedFrom(string table, int id) => copies.TryGetValue((table, id), out int from) ? from : null;
+    public string? CustomName(string table, int id) => names.TryGetValue((table, id), out var name) ? name : null;
 
     public byte[] EditedBytes(string table, int id)
     {
-        var bytes = Record(table, id).ToArray();
+        var bytes = BaseRecord(table, id).ToArray();
         var t = Table(table);
         foreach (var ((tableName, recordId, field), value) in values)
             if (tableName == table && recordId == id) FieldCodec.Write(bytes, t.Field(field), value);
@@ -253,12 +268,13 @@ public sealed class EditSession
     }
 
     public IReadOnlyList<(string Table, int Id)> EditedRecords =>
-        values.Keys.Select(k => (k.Table, k.Id)).Distinct().OrderBy(k => Array.IndexOf(TableOrder, k.Table)).ThenBy(k => k.Id).ToList();
+        values.Keys.Select(k => (k.Table, k.Id)).Concat(copies.Keys).Concat(names.Keys).Distinct()
+              .OrderBy(k => Array.IndexOf(TableOrder, k.Item1)).ThenBy(k => k.Item2).ToList();
 
     public IReadOnlyList<FieldChange> Changes =>
         values.OrderBy(v => Array.IndexOf(TableOrder, v.Key.Table)).ThenBy(v => v.Key.Id)
               .ThenBy(v => Table(v.Key.Table).Fields.ToList().FindIndex(f => f.Key == v.Key.Field))
-              .Select(v => new FieldChange(v.Key.Table, v.Key.Id, v.Key.Field, OriginalValue(v.Key.Table, v.Key.Id, v.Key.Field), v.Value)).ToList();
+              .Select(v => new FieldChange(v.Key.Table, v.Key.Id, v.Key.Field, BaseValue(v.Key.Table, v.Key.Id, v.Key.Field), v.Value)).ToList();
 
     // Item shortcuts kept for the item pages and existing callers.
     public int OriginalValue(int id, string field) => OriginalValue(Items, id, field);
@@ -271,7 +287,9 @@ public sealed class EditSession
     public ItemRecord EditedItem(int id)
     {
         var original = originalItems[id];
-        return IsEdited(Items, id) ? ItemDecoder.Decode(id, original.Name, EditedBytes(Items, id)) : original;
+        if (!IsEdited(Items, id)) return original;
+        var decoded = ItemDecoder.Decode(id, original.Name, EditedBytes(Items, id));
+        return CustomName(Items, id) is { } name ? decoded with { CustomName = name } : decoded;
     }
     public IReadOnlyList<ItemRecord> EditedItems() => disc.Items.Select(i => EditedItem(i.Id)).ToList();
 
@@ -279,8 +297,8 @@ public sealed class EditSession
     {
         var original = originalCharacters[id];
         if (!IsEdited(Characters, id) && !IsEdited(Growths, id)) return original;
-        var names = disc.Items.ToDictionary(i => i.Id, i => i.DisplayName);
-        var decoded = CharacterDecoder.Decode(new(id, original.Name, 0), EditedBytes(Characters, id), EditedBytes(Growths, id), names);
+        var itemNames = EditedItems().ToDictionary(i => i.Id, i => i.DisplayName);
+        var decoded = CharacterDecoder.Decode(new(id, original.Name, 0), EditedBytes(Characters, id), EditedBytes(Growths, id), itemNames);
         return decoded with { ClassName = original.ClassName };
     }
     public IReadOnlyList<CharacterRecord> EditedCharacters() => disc.Characters.Select(c => EditedCharacter(c.Id)).ToList();
@@ -291,6 +309,43 @@ public sealed class EditSession
         return IsEdited(Classes, id) ? ClassDecoder.Decode(id, original.Name, EditedBytes(Classes, id)) : original;
     }
     public IReadOnlyList<ClassRecord> EditedClasses() => disc.Classes.Select(c => EditedClass(c.Id)).ToList();
+
+    // State capture for undo
+
+    private RecordState Capture(string table, int id) => new(
+        values.Where(v => v.Key.Table == table && v.Key.Id == id).ToDictionary(v => v.Key.Field, v => v.Value),
+        CopiedFrom(table, id), CustomName(table, id));
+
+    private void Restore(string table, int id, RecordState state)
+    {
+        foreach (var key in values.Keys.Where(k => k.Table == table && k.Id == id).ToList()) values.Remove(key);
+        if (state.CopyFrom is int from) copies[(table, id)] = from; else copies.Remove((table, id));
+        if (state.Name is { } name) names[(table, id)] = name; else names.Remove((table, id));
+        foreach (var (field, value) in state.Values) values[(table, id, field)] = value;
+    }
+
+    private void Set(string table, int id, string field, int value)
+    {
+        if (value == BaseValue(table, id, field)) values.Remove((table, id, field));
+        else values[(table, id, field)] = value;
+    }
+
+    /// <summary>Runs a change against the session, records it as one undo step, and returns false when nothing changed.</summary>
+    private bool Record(IEnumerable<(string Table, int Id)> records, Action change)
+    {
+        var touched = records.Distinct().ToList();
+        var before = touched.Select(r => Capture(r.Table, r.Id)).ToList();
+        try { change(); }
+        catch { for (int i = 0; i < touched.Count; i++) Restore(touched[i].Table, touched[i].Id, before[i]); throw; }
+        var entries = touched.Select((r, i) => (r.Table, r.Id, Before: before[i], After: Capture(r.Table, r.Id)))
+                             .Where(e => !e.Before.SameAs(e.After)).ToList();
+        if (entries.Count == 0) return false;
+        steps.RemoveRange(position, steps.Count - position);
+        if (savedPosition > position) savedPosition = -1;
+        steps.Add(new Step(entries));
+        position++;
+        return true;
+    }
 
     public bool Apply(string table, int id, IReadOnlyDictionary<string, int> newValues) =>
         Apply(newValues.Select(v => new FieldEdit(table, id, v.Key, v.Value)).ToList());
@@ -313,56 +368,77 @@ public sealed class EditSession
             string problem = t.Validate(merged);
             if (problem.Length > 0) throw new EditException(problem);
         }
-        var changes = edits.Where(e => Value(e.Table, e.Id, e.Field) != e.Value)
-                           .Select(e => (e.Table, e.Id, e.Field, Value(e.Table, e.Id, e.Field), e.Value)).ToList();
-        if (changes.Count == 0) return false;
-        steps.RemoveRange(position, steps.Count - position);
-        if (savedPosition > position) savedPosition = -1;
-        steps.Add(new Step(changes));
-        Redo();
-        return true;
+        return Record(edits.Select(e => (e.Table, e.Id)), () => { foreach (var e in edits) Set(e.Table, e.Id, e.Field, e.Value); });
     }
 
     public void Undo()
     {
         if (!CanUndo) return;
         position--;
-        foreach (var e in steps[position].Edits) Set(e.Table, e.Id, e.Field, e.Before);
+        foreach (var r in steps[position].Records) Restore(r.Table, r.Id, r.Before);
     }
 
     public void Redo()
     {
         if (!CanRedo) return;
-        foreach (var e in steps[position].Edits) Set(e.Table, e.Id, e.Field, e.After);
+        foreach (var r in steps[position].Records) Restore(r.Table, r.Id, r.After);
         position++;
     }
 
-    /// <summary>Restores every field of the given records to the disc values, as one undoable step.</summary>
-    public void Revert(params (string Table, int Id)[] records)
-    {
-        var edits = values.Keys.Where(k => records.Contains((k.Table, k.Id)))
-                          .Select(k => new FieldEdit(k.Table, k.Id, k.Field, OriginalValue(k.Table, k.Id, k.Field))).ToList();
-        if (edits.Count > 0) Apply(edits);
-    }
+    /// <summary>Puts records back the way the disc has them (fields, copies and names), as one undoable step.</summary>
+    public void Revert(params (string Table, int Id)[] records) =>
+        Record(records, () =>
+        {
+            foreach (var (table, id) in records)
+                Restore(table, id, new RecordState(new Dictionary<string, int>(), null, null));
+        });
     public void Revert(string table, int id) => Revert((table, id));
 
-    private void Set(string table, int id, string field, int value)
+    // New items
+
+    /// <summary>Placeholder item slots that no character starts with and that this project has not already used.</summary>
+    public IReadOnlyList<int> FreeItemSlots()
     {
-        if (value == OriginalValue(table, id, field)) values.Remove((table, id, field));
-        else values[(table, id, field)] = value;
+        var carried = new HashSet<int>(EditedCharacters().SelectMany(c => c.Items).Select(i => i.ItemId));
+        return disc.Items.Where(i => i.IsUnused && !IsEdited(Items, i.Id) && !carried.Contains(i.Id)).Select(i => i.Id).ToList();
+    }
+
+    /// <summary>Turns a free slot into a new item: a full copy of another item's record plus a name, as one undoable step.</summary>
+    public void CreateItem(int slot, int template, string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) throw new EditException("Give the new item a name.");
+        if (name.Length > 40) throw new EditException("Item names can be at most 40 characters.");
+        if (!FreeItemSlots().Contains(slot)) throw new EditException($"Slot 0x{slot:X3} is not a free item slot.");
+        if (!originalItems.ContainsKey(template) || EditedItem(template).IsUnused) throw new EditException("Choose an existing item to start from.");
+        // Copy the template as it currently stands in this project, including its own edits.
+        var source = Capture(Items, template);
+        Record([(Items, slot)], () => Restore(Items, slot, new RecordState(new Dictionary<string, int>(source.Values), source.CopyFrom ?? template, name)));
+    }
+
+    public void Rename(string table, int id, string name)
+    {
+        name = name.Trim();
+        if (name.Length == 0) throw new EditException("Names cannot be empty.");
+        if (name.Length > 40) throw new EditException("Names can be at most 40 characters.");
+        _ = Record(table, id);
+        Record([(table, id)], () => names[(table, id)] = name);
     }
 
     // Project files
 
     private const string FormatName = "Berwick Workshop project";
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
     private const long MaxProjectSize = 4 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     private sealed record ProjectChange(string Table, int Id, string? Name, string Field, int Original, int Value);
-    private sealed record ProjectFile(string Format, int FormatVersion, string Edition, string EditionSha256, string? AppVersion, IReadOnlyList<ProjectChange> Changes);
+    private sealed record ProjectCopy(string Table, int Id, int From);
+    private sealed record ProjectName(string Table, int Id, string Name);
+    private sealed record ProjectFile(string Format, int FormatVersion, string Edition, string EditionSha256, string? AppVersion,
+        IReadOnlyList<ProjectChange> Changes, IReadOnlyList<ProjectCopy>? Copies = null, IReadOnlyList<ProjectName>? Names = null);
 
-    private string? RecordName(string table, int id) => table switch
+    private string? RecordName(string table, int id) => CustomName(table, id) ?? table switch
     {
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
         Characters or Growths => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
@@ -370,8 +446,15 @@ public sealed class EditSession
         _ => null,
     };
 
-    public string ToJson(string? appVersion = null) => JsonSerializer.Serialize(new ProjectFile(FormatName, FormatVersion, disc.Edition, disc.Sha256, appVersion,
-        Changes.Select(c => new ProjectChange(c.Table, c.Id, RecordName(c.Table, c.Id), c.Field, c.Original, c.Value)).ToList()), Json);
+    public string ToJson(string? appVersion = null)
+    {
+        bool extended = copies.Count > 0 || names.Count > 0;
+        return JsonSerializer.Serialize(new ProjectFile(FormatName, extended ? FormatVersion : 1, disc.Edition, disc.Sha256, appVersion,
+            values.OrderBy(v => Array.IndexOf(TableOrder, v.Key.Table)).ThenBy(v => v.Key.Id)
+                  .Select(v => new ProjectChange(v.Key.Table, v.Key.Id, RecordName(v.Key.Table, v.Key.Id), v.Key.Field, OriginalValue(v.Key.Table, v.Key.Id, v.Key.Field), v.Value)).ToList(),
+            extended ? copies.OrderBy(c => c.Key.Id).Select(c => new ProjectCopy(c.Key.Table, c.Key.Id, c.Value)).ToList() : null,
+            extended ? names.OrderBy(n => n.Key.Id).Select(n => new ProjectName(n.Key.Table, n.Key.Id, n.Value)).ToList() : null), Json);
+    }
 
     public void Save(string path, string? appVersion = null)
     {
@@ -397,10 +480,25 @@ public sealed class EditSession
         try { file = JsonSerializer.Deserialize<ProjectFile>(json, Json); }
         catch (JsonException) { throw new EditException("This file is not a Berwick Workshop project."); }
         if (file is null || file.Format != FormatName || file.Changes is null) throw new EditException("This file is not a Berwick Workshop project.");
-        if (file.FormatVersion != FormatVersion) throw new EditException("This project was saved by a newer version of Berwick Workshop.");
+        if (file.FormatVersion < 1 || file.FormatVersion > FormatVersion) throw new EditException("This project was saved by a newer version of Berwick Workshop.");
         if (!string.Equals(file.EditionSha256, disc.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new EditException($"This project was made for the {file.Edition} disc. Open that disc first, then open the project.");
         var session = new EditSession(disc);
+        foreach (var copy in file.Copies ?? [])
+        {
+            var table = session.Table(copy.Table ?? "");
+            if (copy.Table != Items) throw new EditException("This project contains changes this version cannot open.");
+            if (!table.Records.ContainsKey(copy.Id) || !table.Records.ContainsKey(copy.From)) throw new EditException($"This project creates an item from a slot that is not on this disc.");
+            if (!session.originalItems[copy.Id].IsUnused) throw new EditException($"This project places a new item in slot 0x{copy.Id:X3}, which is already a real item on this disc.");
+            if (!session.copies.TryAdd((copy.Table!, copy.Id), copy.From)) throw new EditException("This project lists the same new item twice.");
+        }
+        foreach (var name in file.Names ?? [])
+        {
+            var table = session.Table(name.Table ?? "");
+            if (!table.Records.ContainsKey(name.Id)) throw new EditException($"This project names {table.Noun} 0x{name.Id:X3}, which is not on this disc.");
+            if (string.IsNullOrWhiteSpace(name.Name) || name.Name.Trim().Length > 40) throw new EditException("This project contains a name that is empty or too long.");
+            session.names[(name.Table!, name.Id)] = name.Name.Trim();
+        }
         var seen = new HashSet<(string, int, string)>();
         foreach (var change in file.Changes)
         {
