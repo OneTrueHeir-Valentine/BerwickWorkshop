@@ -11,8 +11,10 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: verify game dump, detect version | Exact SHA-256 + ELF CRC profiles for JP and EN | M0 | done |
 | FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | done: edit in project (v0.4.0), export to disc (v0.5.0) |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
-| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read (v0.2.0); edit level, bonuses, growths, weapon levels and growth (v0.6.0); starting items, skills, supports not yet |
-| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read (v0.3.0); edit bases, move, experience, caps (v0.6.0); class skills editable later; class growths and attributes still research |
+| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read (v0.2.0); edit level, bonuses, growths, weapon levels and growth (v0.6.0); skills, starting items, bracket (v0.7.0); supports not yet |
+| FEBuilder: game rule patches | Formulas, level-up rules, brackets as named rules written into the program | M6 | research plan written |
+| FEBuilder: table expansion | New items, classes and units, first by reusing free slots, later by growing tables | M7 | research plan written; 156 free item slots found |
+| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read (v0.3.0); edit bases, move, experience, caps (v0.6.0), class skills (v0.7.0); class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
 | ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | done (v0.5.0) |
@@ -23,14 +25,14 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: export to emulator folder, backups | Export into a chosen folder, keep previous exports in a backups folder | M3 | planned |
 | ReWeaver: first-time setup | Setup: locate ISOs, PCSX2 folder, memory cards, export folder | M3 | planned |
 | FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT) | M5 | research (`extract_berwick_tarc_file_v2.py`) |
-| FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M6 | research |
-| FEBuilder: map editor, event editor | Chapter maps, unit placement, events | M7 | research |
-| FEBuilder: emulator RAM link | PCSX2 PINE live viewer (read-only first), launch PCSX2 with export | M8 | research (`pine_*.py`) |
-| FEBuilder: patch manager | PNACH patch manager with per-CRC files, community data packs (Redux safe core) | M8 / M10 | planned |
-| ReWeaver: save data editor with auto backup | Memory card (.ps2) browser, then save editing with automatic backups | M9 | research (no saves yet) |
-| FEBuilder: song insertion | Audio browse/replace | M11 | research |
+| FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M8+ | research |
+| FEBuilder: map editor, event editor | Chapter maps, unit placement, events | M8+ | research |
+| FEBuilder: emulator RAM link | PCSX2 PINE live viewer (read-only first), launch PCSX2 with export | M8+ | research (`pine_*.py`) |
+| FEBuilder: patch manager | PNACH patch manager with per-CRC files, community data packs (Redux safe core) | M6 / M8+ | planned |
+| ReWeaver: save data editor with auto backup | Memory card (.ps2) browser, then save editing with automatic backups | M8+ | research (no saves yet) |
+| FEBuilder: song insertion | Audio browse/replace | M8+ | research |
 | FEBuilder: report/log tool | Log folder and "copy diagnostics" button | M3 | planned |
-| Berwick specific | Food table, Pavilion diner selection, hidden values (happiness, recruit progress) | M11 | research |
+| Berwick specific | Food table, Pavilion diner selection, hidden values (happiness, recruit progress) | M8+ | research |
 
 Excluded on purpose: online features, machine translation, telemetry, anything that changes the user's original ISOs.
 
@@ -83,8 +85,34 @@ Verified while building the Classes page (v0.3.0):
 - Verified: bit-isolation inverse tests for every field; field reads equal decoder output on random records; real export with item, character, growth and class edits reopens with exactly those values, everything else unchanged and both table copies still equal.
 - Not editable yet: starting items (needs an item picker), personal and class skills (bit sets, decoded and verified, so this is a good next step), learned skills (cause of community corruption reports still unknown), class growths and attributes (unverified), character class (risky: mounted forms, sprites).
 
-### M5 to M11
-Text, graphics, maps and events, PCSX2 link and PNACH, saves, patch packs, audio and Berwick specific systems. Each starts with a read-only viewer and a round-trip test before any writes.
+### M4b Skills, starting items, growth bracket (done in v0.7.0)
+- Personal skills (unit record byte 56) and class skills (class record byte 12) are editable as one flag per skill, using the same bit order the decoders verified against the wiki.
+- Starting items: slots 1 to 5 (unit record 0xBC + 8 per slot: item ID 16-bit, durability or uses 8-bit at +2 bit 4). The record has room for 8 slots, but only 5 are proven in use (Owen fills all 5); slots 6 to 8 stay locked until the game's inventory size is confirmed. Item IDs must exist in the item table.
+- Growth bracket: growth record byte 2 bits 5 to 6, values 1 to 3, named None, Loose, Tight after the earlier community editor. Every character has one (Daoud and Lynette are 1, the rest 2 or 3). No published source explains its effect; see M6.
+
+### M5 Text (names and descriptions)
+Needed before data expansion is useful: a new item or class has no name in game until its text entry can be written. Steps: locate the item, class, character and skill name tables and descriptions in the DATA files (TARC archives; see `..\berwick-redux2-r6\tools\extract_berwick_tarc_file_v2.py`) and the font encoding for each edition; read-only text browser; then editing with length limits; then export. Japanese and English text are different formats and must be handled separately.
+
+### M6 Game rules (formulas, level ups, brackets)
+The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
+- Avoid = Attack Speed x 2 (+ terrain, x 2 terrain at range 2+); Attack Speed = Speed minus (weapon weight + shield weight minus Strength / 2).
+- Accuracy = weapon precision x 10 + weapon skill + bonuses.
+- Critical rate = weapon critical + (weapon skill minus 50) + bonuses; critical damage = damage + random 10 to 20.
+- Equipment failure = 5% per weapon rank above the unit's level (7 with Advanced).
+- Injury base rates 9 (knives) and 3 (others); cripple thresholds 0.75, 0.50, 0.30.
+- Orb experience ranges per level band; empty level up gives +1 Luck.
+Method, per edition: find candidate code by searching the executable for the constants in context (for example `50` in a subtract near weapon skill, `x 2` shifts near speed), confirm each with a PCSX2 debugger breakpoint during a battle forecast, record the address and original instruction, then expose it as a named rule with safe limits. Export writes the changed instructions into the copied executable (same size, in place) and can also produce a PNACH file for testing without a new ISO. Growth brackets: measure with save states by levelling the same unit with each bracket value many times and comparing stat gains. Every rule needs an in-game check before it is offered.
+
+### M7 Data expansion (new items, classes, units)
+Stage A, reuse free slots (lowest risk):
+- Items: 156 catalogue entries are unused placeholders (named DUMMY upstream; their records hold data, not zeros). "New item" would copy an existing item's fields into a free slot. Before offering a slot, confirm nothing in the game references it (shops, chests, drops, starting items).
+- Classes: 27 class IDs inside the known range have no name in `classes.csv` and records after 0xF4 also hold data. They may be enemy or unused classes; confirm which are unused before offering them.
+- Units: a new recruitable unit also needs a chapter event to add it to the army, so this depends on chapter script research (M8+, maps and events). Reusing an existing but unused unit record is the likely first route.
+- Names for anything new depend on M5.
+Stage B, grow tables beyond their fixed size: the bytes after the last item record belong to another table, so growing a table means moving it to free space and changing every place the program finds it. Research the program's table loading first; this is the highest risk feature and comes last.
+
+### M8 and later
+PCSX2 link and PNACH, saves, patch packs, audio, maps and events, and Berwick specific systems (food, Pavilion). Each starts with a read-only viewer and a round-trip test before any writes.
 
 ## Rules that apply to every milestone
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.

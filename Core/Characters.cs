@@ -16,6 +16,8 @@ public sealed record CharacterRecord(
 {
     public string IdText => $"0x{Id:X3}";
     public int ClassId { get; init; }
+    public int Bracket { get; init; }
+    public string BracketText => Bracket switch { 1 => "None", 2 => "Loose", 3 => "Tight", _ => $"Unknown ({Bracket})" };
     public string ClassName { get; init; } = "";
     public static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString(CultureInfo.InvariantCulture);
     public static string WeaponLevel(int raw) => (raw / 10.0).ToString(raw % 10 == 0 ? "0" : "0.0", CultureInfo.InvariantCulture);
@@ -27,7 +29,7 @@ public sealed record CharacterRecord(
             ["Class"] = $"0x{ClassId:X2}", ["Level"] = Level.ToString(), ["HP bonus"] = Signed(HpBonus), ["Strength bonus"] = Signed(StrengthBonus),
             ["Defense bonus"] = Signed(DefenseBonus), ["Agility bonus"] = Signed(AgilityBonus), ["Mind bonus"] = Signed(MindBonus),
             ["HP growth"] = HpGrowth.ToString(), ["Strength growth"] = StrengthGrowth.ToString(), ["Defense growth"] = DefenseGrowth.ToString(),
-            ["Agility growth"] = AgilityGrowth.ToString(), ["Mind growth"] = MindGrowth.ToString(),
+            ["Agility growth"] = AgilityGrowth.ToString(), ["Mind growth"] = MindGrowth.ToString(), ["Growth bracket"] = BracketText,
             ["Skills"] = string.Join(", ", Skills),
             ["Learned skills"] = string.Join(", ", Learned.Select(l => $"{l.Skill} {l.Level}")),
             ["Starting items"] = string.Join(", ", Items.Select(i => $"{i.ItemId:X3}:{i.Durability}")),
@@ -114,7 +116,7 @@ public static class CharacterDecoder
         return new(entry.Id, entry.Name, B(record, 20, 0, 6),
             B(record, 22, 4, 7), Signed5(B(record, 23, 3, 5)), Signed5(B(record, 25, 2, 5)), Signed5(B(record, 24, 0, 5)), Signed5(B(record, 25, 7, 5)),
             B(growth, 0, 0, 7), B(growth, 0, 7, 7), B(growth, 1, 6, 7), B(growth, 4, 2, 7), B(growth, 5, 0, 7),
-            weaponGrowths.AsReadOnly(), weaponLevels.AsReadOnly(), skills.AsReadOnly(), learned.AsReadOnly(), items.AsReadOnly()) { ClassId = record[19] };
+            weaponGrowths.AsReadOnly(), weaponLevels.AsReadOnly(), skills.AsReadOnly(), learned.AsReadOnly(), items.AsReadOnly()) { ClassId = record[19], Bracket = (growth[2] >> 5) & 3 };
     }
 
     public static IReadOnlyList<CharacterEntry> LoadRoster()

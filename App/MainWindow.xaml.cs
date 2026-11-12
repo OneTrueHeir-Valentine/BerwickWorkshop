@@ -295,6 +295,7 @@ public partial class MainWindow : Window
         Section("Growth rates");
         foreach(var (label,value) in new[]{("HP",c.HpGrowth),("Strength",c.StrengthGrowth),("Defense",c.DefenseGrowth),("Agility",c.AgilityGrowth)}) Pair(label,$"{value}%");
         Pair("Mind (stored value)",c.MindGrowth.ToString());
+        Pair("Growth bracket",c.BracketText);
         if(c.WeaponGrowths.Count>0){Section("Weapon growth");foreach(var w in c.WeaponGrowths)Pair(w.Weapon,$"{w.Value}%");}
         if(c.WeaponLevels.Count>0){Section("Weapon levels");foreach(var w in c.WeaponLevels)Pair(w.Weapon,CharacterRecord.WeaponLevel(w.Value));}
         Section("Personal skills");Text(c.Skills.Count==0?"None":string.Join(", ",c.Skills));
@@ -470,6 +471,15 @@ public partial class MainWindow : Window
     private void UndoEdit(object sender,RoutedEventArgs e){if(session?.CanUndo!=true || loading is not null)return;EndEdit();session.Undo();RefreshDocument();Status.Text="Undone.";}
     private void RedoEdit(object sender,RoutedEventArgs e){if(session?.CanRedo!=true || loading is not null)return;EndEdit();session.Redo();RefreshDocument();Status.Text="Redone.";}
     private sealed record EditSection(string Title,string Table,IReadOnlyList<TableField> Fields);
+    private sealed record Choice(int Value,string Text);
+    private List<Choice> ItemChoices() =>
+        [new(0,"Empty"),..(session?.Disc.Items??[]).OrderBy(i=>i.IsUnused).ThenBy(i=>i.DisplayName).Select(i=>new Choice(i.Id,$"{i.DisplayName} ({i.IdText})"))];
+    private string DescribeValue(TableField field,int value)
+    {
+        if(field.ItemReference) return value==0?"Empty":session?.Disc.Items.FirstOrDefault(i=>i.Id==value)?.DisplayName??$"Item 0x{value:X3}";
+        if(field.IsFlag) return value!=0?"Added":"Removed";
+        return FieldCodec.Format(field,value);
+    }
     private sealed record EditTarget(View Page,int Id,string Noun,Panel Host,Panel ViewPanel,Button EditButton,IReadOnlyList<EditSection> Sections,string? Warning);
     private void BeginEdit(object sender,RoutedEventArgs e)
     {
@@ -485,6 +495,8 @@ public partial class MainWindow : Window
             new("Growth rates",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group.Length==0).ToList()),
             new("Weapon levels",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Weapon levels").ToList()),
             new("Weapon growth",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group=="Weapon growth").ToList()),
+            new("Personal skills",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Personal skills").ToList()),
+            new("Starting items",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Starting items").ToList()),
         ],null));
     }
     private void BeginClassEdit(object sender,RoutedEventArgs e)
@@ -497,6 +509,7 @@ public partial class MainWindow : Window
         [
             new("Base stats",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group.Length==0).ToList()),
             new("Weapon level caps",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Weapon level caps").ToList()),
+            new("Class skills",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Class skills").ToList()),
         ],warning));
     }
     private void OpenEditor(EditTarget target)
@@ -512,16 +525,41 @@ public partial class MainWindow : Window
         foreach(var section in target.Sections)
         {
             if(section.Title.Length>0) host.Children.Add(new TextBlock {Text=section.Title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,8)});
+            if(section.Fields.Count>0 && section.Fields.All(f=>f.IsFlag))
+            {
+                var flags=new System.Windows.Controls.Primitives.UniformGrid {Columns=2,Margin=new Thickness(0,0,0,8)};
+                foreach(var field in section.Fields)
+                {
+                    var box=new CheckBox {Content=field.Label,IsChecked=session.Value(section.Table,target.Id,field.Key)!=0,Margin=new Thickness(0,0,6,6),FontSize=13};
+                    System.Windows.Automation.AutomationProperties.SetName(box,$"{section.Title}: {field.Label}");
+                    flags.Children.Add(box);editors.Add((section.Table,field,box,new TextBlock()));
+                }
+                host.Children.Add(flags);
+                continue;
+            }
             foreach(var field in section.Fields)
             {
+                if(field.ItemReference)
+                {
+                    host.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)});
+                    var picker=new ComboBox {ItemsSource=ItemChoices(),DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,8)};
+                    picker.ItemsPanel=new ItemsPanelTemplate(new FrameworkElementFactory(typeof(VirtualizingStackPanel)));
+                    picker.SelectedValue=session.Value(section.Table,target.Id,field.Key);
+                    System.Windows.Automation.AutomationProperties.SetName(picker,$"{section.Title}: {field.Label}");
+                    host.Children.Add(picker);
+                    var pickerError=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,-4,0,8),Visibility=Visibility.Collapsed};
+                    host.Children.Add(pickerError);editors.Add((section.Table,field,picker,pickerError));
+                    continue;
+                }
                 var grid=new Grid {Margin=new Thickness(0,0,0,8)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(72)});
                 grid.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap});
                 int current=session.Value(section.Table,target.Id,field.Key);
                 Control input;
-                if(section.Table==EditSession.Items && field.Key=="durability")
+                if(field.Choices is { } choices)
                 {
-                    var combo=new ComboBox {Padding=new Thickness(6,4,6,4)};foreach(char grade in "SABCDEF")combo.Items.Add(grade.ToString());
-                    combo.SelectedIndex=Math.Clamp(current,0,6);input=combo;
+                    var combo=new ComboBox {Padding=new Thickness(6,4,6,4),DisplayMemberPath="Text",SelectedValuePath="Value",
+                        ItemsSource=choices.Select((text,i)=>new Choice(field.Min+i,text)).ToList()};
+                    combo.SelectedValue=current;input=combo;
                 }
                 else input=new TextBox {Text=FieldCodec.Format(field,current),Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right};
                 System.Windows.Automation.AutomationProperties.SetName(input,section.Title.Length>0?$"{section.Title}: {field.Label}":field.Label);
@@ -531,10 +569,15 @@ public partial class MainWindow : Window
                 host.Children.Add(fieldError);editors.Add((section.Table,field,input,fieldError));
             }
         }
-        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,4,0,0)};
-        var cancel=new Button {Content="Cancel",Style=(Style)FindResource("SmallButton"),IsCancel=true};cancel.Click+=(_,_)=>{EndEdit();Status.Text="Edit canceled.";};
-        var apply=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),IsDefault=true,Background=(Brush)FindResource("Accent"),Foreground=Brushes.White,BorderBrush=(Brush)FindResource("Accent")};apply.Click+=ApplyEdit;
-        buttons.Children.Add(cancel);buttons.Children.Add(apply);host.Children.Add(buttons);
+        StackPanel Buttons(bool primary)
+        {
+            var row=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=primary?new Thickness(0,4,0,0):new Thickness(0,0,0,10)};
+            var cancel=new Button {Content="Cancel",Style=(Style)FindResource("SmallButton"),IsCancel=primary};cancel.Click+=(_,_)=>{EndEdit();Status.Text="Edit canceled.";};
+            var apply=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),IsDefault=primary,Background=(Brush)FindResource("Accent"),Foreground=Brushes.White,BorderBrush=(Brush)FindResource("Accent")};apply.Click+=ApplyEdit;
+            row.Children.Add(cancel);row.Children.Add(apply);return row;
+        }
+        if(editors.Count>12) host.Children.Insert(1,Buttons(false));
+        host.Children.Add(Buttons(true));
         target.ViewPanel.Visibility=Visibility.Collapsed;host.Visibility=Visibility.Visible;target.EditButton.Visibility=Visibility.Collapsed;
         if(editors.Select(x=>x.Input).OfType<TextBox>().FirstOrDefault() is { } first){first.Focus();first.SelectAll();}
     }
@@ -547,7 +590,12 @@ public partial class MainWindow : Window
         foreach(var (table,field,input,fieldError) in editors)
         {
             int value;
-            if(input is ComboBox combo) value=combo.SelectedIndex;
+            if(input is CheckBox box) value=box.IsChecked==true?1:0;
+            else if(input is ComboBox combo)
+            {
+                if(combo.SelectedValue is not int chosen){fieldError.Text=$"Choose a value for {field.Label}.";fieldError.Visibility=Visibility.Visible;fieldError.BringIntoView();return;}
+                value=chosen;
+            }
             else if(!FieldCodec.TryParse(field,((TextBox)input).Text,out value,out string error))
             {
                 fieldError.Text=error;fieldError.Visibility=Visibility.Visible;
@@ -588,8 +636,12 @@ public partial class MainWindow : Window
         foreach(var c in changes)
         {
             var field=session.Table(c.Table).Field(c.Field);
-            string label=field.Group.Length>0?$"{field.Label} {field.Group switch { "Weapon levels"=>"level", "Weapon growth"=>"growth", _=>"cap" }}":field.Label;
-            AddPair(panel,label,$"{FieldCodec.Format(field,c.Original)} → {FieldCodec.Format(field,c.Value)}");
+            string label=field.Group switch
+            {
+                "Weapon levels"=>$"{field.Label} level", "Weapon growth"=>$"{field.Label} growth", "Weapon level caps"=>$"{field.Label} cap",
+                "Personal skills" or "Class skills"=>field.Label, "Starting items"=>$"Starting item {field.Label.ToLowerInvariant()}", _=>field.Label
+            };
+            AddPair(panel,label,field.IsFlag?DescribeValue(field,c.Value):$"{DescribeValue(field,c.Original)} → {DescribeValue(field,c.Value)}");
         }
         var button=new Button {Content="Restore original values",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
         button.Click+=(_,_)=>{restore();RefreshDocument();Status.Text="Original values restored. Save the project to keep this change.";};
@@ -633,8 +685,9 @@ public partial class MainWindow : Window
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, weapon levels and weapon growth. Classes: base stats, move, experience value and weapon level caps. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
-            ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses instead."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
+            ("Growth bracket","Each character has a growth bracket of None, Loose or Tight, named as in earlier community tools. Its exact effect on level ups has not been measured yet, so change it with care."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),
             ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of each changed table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
             ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),

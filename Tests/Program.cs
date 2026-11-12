@@ -203,6 +203,32 @@ Test("Character and class fields read the same values as the decoders",()=>{
         foreach(var w in cl.WeaponCaps) Equal(w.Value,F(ClassFields.Fields,k,CharacterFields.Key(w.Weapon,"Cap")));
     }
 });
+Test("Skill, starting item and bracket fields agree with the decoders",()=>{
+    var rng=new Random(29);
+    for(int round=0;round<20;round++)
+    {
+        var u=new byte[0x100];var g=new byte[32];var k=new byte[100];rng.NextBytes(u);rng.NextBytes(g);rng.NextBytes(k);
+        var names=Enumerable.Range(0,65536).ToDictionary(i=>i,i=>$"I{i}");
+        var c=CharacterDecoder.Decode(new(1,"x",0),u,g,names);
+        var set=CharacterFields.Record.Where(f=>f.Group=="Personal skills" && FieldCodec.Read(u,f)==1).Select(f=>f.Label).ToList();
+        Equal(string.Join(",",c.Skills.Where(s=>!s.StartsWith("Skill bit"))),string.Join(",",set));
+        for(int slot=1;slot<=CharacterFields.ItemSlots;slot++)
+        {
+            int id=FieldCodec.Read(u,CharacterFields.Record.Single(f=>f.Key==$"item{slot}"));
+            int uses=FieldCodec.Read(u,CharacterFields.Record.Single(f=>f.Key==$"item{slot}Uses"));
+            var match=c.Items.Where(i=>i.ItemId==id).ToList();
+            if(id!=0) Equal(true,match.Any(i=>i.Durability==uses));
+        }
+        Equal(c.Bracket,FieldCodec.Read(g,CharacterFields.Growth.Single(f=>f.Key=="bracket")));
+        var cl=ClassDecoder.Decode(1,"x",k);
+        var classSet=ClassFields.Fields.Where(f=>f.Group=="Class skills" && FieldCodec.Read(k,f)==1).Select(f=>f.Label).ToList();
+        Equal(string.Join(",",cl.Skills.Where(s=>!s.StartsWith("Skill bit"))),string.Join(",",classSet));
+    }
+    var bracket=CharacterFields.Growth.Single(f=>f.Key=="bracket");
+    Equal("Loose",FieldCodec.Format(bracket,2));Equal(true,FieldCodec.TryParse(bracket,"tight",out int b,out _));Equal(3,b);
+    Equal("Yes",FieldCodec.Format(CharacterFields.Record.First(f=>f.IsFlag),1));
+    Equal("S",FieldCodec.Format(ItemEncoder.Field("durability"),0));
+});
 Test("Shown values parse back to stored values",()=>{
     var level=CharacterFields.Record.Single(f=>f.Key=="swordLevel");var growth=CharacterFields.Growth.Single(f=>f.Key=="swordGrowth");
     Equal("21",FieldCodec.Format(level,210));Equal("0.8",FieldCodec.Format(level,8));Equal("60",FieldCodec.Format(growth,6));
@@ -333,7 +359,8 @@ if(args.Length>=2)
         try
         {
             s.Apply(new FieldEdit[]{new(EditSession.Characters,0x54,"level",30),new(EditSession.Characters,0x54,"strengthBonus",-3),new(EditSession.Characters,0x54,"spearLevel",350),
-                new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45)});
+                new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45),
+                new(EditSession.Characters,0x54,"skill15",1),new(EditSession.Characters,0x54,"item5",0x22),new(EditSession.Characters,0x54,"item5Uses",77),new(EditSession.Growths,0x54,"bracket",1),new(EditSession.Classes,0x1E,"skill19",1)});
             var patches=Exporter.PatchesFor(s,disc);Equal(0,patches.Count%2);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
             Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
@@ -346,6 +373,8 @@ if(args.Length>=2)
             var ward=back.Characters.Single(c=>c.Id==0x54);var vk=back.Classes.Single(c=>c.Id==0x1E);
             Equal("30/-3/350/55/Axe:70",$"{ward.Level}/{ward.StrengthBonus}/{ward.WeaponLevels.Single(w=>w.Weapon=="Spear").Value}/{ward.HpGrowth}/{string.Join(",",ward.WeaponGrowths.Where(w=>w.Weapon=="Axe").Select(w=>$"{w.Weapon}:{w.Value}"))}");
             Equal("31/8/45",$"{vk.Hp}/{vk.Move}/{vk.WeaponCaps.Single(c=>c.Weapon=="Axe").Value}");
+            Equal(true,ward.Skills.Contains("Astra"));Equal(true,ward.Items.Any(i=>i.ItemId==0x22 && i.Durability==77));Equal("None",ward.BracketText);
+            Equal(true,vk.Skills.Contains("Fortune"));
             Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
             Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
             Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);
@@ -370,6 +399,9 @@ if(args.Length>=2)
             Throws<EditException>(()=>s.Apply(EditSession.Classes,0x01,new Dictionary<string,int>{["move"]=16}));
             Throws<EditException>(()=>s.Apply(EditSession.Characters,0x999,new Dictionary<string,int>{["level"]=2}));
             s.Revert((EditSession.Characters,0x53),(EditSession.Growths,0x53));Equal(1,s.ChangeCount);
+            Throws<EditException>(()=>s.Apply(EditSession.Characters,0x53,new Dictionary<string,int>{["item1"]=0x999}));
+            Equal(true,s.Apply(EditSession.Characters,0x53,new Dictionary<string,int>{["item4"]=0x22,["item4Uses"]=50,["skill15"]=1}));
+            var r2=s.EditedCharacter(0x53);Equal(true,r2.Skills.Contains("Astra"));Equal(true,r2.Items.Any(i=>i.ItemId==0x22 && i.Durability==50));
         }
     });
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));

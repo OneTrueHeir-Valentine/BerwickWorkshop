@@ -10,6 +10,11 @@ public sealed record TableField(string Key, string Label, int Offset, int Bit, i
     public bool Signed { get; init; }
     public double Display { get; init; } = 1;
     public string Group { get; init; } = "";
+    /// <summary>Names for each stored value from Min upward, when the field is a choice.</summary>
+    public IReadOnlyList<string>? Choices { get; init; }
+    /// <summary>The value is an item ID (0 means empty).</summary>
+    public bool ItemReference { get; init; }
+    public bool IsFlag => Width == 1 && Min == 0 && Max == 1;
 }
 
 public sealed class EditException(string message) : Exception(message);
@@ -36,13 +41,20 @@ public static class FieldCodec
     }
 
     public static string Format(TableField field, int value) =>
-        field.Display == 1 ? value.ToString(CultureInfo.InvariantCulture)
-                           : (value * field.Display).ToString(field.Display < 1 ? "0.#" : "0", CultureInfo.InvariantCulture);
+        field.IsFlag ? (value != 0 ? "Yes" : "No")
+        : field.Choices is { } choices && value - field.Min >= 0 && value - field.Min < choices.Count ? choices[value - field.Min]
+        : field.Display == 1 ? value.ToString(CultureInfo.InvariantCulture)
+        : (value * field.Display).ToString(field.Display < 1 ? "0.#" : "0", CultureInfo.InvariantCulture);
 
     public static bool TryParse(TableField field, string text, out int value, out string error)
     {
         value = 0; error = "";
         text = text.Trim().Replace(",", "");
+        if (field.Choices is { } choices)
+        {
+            int index = choices.ToList().FindIndex(c => c.Equals(text, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0) { value = field.Min + index; return true; }
+        }
         if (!decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal shown))
         { error = $"{field.Label} must be a number."; return false; }
         decimal raw = shown / (decimal)field.Display;
@@ -69,7 +81,7 @@ public static class ItemEncoder
         new("critical", "Critical", 5, 0, 7, 0, 127),
         new("level", "Level", 6, 6, 6, 0, 63),
         new("price", "Base price", 8, 0, 16, 0, 65535),
-        new("durability", "Durability", 21, 4, 3, 0, 6),
+        new("durability", "Durability", 21, 4, 3, 0, 6) { Choices = ["S", "A", "B", "C", "D", "E", "F"] },
         new("uses", "Durability pool", 5, 7, 7, 0, 127),
     });
 
@@ -102,6 +114,19 @@ public static class CharacterFields
 
     public static string Key(string weapon, string suffix) => weapon.ToLowerInvariant().Replace(" ", "") + suffix;
 
+    /// <summary>Starting inventory slots that are proven in use on the disc (the record has room for eight).</summary>
+    public const int ItemSlots = 5;
+
+    public static IEnumerable<TableField> SkillFlags(int offset, string group) =>
+        CharacterDecoder.SkillBits.Select((name, i) => (name, i)).Where(s => s.name.Length > 0)
+            .Select(s => new TableField($"skill{s.i}", s.name, offset + s.i / 8, s.i % 8, 1, 0, 1) { Group = group });
+
+    private static IEnumerable<TableField> ItemSlotFields() => Enumerable.Range(0, ItemSlots).SelectMany(slot => new[]
+    {
+        new TableField($"item{slot + 1}", $"Slot {slot + 1}", 0xBC + slot * 8, 0, 16, 0, 0xFFFF) { Group = "Starting items", ItemReference = true },
+        new TableField($"item{slot + 1}Uses", $"Slot {slot + 1} durability or uses", 0xBC + slot * 8 + 2, 4, 8, 0, 255) { Group = "Starting items" },
+    });
+
     /// <summary>Fields in the starting unit record.</summary>
     public static IReadOnlyList<TableField> Record { get; } = Array.AsReadOnly(new TableField[]
     {
@@ -111,7 +136,8 @@ public static class CharacterFields
         new("defenseBonus", "Defense bonus", 25, 2, 5, -16, 15) { Signed = true },
         new("agilityBonus", "Agility bonus", 24, 0, 5, -16, 15) { Signed = true },
         new("mindBonus", "Mind bonus", 25, 7, 5, -16, 15) { Signed = true },
-    }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" })).ToArray());
+    }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" }))
+     .Concat(SkillFlags(56, "Personal skills")).Concat(ItemSlotFields()).ToArray());
 
     /// <summary>Fields in the 32-byte growth record.</summary>
     public static IReadOnlyList<TableField> Growth { get; } = Array.AsReadOnly(new TableField[]
@@ -121,6 +147,7 @@ public static class CharacterFields
         new("defenseGrowth", "Defense growth", 1, 6, 7, 0, 127),
         new("agilityGrowth", "Agility growth", 4, 2, 7, 0, 127),
         new("mindGrowth", "Mind growth (stored value)", 5, 0, 7, 0, 127),
+        new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose", "Tight"] },
     }.Concat(CharacterDecoder.GrowthWeapons.Select((w, i) => new TableField(Key(w, "Growth"), w, 8 + i / 2, 4 * (i % 2), 4, 0, 15) { Display = 10, Group = "Weapon growth" })).ToArray());
 }
 
@@ -142,7 +169,8 @@ public static class ClassFields
         new("mind", "Mind", 2, 0, 5, 0, 31),
         new("move", "Move", 8, 0, 4, 0, 15),
         new("experience", "Experience value", 4, 0, 7, 0, 127),
-    }.Concat(Caps.Select(c => new TableField(CharacterFields.Key(c.Name, "Cap"), c.Name, c.Offset, c.Bit, 6, 0, 63) { Group = "Weapon level caps" })).ToArray());
+    }.Concat(Caps.Select(c => new TableField(CharacterFields.Key(c.Name, "Cap"), c.Name, c.Offset, c.Bit, 6, 0, 63) { Group = "Weapon level caps" }))
+     .Concat(CharacterFields.SkillFlags(12, "Class skills")).ToArray());
 }
 
 /// <summary>One editable table: its records as read from the disc and the fields that may change.</summary>
@@ -186,7 +214,13 @@ public sealed class EditSession
         tables = new()
         {
             [Items] = new(Items, "item", ItemEncoder.Fields, disc.ItemBytes, ItemEncoder.Validate),
-            [Characters] = new(Characters, "character", CharacterFields.Record, disc.UnitBytes),
+            [Characters] = new(Characters, "character", CharacterFields.Record, disc.UnitBytes, values =>
+            {
+                foreach (var field in CharacterFields.Record.Where(f => f.ItemReference))
+                    if (values.TryGetValue(field.Key, out int item) && item != 0 && !disc.ItemBytes.ContainsKey(item))
+                        return $"{field.Label}: there is no item 0x{item:X3}.";
+                return "";
+            }),
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
             [Classes] = new(Classes, "class", ClassFields.Fields, disc.ClassBytes),
         };
