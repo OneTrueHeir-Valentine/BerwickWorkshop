@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Berwick Workshop</AssemblyName>
+    <RootNamespace>Berwick.Workshop</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>Berwick Workshop</Product>
+    <Description>Berwick Saga disc and item browser</Description>
+    <ApplicationIcon>workshop.ico</ApplicationIcon>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../Core/Berwick.Core.csproj" /></ItemGroup>
+</Project>
