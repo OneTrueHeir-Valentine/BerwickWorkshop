@@ -43,12 +43,17 @@ public sealed class GameRule(int id, string key, string name, string description
     {
         if (words.Count != Sites.Count) return null;
         int? setting = null;
+        bool changed = false;
         for (int i = 0; i < Sites.Count; i++)
         {
             int? s = Sites[i].Decode(words[i]);
-            if (s is null || (setting is not null && s != setting)) return null;
+            if (s is null) return null;
+            if (s == GameRules.AnySetting) continue;
+            if (s == GameRules.AnyChanged) { changed = true; continue; }
+            if (setting is not null && s != setting) return null;
             setting = s;
         }
+        if (setting is null || (changed && setting == Default)) return null;
         return setting;
     }
 
@@ -81,6 +86,11 @@ public static class GameRules
     /// <summary>Program address minus file offset inside the executable (one load segment at file offset 0x100, address 0x100000).</summary>
     public const long ProgramToFile = 0xFFF00;
 
+    /// <summary>A site's answer when its word is shared by every setting except the default; another site names the setting.</summary>
+    public const int AnyChanged = -1;
+    /// <summary>A site's answer when its word is the same for every setting.</summary>
+    public const int AnySetting = -2;
+
     /// <summary>An <c>addiu reg, zero, value</c> instruction holding a limit; decodes any value in range.</summary>
     private static RuleSite Immediate(uint address, uint register, int min, int max)
     {
@@ -91,18 +101,57 @@ public static class GameRules
 
     private const uint S1 = 17, S2 = 18;
 
+    // Shield guard: the damage routine's block-success code (0x0022A640 to 0x0022A6A4) rewritten in fewer
+    // instructions with the same behaviour, so that a failed block can add part of the shield's Might to
+    // the defender's physical defense. Index 20 holds the shift that picks the part (2 quarter, 1 half, 0 full).
+    private const uint GuardStart = 0x0022A640;
+    private const int GuardShiftIndex = 20;
+    private static readonly uint[] GuardOriginal =
+    [
+        0x24020001u, 0x12A20008u, 0x8E570038u, 0x12A00004u, 0x00000000u, 0x1000000Au, 0x00000000u, 0x00000000u, 0x10000007u, 0x8E5100A8u,
+        0x8FA601A0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x00628821u, 0x8FA601B0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du,
+        0x8E4300ACu, 0x00621021u, 0x10000003u, 0xAFA20170u, 0x24020001u, 0xAFA20130u,
+    ];
+    private static readonly uint[] GuardPatched =
+    [
+        0x8E570038u, 0x12A00007u, 0x8FA601A0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x10000002u, 0x00628821u, 0x8E5100A8u,
+        0x8FA601B0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x00621021u, 0x10000009u, 0xAFA20170u, 0xAFA20130u, 0x8E4300A8u,
+        0x00031803u, 0x0015180Bu, 0x10000003u, 0x02C3B021u, 0x1000FFF9u, 0x24020001u,
+    ];
+    private static uint GuardShift(int setting) => GuardPatched[GuardShiftIndex] | (uint)(3 - setting) << 6;
+
+    private static IReadOnlyList<RuleSite> GuardSites() => Enumerable.Range(0, GuardOriginal.Length).Select(i =>
+    {
+        uint original = GuardOriginal[i];
+        if (i == GuardShiftIndex)
+            return new RuleSite(GuardStart + (uint)i * 4, s => s == 0 ? original : GuardShift(s),
+                w => w == original ? 0 : w == GuardShift(1) ? 1 : w == GuardShift(2) ? 2 : w == GuardShift(3) ? 3 : null);
+        uint patched = GuardPatched[i];
+        return new RuleSite(GuardStart + (uint)i * 4, s => s == 0 ? original : patched,
+            w => w == original && w == patched ? AnySetting : w == original ? 0 : w == patched ? AnyChanged : null);
+    }).ToList();
+
     private static GameRule Limit(int id, string key, string name, string description, int max, int normal, uint addAddress, uint storeAddress) =>
         new(id, key, name, description, RuleKind.Limit, 0, max, normal, null,
             [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: true);
 
     public static IReadOnlyList<GameRule> All { get; } = Array.AsReadOnly(new[]
     {
-        new GameRule(1, "shieldParry", "Shield block",
-            "Whether a unit carrying a shield blocks with it (this is the shield roll, not the Parry skill). Normal rolls against the shield rate. Always and Never apply to every unit in battle, enemies included.",
+        new GameRule(1, "shieldParry", "Parry",
+            "Parrying with a weapon cancels a hit completely. Normal: only units with the Parry skill parry, at a chance based on their weapon level. Always: every unit holding a usable weapon parries every hit. Never: nobody parries. Applies to every unit in battle, enemies included.",
             RuleKind.Choice, 0, 2, 0, ["Normal", "Always", "Never"],
             [new RuleSite(0x002274EC,
                 s => s switch { 0 => 0x1020000Cu, 1 => 0x14000000u, _ => 0x1000000Cu },
                 w => w switch { 0x1020000Cu => 0, 0x14000000u => 1, 0x1000000Cu => 2, _ => null })], confirmed: true),
+        new GameRule(9, "shieldBlock", "Shield block",
+            "A successful shield block takes the shield's Might off a hit. Normal rolls against the shield's block chance. Always makes every block succeed; Never turns shield blocking off. Applies to every unit with a usable shield, enemies included.",
+            RuleKind.Choice, 0, 2, 0, ["Normal", "Always", "Never"],
+            [new RuleSite(0x0022A638,
+                s => s switch { 0 => 0x10200019u, 1 => 0x14000019u, _ => 0x10000019u },
+                w => w switch { 0x10200019u => 0, 0x14000019u => 1, 0x10000019u => 2, _ => null })], confirmed: true),
+        new GameRule(10, "shieldGuard", "Shield guard on a failed block",
+            "When a shield block fails against a physical attack, part of the shield's Might still counts as Defense, rounded down. A successful block still takes off the full Might. Off is the game's own behaviour. Like Defense, the guard also applies against attacks that slip past shields, such as knives.",
+            RuleKind.Choice, 0, 3, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might"], GuardSites(), confirmed: true),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formula. A fixed amount gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
             RuleKind.FixedAmount, 0, 100, 0, null,

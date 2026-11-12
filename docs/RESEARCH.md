@@ -41,11 +41,11 @@ Both executables have the same layout (one load segment; program address = file 
 - `0x0013A7E0`: percent roll. 66 call sites; two are followed by 50% checks.
 - `0x00174A90`: add to a unit attribute and clamp it to a hard-coded per-attribute cap (caps seen: 15, 20, 30, 50 or 100, 199, 999, 100000). This is where stat and experience caps live. Which index is which stat is not mapped yet.
 - `0x00224570` to `0x002245A0`: experience gained after battle is added here (attribute 2). The old "always level up" code forced this amount to 100, and the experience multiplier code shifted it left.
-- `0x002274DC` to `0x002274EC`: shield block roll: a random 0 to 99 compared against the unit's shield rate (stored at offset 0xA0 of the battle unit).
+- `0x002274DC` to `0x002274EC`: Parry skill roll (first labelled as the shield roll; corrected 2026-11-12): a random 0 to 99 compared against the parry rate at offset 0xA0 of the battle unit, which `0x00177EC0` builds from weapon level and needs the Parry skill. Success cancels the hit.
 - `0x0022CE0C`: a rate formula that subtracts 50, then subtracts 50 or 75 and halves. Not identified yet.
 Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and written over PINE):
 - All seven locations above hold exactly the executable's code while the game runs (8 words each), and 395 of 400 random words across the program match the file (the rest are data that changes during play). The code is not relocated, so changes written into the executable on disc land where expected.
-- Shield block roll confirmed: changing the branch at `0x002274EC` so the failed-roll path is never taken made shield units parry every attack.
+- Parry roll confirmed: changing the branch at `0x002274EC` so the failed-roll path is never taken made every unit parry every attack.
 - Experience gain confirmed: replacing the instruction at `0x00224580` so the gained amount is 100 made a unit level up after one fight.
 - Both changes were temporary (emulator memory only) and were reverted.
 
@@ -64,6 +64,13 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Program: the class table pointer is at gp minus 0x7B88 (`0x004B4768`, gp `0x004BC2F0`); class IDs count from 1 with 100-byte records. `0x0017CEB0` returns a unit's movement type; `0x0017CF20` returns a class's cost row from the table pointer at `0x004B4784`.
 - Live tests (PCSX2, English v2.3, first battle): all enterable terrain set to 4 shrank every movement area; class 0x01 set to Flying let Reese move as a flier; open ground at 1.5 limited Move 4 units to 2 hexes. So the table, the class field and tenths all work.
 - Old cheat code pages (atwiki, archived) list program patches for Canto on any unit and full move after moving; leads for the speed prototypes.
+
+### Damage and shields (2026-11-12, program reading plus live tests)
+- Battle setup `0x0022B940` fills one record per combatant: 0x54 attack, 0x6C physical defense, 0x70 magic defense base, 0xA0 parry rate, 0xA4 shield block chance (`0x00177C70`: shield accuracy + shield level, +18 with a skill), 0xA8 shield Might (item Might bits), 0xAC shield magic reduction, 0xC0 hit, 0xC4 critical. Shield values count only for a shield that is not broken and whose size the class can use (class byte 0x1B).
+- Damage routine `0x0022A2D0`: damage = attack - defense - reduction (never below 0), plus a magic part for weapons that deal both; a critical hit adds a random 10 to 20. The reduction is the shield's Might on a successful block, a weapon guard skill, or a fixed 10 from another skill (only one applies).
+- Shield block roll: branch at `0x0022A638`, tried only when the hit would do damage, the defender has a usable shield and no other guard applied. Knives (item type 0) and two weapon effects cancel the block afterwards. A reduction above 0 triggers the block animation and durability use, so a passive bonus must go into defense instead.
+- Shield guard prototype: `0x0022A640` to `0x0022A6A4` rewritten in fewer instructions with the same success behaviour; a failed block (physical attacks) adds Might >> n to defense. The forecast uses the same routine with fixed rolls, so it shows the guard.
+- Live tests (PCSX2, the user's test export, with parry forced off in memory): Leon (attack 15) against a Deserter (defense 2, Verian small shield, Might 4). Prototype at full Might: an unblocked hit did 9. Original code: a blocked hit did 9; unblocked hits normally do 13.
 
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.

@@ -238,7 +238,14 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Shield block",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
+    Equal("Parry",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
+    var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
+    var guard=GameRules.ById(10);Equal(26,guard.Sites.Count);Equal(0x0022A640u,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[25].Address);
+    Equal(0x24020001u,guard.Original[0]);Equal(0x10000003u,guard.Original[22]);Equal(0xAFA20130u,guard.Original[25]);
+    Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[20].ToString("X8"))));
+    Equal(20,Enumerable.Range(0,26).Count(i=>guard.Encode(2)[i]!=guard.Original[i]));
+    var mixed=guard.Encode(2);mixed[20]=guard.Original[20];Equal<int?>(null,guard.Decode(mixed));
+    mixed=guard.Original.ToArray();mixed[20]=guard.Encode(3)[20];Equal<int?>(null,guard.Decode(mixed));
     var exp=GameRules.ById(2);Equal(0x0040982Du,exp.Original[0]);Equal(0x24130064u,exp.Encode(100)[0]);Equal<int?>(null,exp.Decode(new[]{0x24130065u}));
     Equal(0x1275ECL,parry.Sites[0].FileOffset);
     var str=GameRules.ById(4);Equal("2411000F,2412000F",string.Join(",",str.Original.Select(x=>x.ToString("X8"))));
@@ -415,7 +422,8 @@ if(args.Length>=2)
                 new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45),
                 new(EditSession.Characters,0x54,"skill15",1),new(EditSession.Characters,0x54,"item5Uses",77),new(EditSession.Growths,0x54,"bracket",1),new(EditSession.Classes,0x1E,"skill19",1)});
             int newSlot=s.FreeItemSlots()[0];s.CreateItem(newSlot,0x22,"Test Blade");s.Apply(newSlot,new Dictionary<string,int>{["might"]=33});
-            s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50),new(EditSession.Rules,4,"strengthLimit",12)});
+            s.Apply(new FieldEdit[]{new(EditSession.Rules,1,"shieldParry",1),new(EditSession.Rules,2,"battleExperience",50),new(EditSession.Rules,4,"strengthLimit",12),
+                new(EditSession.Rules,9,"shieldBlock",2),new(EditSession.Rules,10,"shieldGuard",2)});
             s.Apply(EditSession.Characters,0x54,new Dictionary<string,int>{["item5"]=newSlot});
             s.Apply(new FieldEdit[]{new(EditSession.Terrain,5,"cost4",15),new(EditSession.Terrain,5,"cost15",10),new(EditSession.Classes,0x1E,"movementType",2)});
             Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedMovementType(5).Costs[4]==15);
@@ -443,12 +451,13 @@ if(args.Length>=2)
             Equal("1.5/1/Flying",$"{back.MovementTypes[5].Cost(4)}/{back.MovementTypes[5].Cost(15)}/{vk.MovementTypeText}");
             Equal(true,Enumerable.Range(0,TerrainData.Types).Where(t=>t!=5).All(t=>back.TerrainBytes[t].Span.SequenceEqual(disc.TerrainBytes[t].Span)));
             Equal(1,GameRules.ById(1).Decode(back.RuleWords[1].Span));Equal(50,GameRules.ById(2).Decode(back.RuleWords[2].Span));Equal(12,GameRules.ById(4).Decode(back.RuleWords[4].Span));
+            Equal(2,GameRules.ById(9).Decode(back.RuleWords[9].Span));Equal(2,GameRules.ById(10).Decode(back.RuleWords[10].Span));
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(4,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4+1+20,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
