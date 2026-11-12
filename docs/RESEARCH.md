@@ -33,6 +33,18 @@ Sources: [EmblemWiki, Berwick Saga Calculations](https://wiki.serenesforest.net/
 - [note.com, PCSX2 1.6 code search, 2026-08-29](https://note.com/crisp_snail1748/n/nd1bd55d5c443): plain memory addresses found with PCSX2CT and Cheat Engine, region not stated (likely Japanese). Program-side values include stat elixir effects at `0x004525B0` and `0x004525C0`, a dish price and HP value near `0x0042A2B8` and `0x0042A300`, and a static shop list near `0x0052BB00`. Addresses below about `0x570000` fall inside the loaded executable, so these may be editable in `SLPS_254.97` directly. Unverified on either disc.
 - [soulslip29 blog, PCSX2 PNACH for Berwick Saga (J)](https://soulslip29.blogspot.com/2024/07/ps2-pcsx2-pnach-j-berwick-saga.html): PNACH for CRC `2FCA8492` (Japanese) including guaranteed level ups and full stat gains; the file itself is on a drive link (not fetched). It notes stats wrap to 0 above about 20 with stat-boost cheats, which suggests a 5-bit stat field at run time.
 
+### Program locations from the decrypted codes (static analysis, 2026-11-12)
+The 2005 codes are Pro Action Replay 2 codes using the standard Action Replay 2 encryption (default seed `05100518`). Decrypted with a local port of Omniconvert's routine (GPL-2.0, not shipped). Decryption is confirmed by two money codes that decode to `0x01EC52E4` and `0x00DBEEF4`, the same town and battle gold addresses found independently in the note.com article.
+
+Both executables have the same layout (one load segment; program address = file offset + `0xFFF00`) and only 12,258 bytes differ. Every location below is byte-identical in the Japanese and English executables.
+- `0x0013A740`: random integer in a range (stream, minimum, maximum). Called from 206 places, so it marks every random roll in the game.
+- `0x0013A7E0`: percent roll. 66 call sites; two are followed by 50% checks.
+- `0x00174A90`: add to a unit attribute and clamp it to a hard-coded per-attribute cap (caps seen: 15, 20, 30, 50 or 100, 199, 999, 100000). This is where stat and experience caps live. Which index is which stat is not mapped yet.
+- `0x00224570` to `0x002245A0`: experience gained after battle is added here (attribute 2). The old "always level up" code forced this amount to 100, and the experience multiplier code shifted it left.
+- `0x002274DC` to `0x002274EC`: shield parry roll: a random 0 to 99 compared against the unit's shield rate (stored at offset 0xA0 of the battle unit).
+- `0x0022CE0C`: a rate formula that subtracts 50, then subtracts 50 or 75 and halves. Not identified yet.
+Not yet confirmed in a running game; next step is a PCSX2 debugger breakpoint at each location during a battle forecast.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.
@@ -43,5 +55,5 @@ Sources: [EmblemWiki, Berwick Saga Calculations](https://wiki.serenesforest.net/
 
 ## Gaps
 - No public decompilation, symbol map or disassembly notes for `SLPS_254.97` were found.
-- No English-edition addresses found anywhere; every code found is for the Japanese release.
+- No English-edition addresses were published anywhere, but the code locations above are identical in the English executable.
 - Nothing found on how the game finds its DATA3 tables (needed to grow tables).
