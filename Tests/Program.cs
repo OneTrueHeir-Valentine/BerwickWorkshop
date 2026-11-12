@@ -61,6 +61,32 @@ Test("Comparison joins by ID instead of label or position",()=>{
     var changes=ItemComparison.Compare(new[]{a,b},new[]{b with{Price=95},a});
     Equal(1,changes.Count);Equal(506,changes[0].Id);Equal("Price",changes[0].Field);Equal("90",changes[0].First);Equal("95",changes[0].Second);
 });
+Test("Character record decodes signed bonuses, growths and inventory",()=>{
+    var r=new byte[0x100];var g=new byte[32];
+    r[20]=22;                                   // level 22
+    r[22]=8<<4;                                 // HP +8
+    r[23]=(byte)((32-2)<<3);                    // Strength -2 in five signed bits
+    r[24]=3;                                    // Agility +3
+    r[25]=3<<2;                                 // Defense +3
+    r[56+6/8]|=1<<(6%8);                        // Shieldfaire bit
+    r[0xBC]=0x22;r[0xBE]=(byte)(101<<4&0xFF);r[0xBF]=(byte)(101>>4);
+    g[0]=40|(30&1)<<7;g[1]=(byte)(30>>1|(18&3)<<6);g[2]=(byte)(18>>2);
+    g[4]=(byte)(30<<2);g[8]=6<<4;g[13]=8<<4;
+    g[20]=11;g[26]=6;for(int i=27;i<32;i++)g[i]=0xFF;
+    var c=CharacterDecoder.Decode(new(0x53,"Test",0),r,g,new Dictionary<int,string>{[0x22]="Bronze Sword"});
+    Equal(22,c.Level);Equal(8,c.HpBonus);Equal(-2,c.StrengthBonus);Equal(3,c.AgilityBonus);Equal(3,c.DefenseBonus);
+    Equal(40,c.HpGrowth);Equal(30,c.StrengthGrowth);Equal(18,c.DefenseGrowth);Equal(30,c.AgilityGrowth);
+    Equal("Sword:60,Shield:80",string.Join(",",c.WeaponGrowths.Select(w=>$"{w.Weapon}:{w.Value}")));
+    Equal("Shieldfaire",c.Skills.Single());Equal("Shieldfaire",c.Learned.Single().Skill);Equal(11,c.Learned.Single().Level);
+    Equal("Bronze Sword",c.Items.Single().Name);Equal(101,c.Items.Single().Durability);
+});
+Test("Character records require complete data",()=>Throws<InvalidDataException>(()=>CharacterDecoder.Decode(new(1,"x",0),new byte[16],new byte[32],new Dictionary<int,string>())));
+Test("Learned skill numbering skips unused bits",()=>{
+    Equal("Axe Guard",CharacterDecoder.LearnedSkillIds[30]);Equal("Throw",CharacterDecoder.LearnedSkillIds[40]);
+    Equal("Expert",CharacterDecoder.LearnedSkillIds[66]);Equal("Cavalry",CharacterDecoder.SkillBits[64]);
+});
+Test("Weapon levels show tenths only when present",()=>{Equal("21",CharacterRecord.WeaponLevel(210));Equal("0.8",CharacterRecord.WeaponLevel(8));});
+Test("Roster has 35 distinct characters",()=>{var r=CharacterDecoder.LoadRoster();Equal(35,r.Count);Equal(35,r.Select(c=>c.Id).Distinct().Count());Equal("Reese",r[0].Name);});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length==2)
 {
@@ -89,6 +115,21 @@ if(args.Length==2)
         Console.WriteLine($"Compared 646 item IDs: {changes.Count} field differences");
         Equal(0,changes.Count);
     });
+    Test("Character tables: both copies match on both discs",()=>{Equal(true,jp!.CharacterCopiesMatch);Equal(true,en!.CharacterCopiesMatch);Equal(35,en.Characters.Count);});
+    Test("Character values match published tables",()=>{
+        CharacterRecord C(string n)=>en!.Characters.Single(c=>c.Name==n);
+        var ward=C("Ward");Equal(22,ward.Level);Equal("Sword:210,Spear:280,Medium shield:250",string.Join(",",ward.WeaponLevels.Where(w=>w.Value>=100).Select(w=>$"{w.Weapon}:{w.Value}")));
+        var reese=C("Reese");Equal("40/30/18/30",$"{reese.HpGrowth}/{reese.StrengthGrowth}/{reese.DefenseGrowth}/{reese.AgilityGrowth}");
+        Equal("Adept,Commander,Robust,Cavalry,Expert",string.Join(",",reese.Skills));
+        var adel=C("Adel");var leon=C("Leon");
+        Equal("1,-2,-1,1",$"{adel.HpBonus-leon.HpBonus},{adel.StrengthBonus-leon.StrengthBonus},{adel.DefenseBonus-leon.DefenseBonus},{adel.AgilityBonus-leon.AgilityBonus}");
+        Equal("Throw 11",$"{leon.Learned.Single().Skill} {leon.Learned.Single().Level}");
+        Equal("Aim 15,Pursuit 20",string.Join(",",C("Esteban").Learned.Select(l=>$"{l.Skill} {l.Level}")));
+        Equal("Expert 6",$"{C("Izerna").Learned.Single().Skill} {C("Izerna").Learned.Single().Level}");
+        Equal("Fortune 20",$"{C("Dean").Learned.Single().Skill} {C("Dean").Learned.Single().Level}");
+        Equal("Sword:60,Shield:80",string.Join(",",reese.WeaponGrowths.Select(w=>$"{w.Weapon}:{w.Value}")));
+    });
+    Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");
 }
 return failed==0?0:1;

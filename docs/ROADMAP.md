@@ -11,9 +11,9 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: verify game dump, detect version | Exact SHA-256 + ELF CRC profiles for JP and EN | M0 | done |
 | FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | read done |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
-| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | planned |
+| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read done (v0.2.0), supports not yet |
 | FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | research (stat bit mapping unproven) |
-| FEBuilder: skill tables | Learned skills per character | M1 | research (encoding known to corrupt) |
+| FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | planned |
 | ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | planned |
 | FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | planned |
@@ -38,12 +38,20 @@ Excluded on purpose: online features, machine translation, telemetry, anything t
 ### M0 Read-only inspector (done, v0.1.0)
 Disc identity, 646 items, search, filter, JP/EN comparison. Shipped to `../Berwick Workshop`.
 
-### M1 Read-only data browsers (next)
+### M1 Read-only data browsers (characters done in v0.2.0, classes next)
 1. Port character table reader from `reference/BWSTableEditors.py` (`set_base`, `set_growth`, `set_skill`, `set_item`, `set_support`) into `Core/Units.cs`, read side only.
 2. Port class reader (`set_class_base`, `set_class_growth`, `set_class_caps`, `set_class_attribute`, `set_class_skill`) into `Core/Classes.cs`.
 3. Validate against known values (EmblemWiki class and character tables) on both ISOs before showing any field. Unproven fields are shown as raw numbers with an "unconfirmed" label, never guessed.
 4. Learned skills: show raw six level and six skill bytes only. See `berwick-redux2-r6/docs/OPEN_REVERSE_ENGINEERING.md` validation set.
 5. App: add Characters and Classes pages to the sidebar.
+
+Verified while building the Characters page (both discs, checked against EmblemWiki tables):
+- Unit and growth tables: both copies identical on both discs; all 35 characters identical between editions.
+- Level, weapon levels (stored x10), HP/Str/Def/Agi growths, weapon growths, personal skill bits, learned skills: match published tables.
+- Stat bonuses over class base: confirmed by the Adel and Leon comparison (same class and level).
+- Learned skill IDs use the skill list without the four unused slots (`Skills2` upstream). 13 of 13 level-learned skills match. The upstream writer already uses this list, so the community Overwatch to Silence report is not explained by ID numbering.
+- Mind growth is stored at twice the published value for every mage checked. Shown as stored.
+- Item range uses the game's own counting: 0 means adjacent only (matches the wiki).
 
 ### M2 Projects and item editing
 1. `.bwproj` format: edition hash, list of `{table, id, field, old, new}`. Loads only on a matching edition.

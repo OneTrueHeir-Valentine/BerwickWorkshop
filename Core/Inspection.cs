@@ -5,12 +5,18 @@ using System.Text.RegularExpressions;
 
 namespace Berwick.Core;
 
-public sealed record GameProfile(string Name, string Sha256, long ItemTable, long SecondItemTable);
+public sealed record GameProfile(string Name, string Sha256, long ItemTable, long SecondItemTable)
+{
+    public long UnitTable { get; init; }
+    public long SecondUnitTable { get; init; }
+    public long GrowthTable { get; init; }
+    public long SecondGrowthTable { get; init; }
+}
 public static class Profiles
 {
     public static IReadOnlyList<GameProfile> All { get; } = Array.AsReadOnly(new[] {
-        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8),
-        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8)
+        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4 },
+        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4 }
     });
     public static GameProfile? Match(string hash) => All.FirstOrDefault(p=>string.Equals(p.Sha256,hash,StringComparison.OrdinalIgnoreCase));
 }
@@ -19,6 +25,8 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
 {
     public bool Supported => Profile is not null;
     public string Edition => Profile?.Name ?? "Unrecognized edition";
+    public IReadOnlyList<CharacterRecord> Characters { get; init; } = [];
+    public bool CharacterCopiesMatch { get; init; } = true;
 }
 
 public static class Inspector
@@ -67,8 +75,28 @@ public static class Inspector
                 items.Add(item);
             }
         }
+        var characters=new List<CharacterRecord>();bool characterCopiesMatch=true;
+        if (profile is not null)
+        {
+            var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
+            var roster=CharacterDecoder.LoadRoster();
+            int unitLength=roster.Max(c=>c.RecordOffset)+CharacterDecoder.RecordLength;
+            int growthLength=roster.Max(c=>c.Id)*CharacterDecoder.GrowthLength;
+            foreach(long start in new[]{profile.UnitTable,profile.SecondUnitTable}) if(start+unitLength>data.Length) throw new InvalidDataException("The character tables are incomplete.");
+            foreach(long start in new[]{profile.GrowthTable,profile.SecondGrowthTable}) if(start+growthLength>data.Length) throw new InvalidDataException("The character tables are incomplete.");
+            var units=iso.ReadRange(data.Offset+profile.UnitTable,unitLength,64*1024);
+            var growths=iso.ReadRange(data.Offset+profile.GrowthTable,growthLength,64*1024);
+            characterCopiesMatch=units.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondUnitTable,unitLength,64*1024))
+                && growths.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondGrowthTable,growthLength,64*1024));
+            var itemNames=items.ToDictionary(i=>i.Id,i=>i.DisplayName);
+            foreach(var entry in roster)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                characters.Add(CharacterDecoder.Decode(entry,units.AsSpan(entry.RecordOffset,CharacterDecoder.RecordLength),growths.AsSpan((entry.Id-1)*CharacterDecoder.GrowthLength,CharacterDecoder.GrowthLength),itemNames));
+            }
+        }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences);
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch };
     }
 }

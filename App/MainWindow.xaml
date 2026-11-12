@@ -8,6 +8,7 @@
      <TextBlock Text="BERWICK" Foreground="#F7F6EC" FontFamily="Georgia" FontSize="22"/>
      <TextBlock Text="WORKSHOP" Foreground="#C1CBB9" FontSize="11" Margin="1,5,0,38"/>
      <Button x:Name="ItemsNav" Content="_Items" Style="{StaticResource NavButton}" Background="#3C5445" Click="ShowItems"/>
+     <Button x:Name="CharactersNav" Content="C_haracters" Style="{StaticResource NavButton}" Click="ShowCharacters" IsEnabled="False"/>
      <Button x:Name="DiscNav" Content="_Disc details" Style="{StaticResource NavButton}" Click="ShowDisc"/>
     </StackPanel>
     <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
@@ -15,7 +16,7 @@
      <TextBlock Text="READ ONLY" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.1.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.2.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -37,7 +38,7 @@
     <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="470" Margin="20">
      <Border BorderBrush="#8EA58E" BorderThickness="2" Width="68" Height="68" CornerRadius="34" Margin="0,0,0,24"><Border BorderBrush="#8EA58E" BorderThickness="2" Width="18" Height="18" CornerRadius="9"/></Border>
      <TextBlock Text="Open a game disc" FontFamily="Georgia" FontSize="30" HorizontalAlignment="Center"/>
-     <TextBlock Text="Browse equipment, inspect your edition, and compare item data between discs." TextAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="15" LineHeight="23" Margin="0,15,0,24"/>
+     <TextBlock Text="Browse items and characters, inspect your edition, and compare data between discs." TextAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="15" LineHeight="23" Margin="0,15,0,24"/>
      <Button x:Name="EmptyOpenButton" Content="Choose an _ISO" Click="OpenPrimary" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Padding="24,12"/>
      <TextBlock Text="Japanese retail and English v2.3" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,20,0,6"/>
      <TextBlock Text="You can also drop an ISO into this window." Style="{StaticResource Caption}" HorizontalAlignment="Center"/>
@@ -67,7 +68,7 @@
        </Grid>
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
-       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
         <TextBlock Text="ITEM DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
         <TextBlock x:Name="ItemName" Text="Select an item" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="ItemIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,16"/>
@@ -79,6 +80,40 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="3" x:Name="ItemCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="CharacterPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid Margin="0,0,0,12"><TextBox x:Name="CharacterSearch" TextChanged="CharacterFilterChanged" AutomationProperties.Name="Search characters" ToolTip="Search by name or ID (Ctrl+F)"/><TextBlock x:Name="CharacterSearchHint" Text="Search by name or ID" IsHitTestVisible="False" Foreground="#899286" VerticalAlignment="Center" Margin="12,0"/></Grid>
+     <Border Grid.Row="1" x:Name="CharacterComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><CheckBox x:Name="CharacterDifferencesOnly" DockPanel.Dock="Right" Content="Differences only" Margin="12,0,0,0" VerticalAlignment="Center" Checked="CharacterOptionChanged" Unchecked="CharacterOptionChanged"/><TextBlock x:Name="CharacterComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
+     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <Grid>
+        <DataGrid x:Name="CharacterGrid" SelectionChanged="CharacterSelected" AutomationProperties.Name="Characters">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="ID" Binding="{Binding Character.IdText}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn Header="Character" Binding="{Binding Character.Name}" Width="*" MinWidth="100"/>
+          <DataGridTextColumn Header="Level" Binding="{Binding Character.Level}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="HP %" Binding="{Binding Character.HpGrowth}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn Header="Str %" Binding="{Binding Character.StrengthGrowth}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn Header="Def %" Binding="{Binding Character.DefenseGrowth}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn Header="Agi %" Binding="{Binding Character.AgilityGrowth}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn x:Name="CharacterChangeColumn" Header="Comparison" Binding="{Binding Comparison}" Visibility="Collapsed" Width="100" MinWidth="100"/>
+         </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock x:Name="NoCharacters" Text="No characters match this search." Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Muted}" IsHitTestVisible="False"/>
+       </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
+        <TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <TextBlock x:Name="CharacterName" Text="Select a character" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
+        <TextBlock x:Name="CharacterIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6"/>
+        <StackPanel x:Name="CharacterFields"/>
+        <TextBlock x:Name="CharacterComparisonDetail" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,10,0,0"/>
+       </StackPanel></ScrollViewer>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="3" x:Name="CharacterCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <ScrollViewer x:Name="DiscPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
      <StackPanel>
