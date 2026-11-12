@@ -353,7 +353,7 @@ public partial class MainWindow : Window
         var k=row.Class;
         if(editing?.Page==View.Classes && editing.Id!=k.Id) EndEdit();
         UpdateEditButtons();
-        ClassName.Text=k.Name;ClassIdentity.Text=k.IdText;
+        ClassName.Text=k.Name;ClassIdentity.Text=$"{k.IdText} · {k.MovementTypeText} movement · {k.MountText}";
         ClassFields.Children.Clear();
         AddSection(ClassFields,"Base stats");
         foreach(var (label,value) in new[]{("HP",k.Hp),("Strength",k.Strength),("Defense",k.Defense),("Agility",k.Agility),("Mind",k.Mind),("Move",k.Move),("Experience value",k.Experience)}) AddPair(ClassFields,label,value.ToString());
@@ -768,7 +768,40 @@ public partial class MainWindow : Window
                     card.Children.Add(new TextBlock {Text=note,TextWrapping=TextWrapping.Wrap,FontSize=12,FontStyle=FontStyles.Italic,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,8,0,0)});
                 card.Children.Add(new TextBlock {Text=$"Source: {m.Source}",FontSize=11,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,6,0,0)});
             }
+            if(section.Key=="Movement") MechanicsList.Children.Add(TerrainTable());
         }
+    }
+    private Border TerrainTable()
+    {
+        var grid=new Grid {Margin=new Thickness(0,4,0,0)};
+        string[] head=["Terrain","Avoid %",..Mechanics.TerrainColumns];
+        for(int c=0;c<head.Length;c++) grid.ColumnDefinitions.Add(new ColumnDefinition {Width=c==0?new GridLength(118):new GridLength(c==1?58:56)});
+        void Cell(int r,int c,string text,bool bold=false,bool muted=false)
+        {
+            var t=new TextBlock {Text=text,FontSize=12,Padding=new Thickness(4,3,4,3),FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,
+                Foreground=muted?(Brush)FindResource("Muted"):(Brush)FindResource("Ink"),HorizontalAlignment=c>0?HorizontalAlignment.Center:HorizontalAlignment.Left};
+            Grid.SetRow(t,r);Grid.SetColumn(t,c);grid.Children.Add(t);
+        }
+        grid.RowDefinitions.Add(new RowDefinition());
+        for(int c=0;c<head.Length;c++) Cell(0,c,head[c],bold:true);
+        int row=1;
+        foreach(var t in Mechanics.Terrain)
+        {
+            grid.RowDefinitions.Add(new RowDefinition());
+            if(row%2==0){var band=new Border {Background=new SolidColorBrush(Color.FromRgb(248,249,246))};Grid.SetRow(band,row);Grid.SetColumnSpan(band,head.Length);grid.Children.Add(band);}
+            Cell(row,0,t.Note.Length>0?t.Terrain+" *":t.Terrain);Cell(row,1,t.Avoid.ToString());
+            for(int i=0;i<t.Costs.Length;i++) Cell(row,2+i,t.Costs[i]?.ToString()??"×",muted:t.Costs[i] is null);
+            row++;
+        }
+        var stack=new StackPanel();
+        stack.Children.Add(new DockPanel {Children={new TextBlock {Text="Terrain costs by movement type",FontSize=16,FontWeight=FontWeights.SemiBold}}});
+        stack.Children.Add(new TextBlock {Text="Movement points each hex costs; × means the terrain cannot be entered. Avoid % is the terrain's avoid bonus. Published by players and not yet found in the game data, so these values cannot be edited yet.",
+            TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,4,0,8)});
+        stack.Children.Add(new ScrollViewer {Content=grid,HorizontalScrollBarVisibility=ScrollBarVisibility.Auto,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled});
+        foreach(var t in Mechanics.Terrain.Where(t=>t.Note.Length>0))
+            stack.Children.Add(new TextBlock {Text=$"* {t.Terrain}: {t.Note}",FontSize=12,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,2,0,0),TextWrapping=TextWrapping.Wrap});
+        stack.Children.Add(new TextBlock {Text="Source: gamekouryaku.com, Berwick Saga terrain list",FontSize=11,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,6,0,0)});
+        return new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,14,18,14),Margin=new Thickness(0,0,0,10),Child=stack};
     }
     private void BuildRules()
     {

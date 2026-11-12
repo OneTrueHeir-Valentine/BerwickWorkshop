@@ -56,6 +56,13 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - The add-and-store routine `0x00174550` (table `0x004A4020`, writers in `0x004A3FE0`) holds a second copy of the same limits and is the one level ups call. Live test 2: with both copies at 0, a level up raised nothing. Both copies together are the stat limits; offered as rules in v0.11.0.
 - Next leads: two sibling 15-entry tables at `0x004A3FE0` and `0x004A4020` with a routine at `0x00174550` that writes the stat bytes (likely get and set attribute), and the level-up code after `0x002245A0`.
 
+### Movement (2026-11-12)
+- Movement type is class record byte 6, bits 1 to 4: 0 cavalry, 1 horseman (light cavalry), 2 flying, 3 knight, 4 armor, 5 infantry, 6 thief, 7 civilian, 8 special (ballistician), 9 snow, 10 war priest, 11 fighter (light infantry), 12 priest. Matches the EmblemWiki class groups for 37 of 40 classes; the 3 misses are likely name pairing in the comparison.
+- Mount state is class record byte 3, bits 4 to 5: 0 on foot, 1 mounted, 2 flying. It agrees with the movement type for every class on both discs.
+- Terrain costs per movement type and terrain avoid are published at gamekouryaku.com (terrain list). Searches for those rows as byte, halfword and word tables, in game order and in the site's column order, with wildcards for impassable, found nothing in the program, a battle RAM dump or the first 256 MB of DATA3. The data may be packed differently or loaded per map.
+- In RAM the class table sits at `0x006DA3A0` (copy at `0x018FA58C`); a pointer to it is stored at `0x004B4768`.
+- Old cheat code pages (atwiki, archived) list program patches for Canto on any unit and full move after moving; leads for the speed prototypes.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.

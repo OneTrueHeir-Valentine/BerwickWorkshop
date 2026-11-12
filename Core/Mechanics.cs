@@ -116,10 +116,58 @@ public static class Mechanics
             MechanicStatus.Located, "Program reading", [], "Needs a test in game before it can be offered."),
 
         // Movement
-        new("Movement", "Movement range", "Class Move, with terrain costs that depend on the class's movement type",
-            "Mounted and dismounted forms are separate classes with their own Move. Changing Move changes how far a unit goes, but not which terrain it can cross or what it costs.",
-            MechanicStatus.Published, "Class records on the disc; EmblemWiki class table", [new("Class Move", Classes)],
-            "Movement type and terrain costs are not mapped yet."),
+        new("Movement", "Movement range", "A unit moves until the terrain costs it has paid reach its class Move",
+            "Each hex costs points by terrain and by the class's movement type (table below). Mounted and dismounted forms are separate classes with their own Move and movement type, so changing Move changes how far a unit goes but not which terrain it can cross or what that terrain costs.",
+            MechanicStatus.Published, "Class records on the disc; EmblemWiki class table; gamekouryaku.com terrain list", [new("Class Move", Classes)],
+            "Movement type is read from the class record and shown on the Classes page; it is not editable until it is checked in a running game. Terrain costs are not yet found in the game data."),
+        new("Movement", "Movement type", "Class record byte 6, bits 1 to 4: Cavalry, Horseman, Flying, Knight, Armor, Infantry, Thief, Civilian, Special, Snow, War priest, Fighter, Priest",
+            "Every class has one movement type, and terrain costs depend on it. The mount state (on foot, mounted, flying) sits in byte 3 and always agrees with the type.",
+            MechanicStatus.Located, "Class records on the disc, matched against the EmblemWiki class groups (37 of 40)", [new("Classes page", Classes)],
+            "Shown read-only until checked in a running game."),
+    });
+
+    /// <summary>Published terrain costs (gamekouryaku.com terrain list). Null means the terrain cannot be entered.</summary>
+    public static readonly string[] TerrainColumns = ["Cavalry", "Horseman", "Flying", "Knight", "Armor", "Infantry", "Fighter", "Thief", "Priest", "Civilian", "Special"];
+
+    public sealed record TerrainCost(string Terrain, int Avoid, int?[] Costs, string Note = "");
+
+    public static IReadOnlyList<TerrainCost> Terrain { get; } = Array.AsReadOnly(new TerrainCost[]
+    {
+        new("Road", 1, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        new("Plain", 2, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
+        new("Grassland", 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
+        new("Thicket", 3, [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
+        new("Bridge", 0, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        new("Floor", 0, [null, null, null, 1, 1, 1, 1, 1, 1, 1, 1]),
+        new("Gate", 0, [1, 1, null, 1, 1, 1, 1, 1, 1, 1, 1], "Break it or use Locktouch"),
+        new("Wasteland", 5, [3, 2, 1, 2, 2, 2, 1, 1, 2, 2, null]),
+        new("Sand", 0, [4, 3, 1, 3, null, 2, 1, 1, 1, 2, null]),
+        new("Shallows", 0, [4, 3, 1, 3, null, 2, 1, 1, 2, 2, null]),
+        new("Poison swamp", 0, [4, 3, 1, 2, null, 2, 2, 1, 2, 2, null], "Recovery while resting minus 20%"),
+        new("Snow road", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Snowfield", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Forest", 9, [4, 3, 1, 2, 2, 2, 2, 1, 2, 3, 2]),
+        new("Snow forest", 10, [7, 6, 1, 4, 4, 4, 3, 2, 3, 3, 2]),
+        new("Mountain foot", 8, [6, 4, 1, 4, null, 3, 2, 2, 3, 3, 2]),
+        new("Cliff", 0, [null, null, 1, 4, null, 3, 2, 2, 3, 3, null], "Avoid 0 without Climber"),
+        new("Cave (open)", 6, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, null]),
+        new("Cave (narrow)", 2, [null, null, null, 1, 1, 1, 1, 1, 1, 1, null]),
+        new("House", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Search finds items"),
+        new("Shop", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null]),
+        new("Church", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Waiting restores HP each turn"),
+        new("Lighthouse", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Unit vision +3"),
+        new("Guardhouse", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Operates the drawbridge"),
+        new("Manor", 7, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null]),
+        new("Temple", 8, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Castle", 10, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Throne", 10, [null, null, null, 2, 2, 2, 2, 2, 2, 2, null]),
+        new("Drawbridge", 0, [null, null, 1, null, null, null, null, null, null, null, null], "Lowered from a guardhouse"),
+        new("Jungle", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
+        new("Mountain", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
+        new("River", 12, [null, null, 1, null, null, null, null, null, null, null, null], "Swimmer lets a unit cross"),
+        new("Sea or lake", 15, [null, null, 1, null, null, null, null, null, null, null, null]),
+        new("Wall", 0, [null, null, null, null, null, null, null, null, null, null, null]),
+        new("Door", 0, [null, null, null, null, null, null, null, null, null, null, null], "Break it or use Locktouch"),
     });
 
     public static string StatusText(MechanicStatus status) => status switch

@@ -126,7 +126,7 @@ The Mechanics page lists each known formula with an explanation, its verificatio
 
 ### Evaluation tools (priority from design review)
 Design goal: evaluate a rule change before playing it. Results must say whether they rest on confirmed game behaviour or on a proposed formula.
-1. Movement and range analysis (highest priority). Needs the class movement type and terrain cost data mapped first (class record fields beyond Move are unverified; upstream names a movement type at byte 6 and unit type at byte 4, both overlapping verified fields, so they are not trusted). Then: reachable hexes after one and two activations, attackable hexes after moving (range and terrain), turns and actions needed to reach mission objectives, mounted against dismounted forms, and how a Move change shifts player and enemy threat ranges. Start with controlled test maps, then real chapter maps once the map format is known.
+1. Movement and range analysis (highest priority). Movement type is located (class byte 6 bits 1 to 4; mount state byte 3 bits 4 to 5) and shown read-only since v0.12.0. Terrain costs are shown from the published list; where the game keeps them is not found yet (not a plain byte, halfword or word table in the program, RAM or the first 256 MB of DATA3). Next: find the code that reads byte 6 and follow it to the cost data, then confirm with the in-game terrain info. Then: reachable hexes after one and two activations, attackable hexes after moving (range and terrain), turns and actions needed to reach mission objectives, mounted against dismounted forms, and how a Move change shifts player and enemy threat ranges. Start with controlled test maps, then real chapter maps once the map format is known.
 2. Historical comparison: clean vanilla, Redux 1.4.1, the current project and proposed rules, field by field, with the affected characters, classes and items. The comparison view already does disc against disc; extend it to project against disc and to three-way.
 3. Combat simulator: expected and worst-case damage, survival chance, follow-ups and counters for chosen encounters under different rule sets, using only confirmed formulas or clearly labelled proposed ones.
 4. Dependency checker: shared classes (player and enemy), unsupported or unverified fields, rule conflicts, invalid item references, equipment that a class cannot use, and changes that reach the enemy roster.
@@ -142,7 +142,7 @@ Design goal: evaluate a rule change before playing it. Results must say whether 
 | Class edits also change enemies in that class | A player buff can strengthen many enemies | Critical: the editor warns, but should list enemy users once chapter data is mapped |
 | Learned-skill writes have unresolved corruption reports | May create invalid character states | Critical: stays locked |
 | Some items have more than one special effect | A single-effect editor would misrepresent them | High: effects are not editable yet; decode all effect slots before allowing it |
-| Class movement type not mapped | Limits movement redesign | High (evaluation tool 1) |
+| Class movement type located, terrain cost data not found in game files | Limits movement redesign | High (evaluation tool 1) |
 | Class growth data unverified | Incomplete class progression editing | High |
 | New item slots lack verified map references | A free slot might be used by chapter data | High |
 | Item and class text editing unfinished | New content shows the slot's old name | High (M5) |

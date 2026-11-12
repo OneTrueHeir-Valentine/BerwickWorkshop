@@ -323,6 +323,16 @@ if(args.Length>=2)
         Equal("4/13/10",$"{K(0x57).Move}/{K(0x57).Experience}/{K(0x58).Experience}");
         Equal(true,K(0x01).Skills.Contains("Canto"));Equal(true,K(0x57).Skills.Contains("Locktouch") && K(0x57).Skills.Contains("Hide"));
     });
+    Test("Movement type and mount agree for every class in both editions",()=>{
+        ClassRecord K(int id)=>en!.Classes.Single(c=>c.Id==id);
+        Equal("Mounted/On foot/Thief",$"{K(0x01).MountText}/{K(0x02).MountText}/{K(0x57).MovementTypeText}");
+        foreach(var k in en!.Classes.Concat(jp!.Classes))
+        {
+            int expected=k.MovementType switch {0 or 1=>1,2=>2,_=>0};
+            Equal($"{k.Name} {expected}",$"{k.Name} {k.Mount}");
+        }
+        Equal(true,Mechanics.Terrain.All(t=>t.Costs.Length==Mechanics.TerrainColumns.Length));
+    });
     Test("No character starts above a class weapon cap",()=>{
         foreach(var c in en!.Characters)
         {

@@ -9,6 +9,13 @@ public sealed record ClassRecord(
     IReadOnlyList<string> Skills, IReadOnlyList<WeaponValue> WeaponCaps)
 {
     public string IdText => $"0x{Id:X2}";
+    /// <summary>Class record byte 6 bits 1 to 4. Matches the published class groups for 37 of 40 classes checked.</summary>
+    public int MovementType { get; init; }
+    /// <summary>Class record byte 3 bits 4 to 5: 0 on foot, 1 mounted, 2 flying.</summary>
+    public int Mount { get; init; }
+    public static readonly string[] MovementTypes = ["Cavalry", "Horseman", "Flying", "Knight", "Armor", "Infantry", "Thief", "Civilian", "Special", "Snow", "War priest", "Fighter", "Priest"];
+    public string MovementTypeText => MovementType < MovementTypes.Length ? MovementTypes[MovementType] : $"Type {MovementType}";
+    public string MountText => Mount switch { 0 => "On foot", 1 => "Mounted", 2 => "Flying", _ => $"Mount {Mount}" };
     public string SkillText => Skills.Count == 0 ? "None" : string.Join(", ", Skills);
 
     public IReadOnlyDictionary<string, string> Fields()
@@ -17,7 +24,7 @@ public sealed record ClassRecord(
         {
             ["HP"] = Hp.ToString(), ["Strength"] = Strength.ToString(), ["Defense"] = Defense.ToString(),
             ["Agility"] = Agility.ToString(), ["Mind"] = Mind.ToString(), ["Move"] = Move.ToString(),
-            ["Experience"] = Experience.ToString(), ["Skills"] = SkillText,
+            ["Experience"] = Experience.ToString(), ["Skills"] = SkillText, ["Movement type"] = MovementTypeText, ["Mount"] = MountText,
         };
         foreach (var cap in WeaponCaps) fields[$"{cap.Weapon} cap"] = cap.Value.ToString();
         return fields;
@@ -52,7 +59,8 @@ public static class ClassDecoder
         // Base stats are five packed 5-bit fields: Strength, Agility, Defense, Mind, HP.
         return new(id, name,
             Hp: B(record, 2, 5, 5), Strength: B(record, 0, 0, 5), Defense: B(record, 1, 2, 5), Agility: B(record, 0, 5, 5), Mind: B(record, 2, 0, 5),
-            Move: B(record, 8, 0, 4), Experience: B(record, 4, 0, 7), Skills: skills.AsReadOnly(), WeaponCaps: caps.AsReadOnly());
+            Move: B(record, 8, 0, 4), Experience: B(record, 4, 0, 7), Skills: skills.AsReadOnly(), WeaponCaps: caps.AsReadOnly())
+        { MovementType = B(record, 6, 1, 4), Mount = B(record, 3, 4, 2) };
     }
 
     public static string DisplayName(string raw)
