@@ -11,8 +11,8 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: verify game dump, detect version | Exact SHA-256 + ELF CRC profiles for JP and EN | M0 | done |
 | FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | done: edit in project (v0.4.0), export to disc (v0.5.0) |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
-| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read done (v0.2.0), supports not yet |
-| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read done (v0.3.0) for bases, move, experience, skills, caps; class growths and attributes still research |
+| FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read (v0.2.0); edit level, bonuses, growths, weapon levels and growth (v0.6.0); starting items, skills, supports not yet |
+| FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read (v0.3.0); edit bases, move, experience, caps (v0.6.0); class skills editable later; class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
 | ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | done (v0.5.0) |
@@ -76,8 +76,12 @@ Verified while building the Classes page (v0.3.0):
 3. Verified: a real export of an edited English disc (4,321,804,288 bytes, 12 bytes changed) reopens as Modified English v2.3 with exactly the project's item values and unchanged characters and classes; the in-app export, compared against the live session, matches on all 646 items. Not yet tested by booting an export in PCSX2.
 4. Not done: xdelta patch output (DeltaPatcher compatible). The user's `bws-rc-v2.3.xdelta` could validate a VCDIFF decoder before writing an encoder. Also not done: setup screen, export folder preference, logs.
 
-### M4 Character and class editing
-Only for fields proven in M1. Shared-class warning when a class is used by playable units.
+### M4 Character and class editing (done in v0.6.0 for proven fields)
+- `EditSession` now covers four tables: `items`, `characters` (unit record, 0x100 bytes at the roster offset), `growths` (32 bytes per character ID) and `classes` (100 bytes per class ID). One Apply can span tables and is one undo step. `.bwproj` format version 1 is unchanged (it already stored `table`).
+- Field definitions: `CharacterFields.Record`, `CharacterFields.Growth`, `ClassFields.Fields` in `Core/Editing.cs`. `TableField.Signed` handles the 5-bit stat bonuses; `TableField.Display` handles weapon levels (stored x10, shown with one decimal) and weapon growth (stored /10, shown in steps of 10).
+- Export writes only the bytes that differ, as runs, to both copies of every changed table (`Exporter.RecordLocations`).
+- Verified: bit-isolation inverse tests for every field; field reads equal decoder output on random records; real export with item, character, growth and class edits reopens with exactly those values, everything else unchanged and both table copies still equal.
+- Not editable yet: starting items (needs an item picker), personal and class skills (bit sets, decoded and verified, so this is a good next step), learned skills (cause of community corruption reports still unknown), class growths and attributes (unverified), character class (risky: mounted forms, sprites).
 
 ### M5 to M11
 Text, graphics, maps and events, PCSX2 link and PNACH, saves, patch packs, audio and Berwick specific systems. Each starts with a read-only viewer and a round-trip test before any writes.

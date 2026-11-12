@@ -1,4 +1,6 @@
 using Berwick.Core;
+using CoreCharacterFields = Berwick.Core.CharacterFields;
+using CoreClassFields = Berwick.Core.ClassFields;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.IO;
@@ -20,8 +22,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? loading;
     private bool ready, closing;
     private EditSession? session;
-    private int? editingId;
-    private readonly Dictionary<string,Control> editors=[];
+    private EditTarget? editing;
+    private readonly List<(string Table,TableField Field,Control Input,TextBlock Error)> editors=[];
+    private Dictionary<int,ClassRecord> classLookup=[];
     private TextBlock? editorError;
 
     public MainWindow()
@@ -77,7 +80,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                primary=result;comparison=null;editingId=null;
+                EndEdit();primary=result;comparison=null;
                 session=result.Supported?new EditSession(result):null;
                 Search.Clear();Category.SelectedIndex=0;OnlyDifferences.IsChecked=false;
                 CharacterSearch.Clear();CharacterDifferencesOnly.IsChecked=false;
@@ -100,8 +103,9 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;EditItemButton.IsEnabled=false;}
-        else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;EditItemButton.IsEnabled=true;}
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton}) b.IsEnabled=!busy;
+        if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
+        else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
         Progress.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
     }
@@ -124,18 +128,23 @@ public partial class MainWindow : Window
         {
             ComparisonText.Text=$"{primary.Edition} / {comparison.Edition}\n"+(differences.Count==0?$"All {rows.Count} items match in the compared fields.":$"{groups.Count} items have differences in the compared fields.");
         }
-        var characterDifferences=comparison is null?[]:RecordComparison.Compare(primary.Characters,comparison.Characters);
+        var characters=session?.EditedCharacters()??primary.Characters;
+        var classes=session?.EditedClasses()??primary.Classes;
+        classLookup=classes.ToDictionary(c=>c.Id);
+        var characterDifferences=comparison is null?[]:RecordComparison.Compare(characters,comparison.Characters);
         var characterGroups=characterDifferences.GroupBy(d=>d.Id).ToDictionary(g=>g.Key,g=>g.ToArray());
-        characterRows=primary.Characters.Select(c=>new CharacterRow(c,characterGroups.TryGetValue(c.Id,out var list)?list:[],comparison is not null)).ToList();
+        characterRows=characters.Select(c=>new CharacterRow(c,characterGroups.TryGetValue(c.Id,out var list)?list:[],comparison is not null)
+            { Edited=session is not null && (session.IsEdited(EditSession.Characters,c.Id) || session.IsEdited(EditSession.Growths,c.Id)) }).ToList();
         CharactersNav.IsEnabled=primary.Supported;
         CharacterComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         CharacterChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         if(comparison is not null)
             CharacterComparisonText.Text=$"{primary.Edition} / {comparison.Edition}\n"+(characterDifferences.Count==0?$"All {characterRows.Count} characters match in the compared fields.":$"{characterGroups.Count} characters have differences in the compared fields.");
-        var classDifferences=comparison is null?[]:ClassComparison.Compare(primary.Classes,comparison.Classes);
+        var classDifferences=comparison is null?[]:ClassComparison.Compare(classes,comparison.Classes);
         var classGroups=classDifferences.GroupBy(d=>d.Id).ToDictionary(g=>g.Key,g=>g.ToArray());
         var starters=primary.Characters.GroupBy(c=>c.ClassId).ToDictionary(g=>g.Key,g=>(IReadOnlyList<string>)g.Select(c=>c.Name).ToList());
-        classRows=primary.Classes.Select(k=>new ClassRow(k,classGroups.TryGetValue(k.Id,out var list)?list:[],comparison is not null,starters.TryGetValue(k.Id,out var s)?s:[])).ToList();
+        classRows=classes.Select(k=>new ClassRow(k,classGroups.TryGetValue(k.Id,out var list)?list:[],comparison is not null,starters.TryGetValue(k.Id,out var s)?s:[])
+            { Edited=session?.IsEdited(EditSession.Classes,k.Id)==true }).ToList();
         ClassesNav.IsEnabled=primary.Supported;
         ClassComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         ClassChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
@@ -190,8 +199,8 @@ public partial class MainWindow : Window
     {
         if(ItemGrid.SelectedItem is not ItemRow row){ClearItem();return;}
         var item=row.Item;ItemName.Text=item.DisplayName;ItemIdentity.Text=$"{item.IdText} · {item.Category}";
-        if(editingId is not null && editingId!=item.Id) EndEdit();
-        EditItemButton.Visibility=session is not null && editingId is null?Visibility.Visible:Visibility.Collapsed;
+        if(editing?.Page==View.Items && editing.Id!=item.Id) EndEdit();
+        UpdateEditButtons();
         DetailFields.Children.Clear();
         string Was(params string[] keys)
         {
@@ -225,7 +234,7 @@ public partial class MainWindow : Window
     }
     private void ClearItem()
     {
-        if(ItemName is null)return;EndEdit();EditItemButton.Visibility=Visibility.Collapsed;ItemName.Text="Select an item";ItemIdentity.Text="";DetailFields.Children.Clear();ItemEffect.Text="";ItemComparisonText.Text="";
+        if(ItemName is null)return;if(editing?.Page==View.Items)EndEdit();UpdateEditButtons();ItemName.Text="Select an item";ItemIdentity.Text="";DetailFields.Children.Clear();ItemEffect.Text="";ItemComparisonText.Text="";
     }
     private void ShowItems(object sender,RoutedEventArgs e) { view=View.Items;UpdatePage(); }
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
@@ -234,6 +243,7 @@ public partial class MainWindow : Window
     private void UpdatePage()
     {
         if(view!=View.Disc && primary is not null && !primary.Supported) view=View.Disc;
+        if(editing is not null && editing.Page!=view) EndEdit();
         PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
@@ -270,9 +280,12 @@ public partial class MainWindow : Window
     private void CharacterSelected(object sender,SelectionChangedEventArgs e)
     {
         if(CharacterGrid.SelectedItem is not CharacterRow row){ClearCharacter();return;}
-        var c=row.Character;CharacterName.Text=c.Name;CharacterIdentity.Text=$"{c.IdText} · {c.ClassName} · Level {c.Level}";
+        var c=row.Character;
+        if(editing?.Page==View.Characters && editing.Id!=c.Id) EndEdit();
+        UpdateEditButtons();
+        CharacterName.Text=c.Name;CharacterIdentity.Text=$"{c.IdText} · {c.ClassName} · Level {c.Level}";
         CharacterFields.Children.Clear();
-        if(primary?.ClassOf(c) is { } k)
+        if(classLookup.TryGetValue(c.ClassId,out var k))
         {
             Section("Base stats");
             foreach(var (label,value) in new[]{("HP",k.Hp+c.HpBonus),("Strength",k.Strength+c.StrengthBonus),("Defense",k.Defense+c.DefenseBonus),("Agility",k.Agility+c.AgilityBonus),("Mind",k.Mind+c.MindBonus),("Move",k.Move)}) Pair(label,value.ToString());
@@ -289,6 +302,7 @@ public partial class MainWindow : Window
         if(c.Learned.Count==0)Text("None");else foreach(var l in c.Learned)Pair(l.Skill,$"Level {l.Level}");
         Section("Starting items");
         if(c.Items.Count==0)Text("None");else foreach(var i in c.Items)Pair(i.Name,i.Durability.ToString());
+        AddChangeList(CharacterFields,ch=>ch.Id==c.Id && ch.Table is EditSession.Characters or EditSession.Growths,()=>session!.Revert((EditSession.Characters,c.Id),(EditSession.Growths,c.Id)));
         CharacterComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This character's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
     private void ApplyClassFilter()
@@ -315,7 +329,10 @@ public partial class MainWindow : Window
     private void ClassSelected(object sender,SelectionChangedEventArgs e)
     {
         if(ClassGrid.SelectedItem is not ClassRow row){ClearClass();return;}
-        var k=row.Class;ClassName.Text=k.Name;ClassIdentity.Text=k.IdText;
+        var k=row.Class;
+        if(editing?.Page==View.Classes && editing.Id!=k.Id) EndEdit();
+        UpdateEditButtons();
+        ClassName.Text=k.Name;ClassIdentity.Text=k.IdText;
         ClassFields.Children.Clear();
         AddSection(ClassFields,"Base stats");
         foreach(var (label,value) in new[]{("HP",k.Hp),("Strength",k.Strength),("Defense",k.Defense),("Agility",k.Agility),("Mind",k.Mind),("Move",k.Move),("Experience value",k.Experience)}) AddPair(ClassFields,label,value.ToString());
@@ -323,6 +340,7 @@ public partial class MainWindow : Window
         AddSection(ClassFields,"Weapon level caps");
         if(k.WeaponCaps.Count==0)AddText(ClassFields,"None");else foreach(var w in k.WeaponCaps)AddPair(ClassFields,w.Weapon,w.Value.ToString());
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
+        AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
     private void AddSection(Panel panel,string title)=>panel.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
@@ -404,7 +422,7 @@ public partial class MainWindow : Window
         if(picker.ShowDialog(this)!=true)return;
         try
         {
-            session=EditSession.Load(primary,picker.FileName);editingId=null;
+            EndEdit();session=EditSession.Load(primary,picker.FileName);
             RefreshDocument();Status.Text=$"Project opened with {session.ChangeCount} changes.";
         }
         catch(EditException ex){Notify(ex.Message);}
@@ -413,7 +431,7 @@ public partial class MainWindow : Window
     private async void ExportDisc(object sender,RoutedEventArgs e)
     {
         if(loading is not null || primary?.Supported!=true || session is null || session.ChangeCount==0)return;
-        if(editingId is not null){Notify("Apply or cancel the item you are editing before exporting.");return;}
+        if(editing is not null){Notify("Apply or cancel the changes you are editing before exporting.");return;}
         string folder=Path.GetDirectoryName(primary.Path)??Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         var picker=new SaveFileDialog {Title="Export patched disc",Filter="ISO disc images (*.iso)|*.iso",DefaultExt=".iso",AddExtension=true,InitialDirectory=folder,
             FileName=$"{Path.GetFileNameWithoutExtension(primary.Path)} ({ProjectTitle}).iso"};
@@ -451,59 +469,131 @@ public partial class MainWindow : Window
     }
     private void UndoEdit(object sender,RoutedEventArgs e){if(session?.CanUndo!=true || loading is not null)return;EndEdit();session.Undo();RefreshDocument();Status.Text="Undone.";}
     private void RedoEdit(object sender,RoutedEventArgs e){if(session?.CanRedo!=true || loading is not null)return;EndEdit();session.Redo();RefreshDocument();Status.Text="Redone.";}
+    private sealed record EditSection(string Title,string Table,IReadOnlyList<TableField> Fields);
+    private sealed record EditTarget(View Page,int Id,string Noun,Panel Host,Panel ViewPanel,Button EditButton,IReadOnlyList<EditSection> Sections,string? Warning);
     private void BeginEdit(object sender,RoutedEventArgs e)
     {
-        if(session is null || loading is not null || ItemGrid.SelectedItem is not ItemRow row)return;
-        int id=row.Item.Id;editingId=id;editors.Clear();EditorPanel.Children.Clear();
-        foreach(var field in ItemEncoder.Fields)
-        {
-            var grid=new Grid {Margin=new Thickness(0,0,0,8)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(72)});
-            grid.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,VerticalAlignment=VerticalAlignment.Center});
-            Control input;
-            if(field.Key=="durability")
-            {
-                var combo=new ComboBox {Padding=new Thickness(6,4,6,4)};foreach(char grade in "SABCDEF")combo.Items.Add(grade.ToString());
-                combo.SelectedIndex=Math.Clamp(session.Value(id,field.Key),0,6);input=combo;
-            }
-            else input=new TextBox {Text=session.Value(id,field.Key).ToString(),Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right};
-            System.Windows.Automation.AutomationProperties.SetName(input,field.Label);
-            input.ToolTip=$"{field.Min} to {field.Max}";
-            Grid.SetColumn(input,1);grid.Children.Add(input);EditorPanel.Children.Add(grid);editors[field.Key]=input;
-        }
+        if(ItemGrid.SelectedItem is not ItemRow row)return;
+        OpenEditor(new(View.Items,row.Item.Id,"Item",EditorPanel,DetailFields,EditItemButton,[new("",EditSession.Items,ItemEncoder.Fields)],null));
+    }
+    private void BeginCharacterEdit(object sender,RoutedEventArgs e)
+    {
+        if(CharacterGrid.SelectedItem is not CharacterRow row)return;
+        OpenEditor(new(View.Characters,row.Character.Id,"Character",CharacterEditorPanel,CharacterFields,EditCharacterButton,
+        [
+            new("Starting record",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group.Length==0).ToList()),
+            new("Growth rates",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group.Length==0).ToList()),
+            new("Weapon levels",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Weapon levels").ToList()),
+            new("Weapon growth",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group=="Weapon growth").ToList()),
+        ],null));
+    }
+    private void BeginClassEdit(object sender,RoutedEventArgs e)
+    {
+        if(ClassGrid.SelectedItem is not ClassRow row)return;
+        string warning=row.StartingCharacters.Count>0
+            ?$"Changes apply to every unit in this class, including enemies and {string.Join(", ",row.StartingCharacters)}."
+            :"Changes apply to every unit in this class, including enemies.";
+        OpenEditor(new(View.Classes,row.Class.Id,"Class",ClassEditorPanel,ClassFields,EditClassButton,
+        [
+            new("Base stats",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group.Length==0).ToList()),
+            new("Weapon level caps",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Weapon level caps").ToList()),
+        ],warning));
+    }
+    private void OpenEditor(EditTarget target)
+    {
+        if(session is null || loading is not null)return;
+        EndEdit();editing=target;editors.Clear();
+        var host=target.Host;host.Children.Clear();
         editorError=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,0,0,8)};
-        EditorPanel.Children.Insert(0,editorError);
-        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        host.Children.Add(editorError);
+        if(target.Warning is { } warning)
+            host.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(255,241,217)),BorderBrush=new SolidColorBrush(Color.FromRgb(223,204,158)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(4),Padding=new Thickness(10,8,10,8),Margin=new Thickness(0,0,0,10),
+                Child=new TextBlock {Text=warning,TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=new SolidColorBrush(Color.FromRgb(114,82,33))}});
+        foreach(var section in target.Sections)
+        {
+            if(section.Title.Length>0) host.Children.Add(new TextBlock {Text=section.Title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,8)});
+            foreach(var field in section.Fields)
+            {
+                var grid=new Grid {Margin=new Thickness(0,0,0,8)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(72)});
+                grid.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap});
+                int current=session.Value(section.Table,target.Id,field.Key);
+                Control input;
+                if(section.Table==EditSession.Items && field.Key=="durability")
+                {
+                    var combo=new ComboBox {Padding=new Thickness(6,4,6,4)};foreach(char grade in "SABCDEF")combo.Items.Add(grade.ToString());
+                    combo.SelectedIndex=Math.Clamp(current,0,6);input=combo;
+                }
+                else input=new TextBox {Text=FieldCodec.Format(field,current),Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right};
+                System.Windows.Automation.AutomationProperties.SetName(input,section.Title.Length>0?$"{section.Title}: {field.Label}":field.Label);
+                input.ToolTip=$"{FieldCodec.Format(field,field.Min)} to {FieldCodec.Format(field,field.Max)}";
+                Grid.SetColumn(input,1);grid.Children.Add(input);host.Children.Add(grid);
+                var fieldError=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,-4,0,8),Visibility=Visibility.Collapsed};
+                host.Children.Add(fieldError);editors.Add((section.Table,field,input,fieldError));
+            }
+        }
+        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,4,0,0)};
         var cancel=new Button {Content="Cancel",Style=(Style)FindResource("SmallButton"),IsCancel=true};cancel.Click+=(_,_)=>{EndEdit();Status.Text="Edit canceled.";};
         var apply=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),IsDefault=true,Background=(Brush)FindResource("Accent"),Foreground=Brushes.White,BorderBrush=(Brush)FindResource("Accent")};apply.Click+=ApplyEdit;
-        buttons.Children.Add(cancel);buttons.Children.Add(apply);EditorPanel.Children.Add(buttons);
-        DetailFields.Visibility=Visibility.Collapsed;EditorPanel.Visibility=Visibility.Visible;EditItemButton.Visibility=Visibility.Collapsed;
-        (editors["might"] as TextBox)?.Focus();(editors["might"] as TextBox)?.SelectAll();
+        buttons.Children.Add(cancel);buttons.Children.Add(apply);host.Children.Add(buttons);
+        target.ViewPanel.Visibility=Visibility.Collapsed;host.Visibility=Visibility.Visible;target.EditButton.Visibility=Visibility.Collapsed;
+        if(editors.Select(x=>x.Input).OfType<TextBox>().FirstOrDefault() is { } first){first.Focus();first.SelectAll();}
     }
     private void ApplyEdit(object sender,RoutedEventArgs e)
     {
-        if(session is null || editingId is not int id || editorError is null)return;
-        var values=new Dictionary<string,int>();
-        foreach(var (key,input) in editors)
+        if(session is null || editing is null || editorError is null)return;
+        var edits=new List<FieldEdit>();
+        editorError.Text="";
+        foreach(var row in editors){row.Error.Text="";row.Error.Visibility=Visibility.Collapsed;}
+        foreach(var (table,field,input,fieldError) in editors)
         {
-            if(input is ComboBox combo){values[key]=combo.SelectedIndex;continue;}
-            string text=((TextBox)input).Text.Trim().Replace(",","");
-            if(!int.TryParse(text,System.Globalization.NumberStyles.None,System.Globalization.CultureInfo.InvariantCulture,out int value))
-            {editorError.Text=$"{ItemEncoder.Field(key).Label} must be a whole number.";editorError.BringIntoView();input.Focus();return;}
-            values[key]=value;
+            int value;
+            if(input is ComboBox combo) value=combo.SelectedIndex;
+            else if(!FieldCodec.TryParse(field,((TextBox)input).Text,out value,out string error))
+            {
+                fieldError.Text=error;fieldError.Visibility=Visibility.Visible;
+                input.Focus();((TextBox)input).SelectAll();fieldError.BringIntoView();return;
+            }
+            edits.Add(new(table,editing.Id,field.Key,value));
         }
         try
         {
-            bool changed=session.Apply(id,values);
+            bool changed=session.Apply(edits);string noun=editing.Noun;
             EndEdit();RefreshDocument();
-            Status.Text=changed?"Item updated. Save the project to keep your changes.":"No values were changed.";
+            Status.Text=changed?$"{noun} updated. Save the project to keep your changes.":"No values were changed.";
         }
         catch(EditException ex){editorError.Text=ex.Message;editorError.BringIntoView();}
     }
     private void EndEdit()
     {
-        if(EditorPanel is null)return;
-        editingId=null;editors.Clear();EditorPanel.Children.Clear();EditorPanel.Visibility=Visibility.Collapsed;DetailFields.Visibility=Visibility.Visible;
-        EditItemButton.Visibility=session is not null && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
+        if(editing is { } target)
+        {
+            editing=null;editors.Clear();target.Host.Children.Clear();target.Host.Visibility=Visibility.Collapsed;target.ViewPanel.Visibility=Visibility.Visible;
+        }
+        UpdateEditButtons();
+    }
+    private void UpdateEditButtons()
+    {
+        if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null)return;
+        bool can=session is not null && editing is null;
+        EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
+        EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
+        EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
+    }
+    private void AddChangeList(Panel panel,Func<FieldChange,bool> belongs,Action restore)
+    {
+        if(session is null)return;
+        var changes=session.Changes.Where(belongs).ToList();
+        if(changes.Count==0)return;
+        AddSection(panel,"Changed in this project");
+        foreach(var c in changes)
+        {
+            var field=session.Table(c.Table).Field(c.Field);
+            string label=field.Group.Length>0?$"{field.Label} {field.Group switch { "Weapon levels"=>"level", "Weapon growth"=>"growth", _=>"cap" }}":field.Label;
+            AddPair(panel,label,$"{FieldCodec.Format(field,c.Original)} → {FieldCodec.Format(field,c.Value)}");
+        }
+        var button=new Button {Content="Restore original values",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
+        button.Click+=(_,_)=>{restore();RefreshDocument();Status.Text="Original values restored. Save the project to keep this change.";};
+        panel.Children.Add(button);
     }
     private async void OnDrop(object sender,DragEventArgs e)
     {
@@ -520,7 +610,12 @@ public partial class MainWindow : Window
         if(e.Key==Key.S && session is not null){e.Handled=true;SaveProjectFile(shift);return;}
         if(!typing && (e.Key==Key.Y || (e.Key==Key.Z && shift))){e.Handled=true;RedoEdit(this,new());return;}
         if(!typing && e.Key==Key.Z){e.Handled=true;UndoEdit(this,new());return;}
-        if(e.Key==Key.E && view==View.Items && session is not null && editingId is null){e.Handled=true;BeginEdit(this,new());return;}
+        if(e.Key==Key.E && session is not null && editing is null)
+        {
+            e.Handled=true;
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());
+            return;
+        }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
         if(e.Key==Key.F && primary?.Supported==true)
         {
@@ -538,12 +633,13 @@ public partial class MainWindow : Window
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing items","Select an item and choose Edit to change its might, accuracy, weight, range, critical, level, base price, durability grade or durability pool. Apply updates the list right away and marks the item as edited. Undo and Redo step through your changes. Restore original values puts an item back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, weapon levels and weapon growth. Classes: base stats, move, experience value and weapon level caps. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses instead."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),
-            ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of the item table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
+            ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of each changed table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
             ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),
             ("Keeping your files safe","Berwick Workshop never changes your ISO files, memory cards, save states, or emulator settings. No internet connection is used."),
-            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
+            ("Keyboard shortcuts","Ctrl+O opens a disc. Ctrl+Shift+O chooses a comparison disc. Ctrl+F searches the current list. Ctrl+E edits the selected item, character or class. Ctrl+Z and Ctrl+Y undo and redo. Ctrl+S saves the project, and Ctrl+Shift+S saves it under a new name. Escape cancels a disc check.")})
         {
             content.Children.Add(new TextBlock {Text=title,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,10,0,5)});
             content.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),LineHeight=21});

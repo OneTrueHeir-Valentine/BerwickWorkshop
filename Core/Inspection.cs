@@ -34,6 +34,10 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public bool CharacterCopiesMatch { get; init; } = true;
     public IReadOnlyList<ClassRecord> Classes { get; init; } = [];
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ItemBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> UnitBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> GrowthBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ClassBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, int> CharacterOffsets { get; init; } = new Dictionary<int, int>();
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -93,6 +97,8 @@ public static class Inspector
         }
         var characters=new List<CharacterRecord>();bool characterCopiesMatch=true;
         var classes=new List<ClassRecord>();bool classCopiesMatch=true;
+        var unitBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var growthBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
+        var classBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var characterOffsets=new Dictionary<int,int>();
         if (profile is not null)
         {
             var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
@@ -110,18 +116,25 @@ public static class Inspector
             foreach(long start in new[]{profile.ClassTable,profile.SecondClassTable}) if(start+classLength>data.Length) throw new InvalidDataException("The class tables are incomplete.");
             var classData=iso.ReadRange(data.Offset+profile.ClassTable,classLength,64*1024);
             classCopiesMatch=classData.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondClassTable,classLength,64*1024));
-            foreach(var (id,name) in classList) classes.Add(ClassDecoder.Decode(id,name,classData.AsSpan((id-1)*ClassDecoder.RecordLength,ClassDecoder.RecordLength)));
+            foreach(var (id,name) in classList)
+            {
+                var raw=classData.AsSpan((id-1)*ClassDecoder.RecordLength,ClassDecoder.RecordLength).ToArray();classBytes[id]=raw;
+                classes.Add(ClassDecoder.Decode(id,name,raw));
+            }
             var classNames=classes.ToDictionary(c=>c.Id,c=>c.Name);
             var itemNames=items.ToDictionary(i=>i.Id,i=>i.DisplayName);
             foreach(var entry in roster)
             {
                 cancellation.ThrowIfCancellationRequested();
-                var character=CharacterDecoder.Decode(entry,units.AsSpan(entry.RecordOffset,CharacterDecoder.RecordLength),growths.AsSpan((entry.Id-1)*CharacterDecoder.GrowthLength,CharacterDecoder.GrowthLength),itemNames);
+                var unit=units.AsSpan(entry.RecordOffset,CharacterDecoder.RecordLength).ToArray();
+                var growth=growths.AsSpan((entry.Id-1)*CharacterDecoder.GrowthLength,CharacterDecoder.GrowthLength).ToArray();
+                unitBytes[entry.Id]=unit;growthBytes[entry.Id]=growth;characterOffsets[entry.Id]=entry.RecordOffset;
+                var character=CharacterDecoder.Decode(entry,unit,growth,itemNames);
                 characters.Add(character with { ClassName=classNames.TryGetValue(character.ClassId,out var cn)?cn:$"Class 0x{character.ClassId:X2}" });
             }
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,IsModified=modified };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,CharacterOffsets=characterOffsets,IsModified=modified };
     }
 }

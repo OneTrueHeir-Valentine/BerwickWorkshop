@@ -168,6 +168,51 @@ Test("Export refuses unsafe requests and leaves no partial file",()=>{
     }
     finally{Directory.Delete(dir,true);}
 });
+Test("Character and class encoders are exact inverses, including signed and scaled fields",()=>{
+    var rng=new Random(17);
+    foreach(var (fields,size) in new[]{(CharacterFields.Record,0x100),(CharacterFields.Growth,32),(ClassFields.Fields,100)})
+        foreach(var f in fields)
+            foreach(int v in new[]{f.Min,f.Max,(f.Min+f.Max)/2,f.Signed?-1:f.Min})
+            {
+                var before=new byte[size];rng.NextBytes(before);var after=(byte[])before.Clone();
+                FieldCodec.Write(after,f,v);Equal($"{f.Key}={v}",$"{f.Key}={FieldCodec.Read(after,f)}");
+                for(int bit=0;bit<size*8;bit++)
+                {
+                    bool changed=((before[bit/8]^after[bit/8])>>(bit%8)&1)!=0;
+                    bool inside=bit>=f.Offset*8+f.Bit && bit<f.Offset*8+f.Bit+f.Width;
+                    if(changed && !inside) throw new Exception($"{f.Key}={v} changed bit {bit} outside its field");
+                }
+            }
+});
+Test("Character and class fields read the same values as the decoders",()=>{
+    var rng=new Random(23);
+    for(int round=0;round<20;round++)
+    {
+        var u=new byte[0x100];var g=new byte[32];var k=new byte[100];rng.NextBytes(u);rng.NextBytes(g);rng.NextBytes(k);
+        var c=CharacterDecoder.Decode(new(1,"x",0),u,g,new Dictionary<int,string>());
+        int F(IReadOnlyList<TableField> fs,byte[] b,string key)=>FieldCodec.Read(b,fs.Single(f=>f.Key==key));
+        Equal($"{c.Level}/{c.HpBonus}/{c.StrengthBonus}/{c.DefenseBonus}/{c.AgilityBonus}/{c.MindBonus}",
+              $"{F(CharacterFields.Record,u,"level")}/{F(CharacterFields.Record,u,"hpBonus")}/{F(CharacterFields.Record,u,"strengthBonus")}/{F(CharacterFields.Record,u,"defenseBonus")}/{F(CharacterFields.Record,u,"agilityBonus")}/{F(CharacterFields.Record,u,"mindBonus")}");
+        Equal($"{c.HpGrowth}/{c.StrengthGrowth}/{c.DefenseGrowth}/{c.AgilityGrowth}/{c.MindGrowth}",
+              $"{F(CharacterFields.Growth,g,"hpGrowth")}/{F(CharacterFields.Growth,g,"strengthGrowth")}/{F(CharacterFields.Growth,g,"defenseGrowth")}/{F(CharacterFields.Growth,g,"agilityGrowth")}/{F(CharacterFields.Growth,g,"mindGrowth")}");
+        foreach(var w in c.WeaponLevels) Equal(w.Value,F(CharacterFields.Record,u,CharacterFields.Key(w.Weapon,"Level")));
+        foreach(var w in c.WeaponGrowths) Equal(w.Value,F(CharacterFields.Growth,g,CharacterFields.Key(w.Weapon,"Growth"))*10);
+        var cl=ClassDecoder.Decode(1,"x",k);
+        Equal($"{cl.Hp}/{cl.Strength}/{cl.Defense}/{cl.Agility}/{cl.Mind}/{cl.Move}/{cl.Experience}",
+              $"{F(ClassFields.Fields,k,"hp")}/{F(ClassFields.Fields,k,"strength")}/{F(ClassFields.Fields,k,"defense")}/{F(ClassFields.Fields,k,"agility")}/{F(ClassFields.Fields,k,"mind")}/{F(ClassFields.Fields,k,"move")}/{F(ClassFields.Fields,k,"experience")}");
+        foreach(var w in cl.WeaponCaps) Equal(w.Value,F(ClassFields.Fields,k,CharacterFields.Key(w.Weapon,"Cap")));
+    }
+});
+Test("Shown values parse back to stored values",()=>{
+    var level=CharacterFields.Record.Single(f=>f.Key=="swordLevel");var growth=CharacterFields.Growth.Single(f=>f.Key=="swordGrowth");
+    Equal("21",FieldCodec.Format(level,210));Equal("0.8",FieldCodec.Format(level,8));Equal("60",FieldCodec.Format(growth,6));
+    Equal(true,FieldCodec.TryParse(level,"21.5",out int v,out _));Equal(215,v);
+    Equal(false,FieldCodec.TryParse(level,"21.55",out _,out _));
+    Equal(true,FieldCodec.TryParse(growth,"70",out v,out _));Equal(7,v);
+    Equal(false,FieldCodec.TryParse(growth,"75",out _,out _));Equal(false,FieldCodec.TryParse(growth,"160",out _,out _));
+    var bonus=CharacterFields.Record.Single(f=>f.Key=="strengthBonus");
+    Equal(true,FieldCodec.TryParse(bonus,"-3",out v,out _));Equal(-3,v);Equal(false,FieldCodec.TryParse(bonus,"16",out _,out _));
+});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length>=2)
 {
@@ -287,15 +332,23 @@ if(args.Length>=2)
         string dst=Path.Combine(Path.GetTempPath(),$"bw-real-export-{Guid.NewGuid():N}.iso");
         try
         {
-            var patches=Exporter.PatchesFor(s,disc);Equal(4,patches.Count);
+            s.Apply(new FieldEdit[]{new(EditSession.Characters,0x54,"level",30),new(EditSession.Characters,0x54,"strengthBonus",-3),new(EditSession.Characters,0x54,"spearLevel",350),
+                new(EditSession.Growths,0x54,"hpGrowth",55),new(EditSession.Growths,0x54,"axeGrowth",7),new(EditSession.Classes,0x1E,"hp",31),new(EditSession.Classes,0x1E,"move",8),new(EditSession.Classes,0x1E,"axeCap",45)});
+            var patches=Exporter.PatchesFor(s,disc);Equal(0,patches.Count%2);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
             Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
             var back=Inspector.Inspect(dst);
             Equal(true,back.IsModified);Equal("Modified English v2.3",back.Edition);Equal(result.Sha256,back.Sha256);
             Equal(0,back.DifferentTableRecords);
             Equal(0,ItemComparison.Compare(s.EditedItems(),back.Items).Count);
-            Equal(0,RecordComparison.Compare(disc.Characters,back.Characters).Count);
-            Equal(0,ClassComparison.Compare(disc.Classes,back.Classes).Count);
+            Equal(0,RecordComparison.Compare(s.EditedCharacters(),back.Characters).Count);
+            Equal(0,ClassComparison.Compare(s.EditedClasses(),back.Classes).Count);
+            var ward=back.Characters.Single(c=>c.Id==0x54);var vk=back.Classes.Single(c=>c.Id==0x1E);
+            Equal("30/-3/350/55/Axe:70",$"{ward.Level}/{ward.StrengthBonus}/{ward.WeaponLevels.Single(w=>w.Weapon=="Spear").Value}/{ward.HpGrowth}/{string.Join(",",ward.WeaponGrowths.Where(w=>w.Weapon=="Axe").Select(w=>$"{w.Weapon}:{w.Value}"))}");
+            Equal("31/8/45",$"{vk.Hp}/{vk.Move}/{vk.WeaponCaps.Single(c=>c.Weapon=="Axe").Value}");
+            Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
+            Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
+            Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
         }
         finally{File.Delete(dst);}
@@ -306,6 +359,19 @@ if(args.Length>=2)
             Equal(true,redux.IsModified);Equal("Modified English v2.3",redux.Edition);
             Console.WriteLine($"  {Path.GetFileName(args[2])}: {ItemComparison.Compare(en!.Items,redux.Items).Select(d=>d.Id).Distinct().Count()} items, {RecordComparison.Compare(en.Characters,redux.Characters).Select(d=>d.Id).Distinct().Count()} characters, {ClassComparison.Compare(en.Classes,redux.Classes).Select(d=>d.Id).Distinct().Count()} classes differ from English v2.3; item copies differing: {redux.DifferentTableRecords}");
         });
+    Test("Character and class edits: undo spans tables, projects round trip, both editions",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            var s=new EditSession(disc);
+            Equal(true,s.Apply(new FieldEdit[]{new(EditSession.Characters,0x53,"level",5),new(EditSession.Growths,0x53,"hpGrowth",90),new(EditSession.Classes,0x01,"move",9)}));
+            var reese=s.EditedCharacter(0x53);Equal("5/90",$"{reese.Level}/{reese.HpGrowth}");Equal(9,s.EditedClass(0x01).Move);
+            Equal(3,s.ChangeCount);s.Undo();Equal(0,s.ChangeCount);Equal(1,s.EditedCharacter(0x53).Level);s.Redo();
+            var back=EditSession.FromJson(disc,s.ToJson());Equal(3,back.ChangeCount);Equal(90,back.EditedCharacter(0x53).HpGrowth);
+            Throws<EditException>(()=>s.Apply(EditSession.Classes,0x01,new Dictionary<string,int>{["move"]=16}));
+            Throws<EditException>(()=>s.Apply(EditSession.Characters,0x999,new Dictionary<string,int>{["level"]=2}));
+            s.Revert((EditSession.Characters,0x53),(EditSession.Growths,0x53));Equal(1,s.ChangeCount);
+        }
+    });
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");
 }

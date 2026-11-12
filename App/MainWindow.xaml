@@ -17,7 +17,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.5.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.6.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -103,13 +103,14 @@
         <DataGrid x:Name="CharacterGrid" SelectionChanged="CharacterSelected" AutomationProperties.Name="Characters">
          <DataGrid.Columns>
           <DataGridTextColumn Header="ID" Binding="{Binding Character.IdText}" Width="66" MinWidth="66"/>
-          <DataGridTextColumn Header="Character" Binding="{Binding Character.Name}" Width="*" MinWidth="100"/>
-          <DataGridTextColumn Header="Class" Binding="{Binding Character.ClassName}" Width="1.6*" MinWidth="185"/>
-          <DataGridTextColumn Header="Level" Binding="{Binding Character.Level}" Width="60" MinWidth="60"/>
-          <DataGridTextColumn Header="HP %" Binding="{Binding Character.HpGrowth}" Width="66" MinWidth="66"/>
-          <DataGridTextColumn Header="Str %" Binding="{Binding Character.StrengthGrowth}" Width="66" MinWidth="66"/>
-          <DataGridTextColumn Header="Def %" Binding="{Binding Character.DefenseGrowth}" Width="66" MinWidth="66"/>
-          <DataGridTextColumn Header="Agi %" Binding="{Binding Character.AgilityGrowth}" Width="66" MinWidth="66"/>
+          <DataGridTextColumn Header="Character" Binding="{Binding Character.Name}" Width="*" MinWidth="90"/>
+          <DataGridTextColumn Header="Class" Binding="{Binding Character.ClassName}" Width="1.6*" MinWidth="175"/>
+          <DataGridTextColumn Header="Level" Binding="{Binding Character.Level}" Width="56" MinWidth="56"/>
+          <DataGridTextColumn Header="HP %" Binding="{Binding Character.HpGrowth}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="Str %" Binding="{Binding Character.StrengthGrowth}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="Def %" Binding="{Binding Character.DefenseGrowth}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="Agi %" Binding="{Binding Character.AgilityGrowth}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="Status" Binding="{Binding EditedText}" Width="74" MinWidth="74"/>
           <DataGridTextColumn x:Name="CharacterChangeColumn" Header="Comparison" Binding="{Binding Comparison}" Visibility="Collapsed" Width="100" MinWidth="100"/>
          </DataGrid.Columns>
         </DataGrid>
@@ -118,10 +119,11 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditCharacterButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginCharacterEdit" ToolTip="Edit this character (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="CharacterName" Text="Select a character" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="CharacterIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6"/>
         <StackPanel x:Name="CharacterFields"/>
+        <StackPanel x:Name="CharacterEditorPanel" Visibility="Collapsed"/>
         <TextBlock x:Name="CharacterComparisonDetail" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,10,0,0"/>
        </StackPanel></ScrollViewer>
       </Border>
@@ -148,6 +150,7 @@
           <DataGridTextColumn Header="Agi" Binding="{Binding Class.Agility}" Width="54" MinWidth="54"/>
           <DataGridTextColumn Header="Mind" Binding="{Binding Class.Mind}" Width="60" MinWidth="60"/>
           <DataGridTextColumn Header="Move" Binding="{Binding Class.Move}" Width="60" MinWidth="60"/>
+          <DataGridTextColumn Header="Status" Binding="{Binding EditedText}" Width="78" MinWidth="78"/>
           <DataGridTextColumn x:Name="ClassChangeColumn" Header="Comparison" Binding="{Binding Comparison}" Visibility="Collapsed" Width="100" MinWidth="100"/>
          </DataGrid.Columns>
         </DataGrid>
@@ -156,10 +159,11 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <TextBlock Text="CLASS DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditClassButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginClassEdit" ToolTip="Edit this class (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CLASS DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="ClassName" Text="Select a class" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="ClassIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6"/>
         <StackPanel x:Name="ClassFields"/>
+        <StackPanel x:Name="ClassEditorPanel" Visibility="Collapsed"/>
         <TextBlock x:Name="ClassComparisonDetail" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,10,0,0"/>
        </StackPanel></ScrollViewer>
       </Border>

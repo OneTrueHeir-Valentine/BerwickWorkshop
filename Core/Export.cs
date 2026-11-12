@@ -10,21 +10,42 @@ public static class Exporter
     private const int BufferSize = 4 * 1024 * 1024;
     private const long SpaceMargin = 64L * 1024 * 1024;
 
-    /// <summary>Byte patches for every edited item, written to both item table copies.</summary>
+    /// <summary>Positions of a record inside DATA3.DAT, one for each copy of its table.</summary>
+    public static long[] RecordLocations(InspectionResult disc, string table, int id)
+    {
+        if (disc.Profile is not { } p) throw new EditException("Only a verified disc can be exported.");
+        return table switch
+        {
+            EditSession.Items => [p.ItemTable + (id - 1) * 56L, p.SecondItemTable + (id - 1) * 56L],
+            EditSession.Characters => disc.CharacterOffsets.TryGetValue(id, out int offset)
+                ? [p.UnitTable + offset, p.SecondUnitTable + offset] : throw new EditException($"Character 0x{id:X3} is not on this disc."),
+            EditSession.Growths => [p.GrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength, p.SecondGrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength],
+            EditSession.Classes => [p.ClassTable + (id - 1) * (long)ClassDecoder.RecordLength, p.SecondClassTable + (id - 1) * (long)ClassDecoder.RecordLength],
+            _ => throw new EditException("This project contains changes this version cannot export."),
+        };
+    }
+
+    /// <summary>Byte patches for every edited record: only the bytes that differ, written to both copies of each table.</summary>
     public static IReadOnlyList<DiscPatch> PatchesFor(EditSession session, InspectionResult disc)
     {
-        if (disc.Profile is not { } profile) throw new EditException("Only a verified disc can be exported.");
         var data = disc.Files.Single(e => e.Name.Equals("DATA3.DAT", StringComparison.OrdinalIgnoreCase));
         var patches = new List<DiscPatch>();
-        foreach (int id in session.Changes.Select(c => c.Id).Distinct().Order())
+        foreach (var (table, id) in session.EditedRecords)
         {
-            var bytes = session.EditedBytes(id);
-            long record = (long)(id - 1) * 56;
-            foreach (long table in new[] { profile.ItemTable, profile.SecondItemTable })
+            var original = session.Table(table).Records[id].Span;
+            var edited = session.EditedBytes(table, id);
+            var runs = new List<(int Start, int Length)>();
+            for (int i = 0; i < edited.Length; i++)
             {
-                long start = table + record;
-                if (start < 0 || start + bytes.Length > data.Length) throw new InvalidDataException("The item tables are incomplete.");
-                patches.Add(new(data.Offset + start, bytes));
+                if (edited[i] == original[i]) continue;
+                int start = i;
+                while (i < edited.Length && edited[i] != original[i]) i++;
+                runs.Add((start, i - start));
+            }
+            foreach (long location in RecordLocations(disc, table, id))
+            {
+                if (location < 0 || location + edited.Length > data.Length) throw new InvalidDataException("The game tables are incomplete.");
+                foreach (var (start, length) in runs) patches.Add(new(data.Offset + location + start, edited.AsSpan(start, length).ToArray()));
             }
         }
         return patches.AsReadOnly();
