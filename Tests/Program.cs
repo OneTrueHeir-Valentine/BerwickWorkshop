@@ -101,6 +101,33 @@ Test("Class names read naturally",()=>{
     Equal("Verian Knight 2",ClassDecoder.DisplayName("VerianKnight2"));
 });
 Test("Class list has one entry per ID",()=>{var l=ClassDecoder.LoadList();Equal(l.Count,l.Select(c=>c.Id).Distinct().Count());Equal("Thief (male)",l.Single(c=>c.Id==0x57).Name);});
+Test("Item encoder writes are exact inverses of the decoder",()=>{
+    var rng=new Random(7);
+    foreach(var f in ItemEncoder.Fields)
+        foreach(int v in new[]{f.Min,f.Max,(f.Min+f.Max)/2})
+        {
+            var before=new byte[56];rng.NextBytes(before);var after=(byte[])before.Clone();
+            ItemEncoder.Write(after,f,v);
+            Equal(v,ItemEncoder.Read(after,f));
+            for(int bit=0;bit<56*8;bit++)
+            {
+                bool changed=((before[bit/8]^after[bit/8])>>(bit%8)&1)!=0;
+                bool inside=bit>=f.Offset*8+f.Bit && bit<f.Offset*8+f.Bit+f.Width;
+                if(changed && !inside) throw new Exception($"{f.Key}={v} changed bit {bit} outside its field");
+            }
+        }
+});
+Test("Item encoder fields agree with decoded record properties",()=>{
+    var b=new byte[56];new Random(3).NextBytes(b);var r=ItemDecoder.Decode(1,"Dagger",b);
+    var expected=new Dictionary<string,int>{["might"]=r.Might,["accuracy"]=r.Accuracy,["weight"]=r.Weight,["minRange"]=r.MinRange,["maxRange"]=r.MaxRange,["critical"]=r.Critical,["level"]=r.Level,["price"]=r.Price,["durability"]=r.Durability,["uses"]=r.Uses};
+    foreach(var f in ItemEncoder.Fields) Equal($"{f.Key}={expected[f.Key]}",$"{f.Key}={ItemEncoder.Read(b,f)}");
+});
+Test("Item encoder rejects out of range values",()=>{
+    Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("might"),64));
+    Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("durability"),-1));
+    Throws<EditException>(()=>ItemEncoder.Field("nonsense"));
+    Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
+});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length==2)
 {
@@ -172,6 +199,44 @@ if(args.Length==2)
         }
     });
     Test("Class data is identical between editions",()=>Equal(0,ClassComparison.Compare(jp!.Classes,en!.Classes).Count));
+    Test("Edit session: apply, undo, redo and dirty state",()=>{
+        var s=new EditSession(en!);
+        Equal(false,s.IsDirty);int might=s.OriginalValue(34,"might");
+        Equal(true,s.Apply(34,new Dictionary<string,int>{["might"]=might+2,["price"]=999}));
+        Equal(true,s.IsDirty);Equal(might+2,s.EditedItem(34).Might);Equal(999,s.EditedItem(34).Price);Equal(2,s.ChangeCount);
+        Equal(false,s.Apply(34,new Dictionary<string,int>{["might"]=might+2}));
+        s.Undo();Equal(false,s.IsDirty);Equal(might,s.EditedItem(34).Might);Equal(false,s.IsEdited(34));
+        s.Redo();Equal(might+2,s.EditedItem(34).Might);
+        Throws<EditException>(()=>s.Apply(34,new Dictionary<string,int>{["minRange"]=5,["maxRange"]=1}));
+        Equal(might+2,s.EditedItem(34).Might);
+        s.Revert(34);Equal(false,s.IsEdited(34));s.Undo();Equal(true,s.IsEdited(34));
+        Equal(en!.Items.Count,s.EditedItems().Count);
+        Equal(0,ItemComparison.Compare(en.Items.Where(i=>i.Id!=34),s.EditedItems().Where(i=>i.Id!=34)).Count);
+    });
+    Test("Edits change only the edited field bytes on both editions",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            var s=new EditSession(disc);s.Apply(0x22,new Dictionary<string,int>{["accuracy"]=99});
+            var a=disc.ItemBytes[0x22].ToArray();var b=s.EditedBytes(0x22);
+            var f=ItemEncoder.Field("accuracy");
+            for(int bit=0;bit<448;bit++) if(((a[bit/8]^b[bit/8])>>(bit%8)&1)!=0 && (bit<f.Offset*8+f.Bit || bit>=f.Offset*8+f.Bit+f.Width)) throw new Exception($"bit {bit} changed");
+            Equal(99,s.EditedItem(0x22).Accuracy);
+        }
+    });
+    Test("Project files round trip and refuse the wrong disc",()=>{
+        var disc=en!;var s=new EditSession(disc);s.Apply(1,new Dictionary<string,int>{["price"]=1234,["durability"]=0});s.Apply(506,new Dictionary<string,int>{["might"]=9});
+        string json=s.ToJson("0.4.0");
+        var back=EditSession.FromJson(disc,json);
+        Equal(3,back.ChangeCount);Equal(1234,back.EditedItem(1).Price);Equal(9,back.EditedItem(506).Might);Equal(false,back.IsDirty);
+        Equal(false,back.CanUndo);
+        try{EditSession.FromJson(jp!,json);throw new Exception("loaded on wrong disc");}catch(EditException e){Equal(true,e.Message.Contains("English v2.3"));}
+        Throws<EditException>(()=>EditSession.FromJson(disc,"not json"));
+        Throws<EditException>(()=>EditSession.FromJson(disc,json.Replace("\"original\": "+disc.Items.Single(i=>i.Id==1).Price,"\"original\": 1")));
+        Throws<EditException>(()=>EditSession.FromJson(disc,json.Replace("\"value\": 9","\"value\": 99")));
+        var path=Path.Combine(Path.GetTempPath(),$"bw-test-{Guid.NewGuid():N}.bwproj");
+        try{s.Save(path,"0.4.0");Equal(false,s.IsDirty);Equal(3,EditSession.Load(disc,path).ChangeCount);}
+        finally{File.Delete(path);}
+    });
     Test("Character data is identical between editions",()=>Equal(0,RecordComparison.Compare(jp!.Characters,en!.Characters).Count));
     Console.WriteLine($"Final: {passed} passed, {failed} failed");
 }

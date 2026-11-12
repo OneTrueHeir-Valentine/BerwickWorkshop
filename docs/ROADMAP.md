@@ -9,14 +9,14 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | Source tool feature | Berwick Workshop equivalent | Milestone | Status |
 |---|---|---|---|
 | ReWeaver: verify game dump, detect version | Exact SHA-256 + ELF CRC profiles for JP and EN | M0 | done |
-| FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | read done |
+| FEBuilder: item editor | Item browser (read) then item editing | M0 / M2 | editing done in project (v0.4.0); writing to a disc is M3 |
 | ReWeaver: diff between game versions | JP vs EN item comparison by stable ID | M0 | done |
 | FEBuilder: unit editor | Character bases, growths, skills, inventory, supports | M1 / M4 | read done (v0.2.0), supports not yet |
 | FEBuilder: class editor | Class bases, growths, caps, attributes, skills, weapon permissions | M1 / M4 | read done (v0.3.0) for bases, move, experience, skills, caps; class growths and attributes still research |
 | FEBuilder: skill tables | Learned skills per character | M1 | read done; ID numbering verified (see below) |
-| ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | planned |
-| ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | planned |
-| FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | planned |
+| ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
+| ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | save done; export is M3 |
+| FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | undo/redo done; change list panel not yet |
 | FEBuilder: lint / error checker | Validation rules plus hazard list from `editor_hazards.json` | M2 | planned |
 | FEBuilder: UPS export | Export patched ISO copy and an xdelta patch against the clean disc | M3 | planned |
 | ReWeaver: export to emulator folder, backups | Export into a chosen folder, keep previous exports in a backups folder | M3 | planned |
@@ -62,11 +62,12 @@ Verified while building the Classes page (v0.3.0):
 - Mind growth is stored at twice the published value for every mage checked. Shown as stored.
 - Item range uses the game's own counting: 0 means adjacent only (matches the wiki).
 
-### M2 Projects and item editing
-1. `.bwproj` format: edition hash, list of `{table, id, field, old, new}`. Loads only on a matching edition.
-2. Editable item fields with range checks from the bit widths in `Core/Items.cs`.
-3. Write both table copies (primary and secondary) identically. Test that a decode of the written bytes returns the edit and that no other byte changed.
-4. Undo/redo, unsaved changes marker, changes panel.
+### M2 Projects and item editing (done in v0.4.0, except the changes panel)
+1. `.bwproj` format: JSON with `format`, `formatVersion` (1), `edition`, `editionSha256`, `appVersion`, and `changes` of `{table, id, name, field, original, value}`. Loading refuses a different edition, any change whose `original` no longer matches the disc, unknown fields, duplicates, and out-of-range values. Saves are atomic (temp file then rename).
+2. Editable item fields (`Core/Editing.cs`, `ItemEncoder.Fields`): might, accuracy, weight, minimum and maximum range, critical, level, base price, durability grade, durability pool. Limits are the bit widths; minimum range may not exceed maximum range. Type and effects are not editable yet.
+3. Writer tested as the exact inverse of the decoder: for every field at its minimum, maximum and middle value on random records, only that field's bits change. Edits on both real discs change only the edited bits.
+4. Undo/redo (one step per Apply), unsaved marker in the title and project bar, prompts before closing or opening another disc or project. A change list panel is still to do.
+5. Writing both table copies to a disc is part of M3; the session already produces the full edited 56-byte record per item (`EditSession.EditedBytes`).
 
 ### M3 Export
 1. Copy the clean ISO to a new file, patch DATA3 regions in place (tables do not change size), verify by re-reading.

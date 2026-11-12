@@ -30,6 +30,7 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyList<CharacterRecord> Characters { get; init; } = [];
     public bool CharacterCopiesMatch { get; init; } = true;
     public IReadOnlyList<ClassRecord> Classes { get; init; } = [];
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ItemBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -63,7 +64,7 @@ public static class Inspector
         cancellation.ThrowIfCancellationRequested();
         string hash=Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
         var profile=Profiles.Match(hash);
-        var items=new List<ItemRecord>();int tableDifferences=0;
+        var items=new List<ItemRecord>();int tableDifferences=0;var itemBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
         {
             var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
@@ -74,7 +75,8 @@ public static class Inspector
             foreach(var name in names)
             {
                 cancellation.ThrowIfCancellationRequested();int start=(name.Key-1)*56;
-                var item=ItemDecoder.Decode(name.Key,name.Value,table.AsSpan(start,56).ToArray());
+                var raw=table.AsSpan(start,56).ToArray();itemBytes[name.Key]=raw;
+                var item=ItemDecoder.Decode(name.Key,name.Value,raw.ToArray());
                 var mirror=ItemDecoder.Decode(name.Key,name.Value,second.AsSpan(start,56).ToArray());
                 if(ItemComparison.Compare(new[]{item},new[]{mirror}).Count!=0)tableDifferences++;
                 items.Add(item);
@@ -111,6 +113,6 @@ public static class Inspector
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes };
     }
 }
