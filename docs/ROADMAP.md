@@ -133,7 +133,7 @@ Design goal: evaluate a rule change before playing it. Results must say whether 
 
 ### Design studies (from review; need code located first)
 - Hybrid shields (first version done in v0.14.0 as the Shield guard rule: quarter, half or full Might on a failed block, physical attacks only). Remaining ideas: a flat amount by shield size, or a bonus scaled by shield level, need more code space. Original notes: a passive defense bonus whenever a usable shield is equipped, with the existing block roll giving the full bonus. Options: a percentage of shield Might (keeps shield identity, favours heavy shields), a flat amount by shield size (clear small, medium, large roles), a bonus scaled by shield level (rewards training, may dominate), or a defensive stance (player control, may become mandatory). Starting preference: a modest share of shield Might, block chance from shield level. Prerequisite: locate where shield Might is added to defense in the damage routine. Open questions: whether the passive part costs durability, and how it interacts with large and special shields and very high Defense units.
-- Shield training and Vantage (training mapped in v0.15.0; Shield and Weapon training speed rules added; the Vantage fix itself needs new code in the battle sequence): units like Adel lose shield level gains when Vantage stops the attack first. Proposal: count qualifying defensive engagements for shield experience even when Vantage intercepts, with limits that stop repeatable training. Needs the shield experience routine located.
+- Shield training and Vantage (done in v0.17.0: Shield training with Vantage rule, one roll per battle, failed or successful block): units like Adel lose shield level gains when Vantage stops the attack first. Proposal: count qualifying defensive engagements for shield experience even when Vantage intercepts, with limits that stop repeatable training. Needs the shield experience routine located.
 - Speed: compare three prototypes before changing any formula. S1 tactical mobility (selected agile classes or skills gain limited repositioning, without simply giving everyone Canto); S2 conditional offensive tempo (a limited extra attack for clearly faster attackers; dangerous with Pursuit, Adept, Deathmatch, critical hits and multi-hit weapons); S3 defensive reactions (predictable positioning or limited responses; technically hard). Preference: class or skill specific S1 first, S2 only as an experiment.
 
 ### Audit (from design review, 2026-11-12)
@@ -169,7 +169,7 @@ Everything found so far and whether a user can change it. Editable means offered
 | Knives | ignore Defense and shields (program reading) | not yet (needs a knife user to test) |
 | Hit, avoid, critical rate | published formulas | not located |
 | Tamper marker | unit check and program checksum set a saved marker | not needed; no effect seen |
-| Vantage and shield training | no block roll, no training | next: needs new code in the battle sequence |
+| Vantage and shield training | no block roll, no training | Shield training with Vantage rule (v0.17.0): one training roll per battle |
 
 ### M8 and later
 PCSX2 link and PNACH, saves, patch packs, audio, maps and events, and Berwick specific systems (food, Pavilion). Each starts with a read-only viewer and a round-trip test before any writes.

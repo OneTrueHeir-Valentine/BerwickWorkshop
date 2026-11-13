@@ -157,6 +157,38 @@ public static class GameRules
             w => w == original && w == patched ? AnySetting : w == original ? 0 : w == patched ? AnyChanged : null);
     }).ToList();
 
+    // Vantage shield training: where the battle decides whether the defender strikes first (0x00224E68 to
+    // 0x00224EF4), an inlined battle-event push is replaced by a call to the routine that does the same push,
+    // and the space left grants the defender one shield training event when it has a usable shield.
+    // Index 12 holds the success value (0 failed block, 1 successful block).
+    private const uint VantageStart = 0x00224E68;
+    private const int VantageSuccessIndex = 12;
+    private static readonly uint[] VantageOriginal =
+    [
+        0x12600005u, 0x8E7411E0u, 0x8E6211D8u, 0x14400020u, 0x00000000u, 0x00000000u, 0x8E820000u, 0x00021080u, 0x00541021u, 0xAC400004u,
+        0x8E820000u, 0x00021080u, 0x02821021u, 0xAC400064u, 0x8E820000u, 0x24420001u, 0xAE820000u, 0x8E820000u, 0x28420018u, 0x14400010u,
+        0x00000000u, 0x8E8200C4u, 0x1440000Bu, 0x00000000u, 0x8F8483E4u, 0x24050004u, 0x240600C8u, 0x0C047C4Cu, 0x24070001u, 0xAE8200C4u,
+        0x8E8200C4u, 0xAC4000C4u, 0x8E8200C4u, 0xAC400000u, 0x8E8200C4u, 0xAE6211E0u,
+    ];
+    private static readonly uint[] VantagePatched =
+    [
+        0x0260202Du, 0x0000282Du, 0x0C08B878u, 0x0000302Du, 0x8E0200A8u, 0x18400009u, 0x8E07010Cu, 0x18E00007u, 0x0260202Du, 0x8E050000u,
+        0x8E060108u, 0x24080001u, 0x24090000u, 0x0C08ACB0u, 0x240A0001u, 0x10000014u, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0,
+    ];
+
+    private static IReadOnlyList<RuleSite> VantageSites() => Enumerable.Range(0, VantageOriginal.Length).Select(i =>
+    {
+        uint original = VantageOriginal[i];
+        if (i == VantageSuccessIndex)
+            return new RuleSite(VantageStart + (uint)i * 4, s => s == 0 ? original : VantagePatched[i] | (uint)(s - 1),
+                w => w == original ? 0 : w == VantagePatched[i] ? 1 : w == (VantagePatched[i] | 1) ? 2 : null);
+        uint patched = VantagePatched[i];
+        return new RuleSite(VantageStart + (uint)i * 4, s => s == 0 ? original : patched,
+            w => w == original && w == patched ? AnySetting : w == original ? 0 : w == patched ? AnyChanged : null);
+    }).ToList();
+
     private static GameRule Limit(int id, string key, string name, string description, int max, int normal, uint addAddress, uint storeAddress) =>
         new(id, key, name, description, RuleKind.Limit, 0, max, normal, null,
             [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: true);
@@ -188,6 +220,9 @@ public static class GameRules
             "A missed attack or a failed shield block can still train the weapon or shield. The game allows this only below level 20; At every level lets failed attempts train at any level. Successful attempts train at every level either way.",
             RuleKind.Choice, 0, 1, 0, ["Below level 20", "At every level"],
             [new RuleSite(0x00171760, s => s == 0 ? 0x28A10002u : 0x28A10006u, w => w switch { 0x28A10002u => 0, 0x28A10006u => 1, _ => null })], confirmed: true),
+        new GameRule(15, "vantageTraining", "Shield training with Vantage",
+            "When a unit with Vantage strikes first, the enemy's attacks never reach its shield, so the shield gets no block rolls and no training. With this rule, a defender that strikes first through Vantage gets one shield training roll per battle, if it holds a shield it can use. Counts as a failed block trains only below level 20 unless Training from failed attempts is set to every level. Off is the game's own behaviour.",
+            RuleKind.Choice, 0, 2, 0, ["Off", "Counts as a failed block", "Counts as a successful block"], VantageSites(), confirmed: true),
         CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formula. A fixed amount gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
