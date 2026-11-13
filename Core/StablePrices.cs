@@ -175,10 +175,10 @@ public static class FurniturePrices
     public static ScriptPrices Table { get; } = new(727, "furniturePrice", "Price", "furniture price",
         [(1, 0xA0), (2, 0xF8), (3, 0x150), (4, 0x1A8), (5, 0x200), (7, 0x258), (8, 0x2B0), (9, 0x308), (10, 0x360), (11, 0x3B8), (12, 0x410), (13, 0x468), (14, 0x4C0)]);
 
-    /// <summary>The name of each piece (the game's event item names, evitem001 onward).</summary>
+    /// <summary>The name of each piece: piece n is the game's event item n + 1 (evitem002 onward), matching the shop's own list.</summary>
     public static IReadOnlyDictionary<int, string> Names { get; } = new Dictionary<int, string>
     {
-        [1] = "Pile of Bags", [2] = "Sword Mount", [3] = "Big Rug", [4] = "Porcelain Vase", [5] = "Deer Mount", [7] = "Rug", [8] = "Coffers",
-        [9] = "Tapestry", [10] = "Bird Statue", [11] = "Art: \"Revival\"", [12] = "Maiden Statue", [13] = "Treasure Chest", [14] = "Art: \"Hope\"",
+        [1] = "Sword Mount", [2] = "Big Rug", [3] = "Porcelain Vase", [4] = "Deer Mount", [5] = "Coat of Arms", [7] = "Coffers", [8] = "Tapestry",
+        [9] = "Bird Statue", [10] = "Art: \"Revival\"", [11] = "Maiden Statue", [12] = "Treasure Chest", [13] = "Art: \"Hope\"", [14] = "Luxury Bed",
     };
 }

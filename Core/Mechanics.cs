@@ -98,7 +98,7 @@ public static class Mechanics
             "Eighteen characters can be hired as mercenaries. When both values are 0 the game picks a random fee instead (Saphira). Some hires cost half; the game marks this for each mercenary.",
             MechanicStatus.Confirmed, "Program reading (fee table at 0x0042D450, fee 0x00170480), checked in a running game", [new("Mercenary fee", Characters)]),
 
-        new("Prices", "Furniture prices", "Pile of Bags 23,000, Sword Mount 19,000, Big Rug 25,000, Porcelain Vase 26,000, Deer Mount 27,500, Rug 30,000, Coffers 45,000, Tapestry 17,000, Bird Statue 22,000, Art: \"Revival\" 42,000, Maiden Statue 36,000, Treasure Chest 14,500, Art: \"Hope\" 32,000",
+        new("Prices", "Furniture prices", "Art: \"Hope\" 14,500, Bird Statue 17,000, Big Rug 19,000, Art: \"Revival\" 22,000, Sword Mount 23,000, Porcelain Vase 25,000, Deer Mount 26,000, Coat of Arms 27,500, Coffers 30,000, Luxury Bed 32,000, Treasure Chest 36,000, Maiden Statue 42,000, Tapestry 45,000",
             "The furniture shop asks an event script for each piece's price, the same way the stable does for horses.",
             MechanicStatus.Located, "Event script 727 (stored in several copies on each disc)", [new("Furniture prices", Furniture)]),
 
