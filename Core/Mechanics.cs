@@ -95,8 +95,8 @@ public static class Mechanics
             "Not located in the game program yet."),
 
         new("Prices", "Mercenary fee", "Base fee + level × fee per level (Volo 200 + 150 per level, Faramir 1,200 + 50 per level)",
-            "Eighteen characters can be hired as mercenaries. When both values are 0 the game picks a random fee instead (Saphira). In some cases the game charges half, or returns 70%.",
-            MechanicStatus.Located, "Program reading (fee table at 0x0042D450, fee 0x00170480)", [new("Mercenary fee", Characters)]),
+            "Eighteen characters can be hired as mercenaries. When both values are 0 the game picks a random fee instead (Saphira). Some hires cost half; the game marks this for each mercenary.",
+            MechanicStatus.Confirmed, "Program reading (fee table at 0x0042D450, fee 0x00170480), checked in a running game", [new("Mercenary fee", Characters)]),
 
         // Partners
         new("Partners", "Partner bonus", "For each partner within 2 spaces: hit + bond ÷ 10; critical + (total of those amounts) ÷ 5",
