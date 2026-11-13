@@ -1,0 +1,1566 @@
+1,Gladiator
+2,A01
+3,A02
+4,A03
+5,A04
+6,A05
+7,A06
+8,A07
+9,A08
+10,A09
+11,A10
+12,A11
+13,A12
+14,A13
+15,A14
+16,A15
+17,A16
+18,A17
+19,A18
+20,A19
+21,A20
+22,A21
+23,A22
+24,A23
+25,A24
+26,A25
+27,A26
+28,A27
+29,A28
+30,A29
+31,A30
+32,A31
+33,A32
+34,A33
+35,A34
+36,A35
+37,A36
+38,A37
+39,A38
+40,A39
+41,A40
+42,Gate
+43,Gate
+44,Gate
+45,Gate
+46,Gate
+47,Gate
+48,Gate
+49,Gate
+50,Gate
+51,Gate
+52,Castle Wall
+53,Castle Wall
+54,Castle Wall
+55,Castle Wall
+56,Castle Wall
+57,Castle Wall
+58,Castle Wall
+59,Castle Wall
+60,Castle Wall
+61,Castle Wall
+62,Door
+63,Door
+64,Door
+65,Door
+66,Door
+67,Door
+68,Door
+69,Door
+70,Door
+71,Door
+72,EX
+73,EX
+74,EX
+75,EX
+76,EX
+77,EX
+78,EX
+79,EX
+80,EX
+81,EX
+82,EX
+83,Reese
+84,Ward
+85,Elbert
+86,Marcel
+87,Adel
+88,Leon
+89,Sherlock
+90,Esteban
+91,EX
+92,EX
+93,EX
+94,EX
+95,EX
+96,Arthur
+97,Daoud
+98,Burroughs
+99,Paramythis
+100,EX
+101,EX
+102,EX
+103,EX
+104,EX
+105,EX
+106,EX
+107,EX
+108,EX
+109,Dean
+110,Sherpa
+111,Faramir
+112,EX
+113,Perceval
+114,EX
+115,EX
+116,Derrick
+117,EX
+118,EX
+119,EX
+120,EX
+121,EX
+122,EX
+123,EX
+124,Christine
+125,Lynette
+126,Sylvis
+127,Aegina
+128,Alvina
+129,Faye
+130,Czene
+131,Izerna
+132,Enid
+133,Larentia
+134,Ruby
+135,Saphira
+136,May
+137,Sienna
+138,EX
+139,EX
+140,EX
+141,EX
+142,EX
+143,EX
+144,Volo
+145,EX
+146,EX
+147,Axel
+148,EX
+149,Kramer
+150,Owen
+151,EX
+152,Clifford
+153,Thaddy
+154,EX
+155,EX
+156,EX
+157,EX
+158,EX
+159,EX
+160,EX
+161,EX
+162,EX
+163,EX
+164,EX
+165,EX
+166,EX
+167,EX
+168,EX
+169,EX
+170,EX
+171,EX
+172,EX
+173,EX
+174,EX
+175,EX
+176,EX
+177,EX
+178,EX
+179,EX
+180,EX
+181,EX
+182,EX
+183,EX
+184,EX
+185,EX
+186,EX
+187,EX
+188,EX
+189,EX
+190,EX
+191,EX
+192,EX
+193,EX
+194,EX
+195,EX
+196,EX
+197,EX
+198,EX
+199,EX
+200,EX
+201,EX
+202,EX
+203,EX
+204,EX
+205,EX
+206,EX
+207,EX
+208,EX
+209,EX
+210,EX
+211,EX
+212,EX
+213,EX
+214,EX
+215,EX
+216,EX
+217,EX
+218,EX
+219,EX
+220,EX
+221,EX
+222,EX
+223,EX
+224,EX
+225,EX
+226,P01
+227,P02
+228,P03
+229,P04
+230,P05
+231,P06
+232,P07
+233,P08
+234,P09
+235,P10
+236,EX
+237,EX
+238,EX
+239,EX
+240,EX
+241,EX
+242,EX
+243,EX
+244,EX
+245,EX
+246,EX
+247,EX
+248,EX
+249,EX
+250,EX
+251,EX
+252,EX
+253,EX
+254,EX
+255,EX
+256,EX
+257,EX
+258,EX
+259,EX
+260,EX
+261,EX
+262,EX
+263,EX
+264,EX
+265,EX
+266,EX
+267,EX
+268,EX
+269,EX
+270,EX
+271,EX
+272,EX
+273,EX
+274,EX
+275,EX
+276,EX
+277,EX
+278,EX
+279,EX
+280,EX
+281,EX
+282,EX
+283,EX
+284,EX
+285,EX
+286,EX
+287,EX
+288,EX
+289,EX
+290,EX
+291,EX
+292,EX
+293,EX
+294,EX
+295,EX
+296,EX
+297,EX
+298,EX
+299,EX
+300,EX
+301,EX
+302,EX
+303,EX
+304,EX
+305,EX
+306,Tianna
+307,Item Convoy
+308,Toss
+309,Bag Storage
+310,Bag Storage
+311,Bag Storage
+312,Bag Storage
+313,Bag Storage
+314,Bag Storage
+315,Bag Storage
+316,Bag Storage
+317,Bag Storage
+318,Bag Storage
+319,Bag Storage
+320,Bag Storage
+321,Bag Storage
+322,Bag Storage
+323,Bag Storage
+324,Bag Storage
+325,Horse
+326,Horse
+327,Horse
+328,Horse
+329,Horse
+330,Horse
+331,Ziore
+332,Lowe
+333,Jimusa
+334,Qliphoth
+335,Vear
+336,Luciana
+337,Maria
+338,EX
+339,EX
+340,EX
+341,Meia
+342,Lumiere
+343,Marybelle
+344,Arina
+345,Alex
+346,Routh
+347,Quescria
+348,Orlando
+349,Danton
+350,Meister
+351,EX
+352,EX
+353,Halfmann
+354,Clara
+355,Carlotta
+356,EX
+357,EX
+358,EX
+359,EX
+360,EX
+361,EX
+362,EX
+363,EX
+364,EX
+365,EX
+366,EX
+367,EX
+368,EX
+369,EX
+370,EX
+371,EX
+372,QuestDebug
+373,Ritchens
+374,Salonian
+375,Deserter
+376,Benner
+377,EX
+378,EX
+379,EX
+380,EX
+381,EX
+382,EX
+383,EX
+384,Gariad
+385,Neam Bandit
+386,Neam Bandit
+387,Mendels
+388,Forest-Folk
+389,Rezenstein
+390,Badonia-hei
+391,Neam Bandit
+392,Neam Bandit
+393,Neam Bandit
+394,Neam Bandit
+395,Neam Bandit
+396,EX
+397,Pisaro
+398,Pedro
+399,Imperial 4th
+400,Goran Bandit
+401,Allied Soldier
+402,Allied Soldier
+403,Ali Baba
+404,Razite
+405,Sund
+406,Garud
+407,Dominic
+408,Troia
+409,Laurus
+410,Razenclaw
+411,Bornian
+412,Qadi
+413,Lebrus
+414,Gilgamesh
+415,Nielsen
+416,Martin
+417,EX
+418,EX
+419,Trespasser
+420,EX
+421,EX
+422,EX
+423,Gordoba
+424,Goar
+425,Kamul
+426,Saibat
+427,Cavotte
+428,Gibson
+429,Ryan
+430,Vons
+431,Garvot
+432,Eusman
+433,Ex-Goran
+434,Vandol
+435,Notz
+436,Parra
+437,Cymu
+438,Jaeger
+439,Thomasson
+440,Dacchar
+441,Dorren
+442,Garia Pirate
+443,EX
+444,EX
+445,EX
+446,EX
+447,EX
+448,EX
+449,EX
+450,EX
+451,EX
+452,Slovell
+453,Zonojil
+454,Kithri
+455,Sloams
+456,Goering
+457,Solodas
+458,Garek
+459,Euber
+460,Basla
+461,Jiralgo
+462,Orle
+463,Leard
+464,Cephugoleth
+465,Dudig
+466,Hoelums
+467,Guddi
+468,Liaz
+469,Dorada
+470,Zelruppa
+471,Turodi
+472,Jultova
+473,Zezar
+474,Vadrey
+475,Bune
+476,Zesamalt
+477,Barbaddi
+478,Euredzin
+479,Von Ruquy
+480,DeMarc
+481,Susamal
+482,Giraddas
+483,Ledinsky
+484,Zoredan
+485,Cuthrel
+486,Dieux
+487,Damarro
+488,Reifdan
+489,Calvacanti
+490,Bravul
+491,Roames
+492,Dephlinga
+493,Deslor
+494,Corde
+495,Helph
+496,Schmeitzer
+497,Zanonus
+498,Von Lin
+499,Lebesgue
+500,Helfonte
+501,Bhalmard
+502,Valdez
+503,Ghezard
+504,Rota
+505,Lebron Citizen
+506,Lebron Citizen
+507,Gonzij
+508,Lebron Citizen
+509,Lebron Citizen
+510,Imperial
+511,Ortmann
+512,Minas
+513,Theodore
+514,Razite
+515,Fagnal
+516,Balmer
+517,Duchess
+518,EX
+519,Kay
+520,Imperial
+521,Allied Soldier
+522,Razite
+523,Razite
+524,Villager
+525,Meryl
+526,Von Beck
+527,Vasquez
+528,Simas
+529,Grauve
+530,Imperial Reserve
+531,Razenclaw
+532,Courier
+533,Engineer
+534,Head Engineer
+535,Imperial Reserve
+536,Simon
+537,Gardy
+538,Border Guard
+539,Ozama
+540,Marvell
+541,Border Guard
+542,Davis
+543,Engineer
+544,Engineer
+545,Engineer
+546,Border Guard
+547,Border Guard
+548,Border Guard
+549,Bornian
+550,Lester
+551,Almachus
+552,Vester
+553,Vester's Unit
+554,Razite
+555,Barnhardt
+556,Vester's Unit
+557,Pratton
+558,Cerras
+559,Village Elder
+560,Imperial
+561,Villager
+562,Scarro
+563,Bornian
+564,Pentland
+565,Vandal
+566,Rudolph
+567,Trador
+568,Erec
+569,Michel
+570,Lyarc
+571,Bornian
+572,Arnold
+573,Aryuza Citizen
+574,Aryuza Citizen
+575,Gasch
+576,Aryuza Citizen
+577,Vanmilion
+578,Narvian
+579,Goebbels
+580,Munver
+581,EX
+582,EX
+583,EX
+584,Guard
+585,Transporter
+586,Sentinel
+587,Faria
+588,Laguiole
+589,Imperial
+590,Razite
+591,Camlann
+592,Transporter
+593,Coen
+594,Aisha
+595,Ex-Ishs
+596,Gavin
+597,Welran
+598,Volunteer
+599,Auxiliary Corps
+600,EX
+601,EX
+602,EX
+603,Erickson
+604,York
+605,Ex-Quan
+606,Convoy
+607,Besieger
+608,Sentinel
+609,Ballistician
+610,Marksman
+611,Allied Soldier
+612,Calfors
+613,Verian Knight
+614,Ex-Saphira
+615,Ex-Paramythis
+616,Chaos
+617,EX
+618,Razenclaw
+619,EX
+620,EX
+621,EX
+622,Imperial
+623,Andersen
+624,Jimukha
+625,Wallenstein
+626,Mercenary
+627,Aleck
+628,Morton
+629,Zephyrus
+630,Arcturus
+631,Zephyrus's Unit
+632,Trimier
+633,Piers
+634,Fort Guard
+635,Road Guard
+636,Abram
+637,Bornian
+638,Reserve Corps
+639,Narvian
+640,Gordova
+641,Vanmilion
+642,Vester
+643,Leticia
+644,EX
+645,EX
+646,EX
+647,EX
+648,Conan
+649,Imperial
+650,Amoy
+651,Guard
+652,Nazgul
+653,Pesil Army
+654,Richthofen
+655,Razite
+656,EX
+657,EX
+658,EX
+659,1st Ballistician
+660,2nd Ballistician
+661,3rd Ballistician
+662,Imperial
+663,Dark Priest
+664,Toll Guard
+665,Veirton
+666,Gasch
+667,Ishmat
+668,Danfar
+669,Murin
+670,Yalong
+671,EX
+672,EX
+673,Gandeldyne
+674,Razenclaw
+675,Imperial
+676,Veda Bandit
+677,Pesil Knight
+678,EX
+679,EX
+680,EX
+681,Zephyrus's Unit
+682,Zephyrus's Unit
+683,Zephyrus's Unit
+684,Zephyrus's Unit
+685,Zephyrus's Unit
+686,Zephyrus's Unit
+687,Sophia
+688,Julian
+689,Imperial Archer
+690,Allied Scientist
+691,Allied Officer
+692,Luveil
+693,Imperial Archer
+694,Courier
+695,Black Rider
+696,Allied Soldier
+697,EX
+698,EX
+699,EX
+700,EX
+701,EX
+702,EX
+703,Rasputin
+704,Alfons
+705,Semdallion
+706,Yumil
+707,EX
+708,Luciana
+709,Maria
+710,Quescria
+711,EX
+712,Razite
+713,Imperial
+714,Danae Bandit
+715,Razenclaw
+716,Sophia's Captor
+717,EX
+718,Etoir's Captor
+719,Janet's Captor
+720,Resfina's Captor
+721,Izerna's Captor
+722,Soldier
+723,Conrad
+724,Rezenstein
+725,Elrenne
+726,Roxanne
+727,Razenclaw
+728,Lebeck Soldier
+729,Lebeck Soldier
+730,Lebeck Bandit
+731,EX
+732,EX
+733,EX
+734,EX
+735,EX
+736,EX
+737,Bernald
+738,Cyas
+739,Etoir
+740,Izmork
+741,Ordo
+742,Keimos
+743,Mahatma
+744,Titheau
+745,Wagner
+746,Warren
+747,Chivat
+748,Kennel
+749,Ex-Sara
+750,Zecht
+751,Shivas
+752,Rondy
+753,Julius
+754,Edwin
+755,Gilias
+756,Ex-Aries
+757,Windsor
+758,Sharon
+759,Lionheart
+760,Morra
+761,Wallenschtein
+762,Cromwell
+763,Vigbea
+764,ha-Yadh
+765,Ginger
+766,Lindberg
+767,Ex-Shyan
+768,Moirai
+769,EX
+770,EX
+771,EX
+772,EX
+773,EX
+774,EX
+775,EX
+776,EX
+777,EX
+778,EX
+779,EX
+780,EX
+781,EX
+782,EX
+783,EX
+784,EX
+785,EX
+786,EX
+787,EX
+788,EX
+789,EX
+790,EX
+791,EX
+792,EX
+793,EX
+794,EX
+795,EX
+796,EX
+797,EX
+798,EX
+799,EX
+800,EX
+801,Reese
+802,Wort
+803,Faris
+804,Elbert
+805,Daoud
+806,Farius
+807,Marroy
+808,Shayde
+809,Rufus
+810,Buroze
+811,Bernald
+812,Luke
+813,Galuf
+814,Borodin
+815,Sarji
+816,Swift
+817,Michael
+818,Beck
+819,Lyndon
+820,Vys
+821,Viez
+822,Tito
+823,Laon
+824,Selphon
+825,Vector
+826,Jigsaw
+827,Mughal
+828,Heinkel
+829,Samwell
+830,Volson
+831,Fuva
+832,Rosin
+833,Elton
+834,Camlann
+835,Tomas
+836,Lydon
+837,Lilia
+838,Bengriton
+839,Valentin
+840,Zacharro
+841,Ortega
+842,Pizarro
+843,Keltzar
+844,Zalius
+845,Fuva
+846,Tarrevan
+847,Neam Bandit
+848,Maham
+849,Maham
+850,EX
+851,EX
+852,EX
+853,EX
+854,EX
+855,EX
+856,EX
+857,EX
+858,EX
+859,EX
+860,EX
+861,EX
+862,EX
+863,EX
+864,EX
+865,EX
+866,Gomez
+867,EX
+868,EX
+869,EX
+870,EX
+871,EX
+872,EX
+873,EX
+874,EX
+875,EX
+876,EX
+877,EX
+878,EX
+879,EX
+880,EX
+881,EX
+882,EX
+883,EX
+884,EX
+885,EX
+886,Volcens
+887,Herman
+888,Jacharam
+889,EX
+890,Razenhorn
+891,Razenfang
+892,Imperial
+893,Mercenary
+894,Padolf
+895,Executioner
+896,Reserve Corps
+897,Roswick
+898,Reed
+899,Sienna
+900,Theodore
+901,Minas
+902,EX
+903,EX
+904,EX
+905,EX
+906,EX
+907,EX
+908,EX
+909,EX
+910,EX
+911,EX
+912,EX
+913,EX
+914,EX
+915,EX
+916,EX
+917,EX
+918,EX
+919,EX
+920,EX
+921,EX
+922,EX
+923,EX
+924,EX
+925,EX
+926,EX
+927,EX
+928,EX
+929,EX
+930,EX
+931,EX
+932,EX
+933,EX
+934,EX
+935,EX
+936,EX
+937,EX
+938,EX
+939,EX
+940,EX
+941,EX
+942,EX
+943,Demias Bandit
+944,Agvan
+945,Meriah
+946,Sheikh
+947,Garos
+948,Orbel
+949,Sakhalin
+950,Grimm
+951,Selim
+952,Rodin
+953,Razite
+954,Demias Bandit
+955,Demias Bandit
+956,Fermat
+957,Igos
+958,Doros
+959,Sophie
+960,Josef
+961,EX
+962,EX
+963,EX
+964,EX
+965,EX
+966,EX
+967,EX
+968,EX
+969,EX
+970,EX
+971,EX
+972,Corad
+973,Salle
+974,Suiven
+975,Tengel
+976,Iress
+977,Donhau
+978,Lagarto
+979,Weissman
+980,James
+981,Beldou
+982,Caiman
+983,Starvell
+984,Kurt
+985,Joselle
+986,Heinz
+987,Paulus
+988,Mannstein
+989,Henschel
+990,Porsche
+991,Bottoms
+992,Kracher
+993,Nerman
+994,Sleau
+995,Aban Sud
+996,Ilea
+997,Eisenhower
+998,Elvis
+999,Ex-Conan
+1000,Hasma
+1001,Ytol
+1002,Bauer
+1003,Storoz
+1004,Carma
+1005,Eritz
+1006,Praschi
+1007,Bobo
+1008,Creann
+1009,Antony
+1010,Ervo
+1011,Masch
+1012,Maracus
+1013,Palrovin
+1014,Baldur
+1015,Gort Bandit
+1016,Shagaal
+1017,Ent Bandit
+1018,Murtagh
+1019,Adria Bandit
+1020,Dorunne Bandit
+1021,Yam Bandit
+1022,Imperial Garrison
+1023,Griff
+1024,Graff
+1025,Muthay Gang
+1026,Paletta
+1027,Shamrock
+1028,Hyde
+1029,Gaza Bandit
+1030,Arzovy
+1031,Razenclaw
+1032,Razite
+1033,William
+1034,Imperial 13th
+1035,Razite
+1036,Tina's Dad
+1037,Tina's Mom
+1038,EX
+1039,Imperial Guard
+1040,Allied Officer
+1041,Allied 1st
+1042,Allied 2nd
+1043,Allied 3rd
+1044,Allied 4th
+1045,Allied 5th
+1046,Allied 6th
+1047,Imperial
+1048,Anatore
+1049,Snow Bandit
+1050,Tatiana
+1051,Icewyrm
+1052,Zaiath
+1053,Vall Pirate
+1054,Hamilton
+1055,Imperial Recruit
+1056,Dark Obelisk
+1057,Dark Obelisk
+1058,Dark Obelisk
+1059,Dark Obelisk
+1060,Dark Obelisk
+1061,Blue Killer
+1062,Red Killer
+1063,Zambus
+1064,Baphuzel
+1065,Gaius
+1066,Seamus
+1067,Seamus's Goon
+1068,Lennox
+1069,3rd Supply Corps
+1070,Rosalie
+1071,Nima
+1072,Guardian
+1073,Doria Pirate
+1074,Raquel
+1075,Narvian
+1076,Narvian
+1077,Narvian
+1078,Weiss
+1079,Sea Mouse
+1080,Desert Clan
+1081,Riddle
+1082,Flamewyrm
+1083,Nagra
+1084,Pilgrim
+1085,Gorras
+1086,Imperial
+1087,Allied Ballistician
+1088,Allied Porter
+1089,Fugitive
+1090,Rescue Corps
+1091,Morque Bandit
+1092,Feruz
+1093,Rick
+1094,Bosch
+1095,Gassieu
+1096,Dosh
+1097,Rick Bandit
+1098,Narcissus
+1099,Stefano
+1100,Lazarus
+1101,Matthai
+1102,Balava
+1103,Red Brother
+1104,Imperial Scout
+1105,Dangust
+1106,Zalem Bandit
+1107,Imperial Porter
+1108,Imperial Seaman
+1109,Helcut
+1110,Imperial Ranger
+1111,Funca
+1112,Dudley
+1113,Gibbs
+1114,Chebyshev
+1115,Webber
+1116,Heim Villager
+1117,Heim Villager
+1118,Wyvern
+1119,Desert Clan
+1120,Vadrius
+1121,Jail Guard
+1122,Lyle
+1123,Hessler
+1124,Kerberos
+1125,Jail Guard
+1126,7th Wyvern Knight
+1127,Prisoner
+1128,Razite
+1129,Razite
+1130,Camp Guard
+1131,Soldier
+1132,Soldier
+1133,Abus
+1134,Warden
+1135,Gievas
+1136,Laon
+1137,Volpoz Bandit
+1138,Corrupt Priest
+1139,Morrow
+1140,Allison
+1141,Razite
+1142,Morrow Bandit
+1143,Wyvern
+1144,Flamewyrm
+1145,Thor
+1146,Meckel
+1147,Aminov
+1148,Castren
+1149,Dalm
+1150,Escapee
+1151,Aris Villager
+1152,Golua Villager
+1153,Marua Villager
+1154,Hert Villager
+1155,Allied Soldier
+1156,Gort Bandit
+1157,Gort Bandit
+1158,Gort Bandit
+1159,Imperial 15th
+1160,Imperial 16th
+1161,Gort Bandit
+1162,Lodeon
+1163,Scourge
+1164,Holun
+1165,Logis
+1166,Friz
+1167,Wyrmspeaker
+1168,Sandrov
+1169,EX
+1170,EX
+1171,Verda
+1172,Uriad
+1173,Morax
+1174,Muerthen
+1175,Gorzevalus
+1176,Associate
+1177,Guard
+1178,Varosius
+1179,Belgica Bandit
+1180,Fence
+1181,Headquarters
+1182,Storehouse
+1183,Barracks
+1184,Barracks
+1185,Barracks
+1186,Barracks
+1187,Barracks
+1188,Reserve Officer
+1189,Guard
+1190,Guard
+1191,Guard
+1192,Volunteer
+1193,Volunteer
+1194,Volunteer
+1195,Bolt
+1196,Boltz
+1197,Horus
+1198,Krishna
+1199,Dallas
+1200,Overseer
+1201,Fyodor
+1202,Hazrij
+1203,Hazrij's Unit
+1204,Razite
+1205,Imperial Officer
+1206,Imperial Garrison
+1207,Klamp
+1208,Bianca
+1209,Bonfire
+1210,Razite
+1211,Razite
+1212,Razite
+1213,Convoy
+1214,Stormtrooper
+1215,Zeiz
+1216,Deadeye
+1217,Bowman
+1218,Artia
+1219,Patrol Wyvern
+1220,Degnar
+1221,Bailiff
+1222,Oftar
+1223,Disaad
+1224,Razite
+1225,Penelo
+1226,Slaver
+1227,Fugitive
+1228,Rescue Officer
+1229,Rescue Corps
+1230,Soldier
+1231,Soldier
+1232,Camp Guard
+1233,Camp Guard
+1234,Camp Guard
+1235,Camp Guard
+1236,Camp Guard
+1237,Camp Guard
+1238,Soldier
+1239,Soldier
+1240,Soldier
+1241,Soldier
+1242,Lawson
+1243,Nizal
+1244,Razite
+1245,Razite
+1246,Reiss
+1247,Mauro
+1248,Cleric
+1249,Alicia
+1250,Savat
+1251,Teresa
+1252,Pejj
+1253,Zachs
+1254,Lewis
+1255,Bluck
+1256,Cecily
+1257,Carmal
+1258,Lendel
+1259,Jonathan
+1260,Yumil
+1261,Blacksmith
+1262,Set
+1263,Hermott
+1264,Weyl
+1265,Euclid
+1266,Jailor
+1267,Jung
+1268,Store Clerk
+1269,Mayor
+1270,Villager
+1271,Defender
+1272,Defender
+1273,Defender
+1274,Defender
+1275,Zeoselm
+1276,Zerrau
+1277,Ferres
+1278,Leanne
+1279,Head Guard
+1280,Guardsman
+1281,Favre
+1282,Roswick
+1283,Vanmilion
+1284,Bharat
+1285,Esteban
+1286,Padolf
+1287,Borman
+1288,Roswick
+1289,Volcens
+1290,Herman
+1291,Lebough
+1292,Padolf
+1293,Reed
+1294,Bernard
+1295,Zephyrus
+1296,Anatol
+1297,Kleiman
+1298,Faisal
+1299,Anastasia
+1300,Cordova
+1301,Bernstol
+1302,Ciel
+1303,Ciel
+1304,Eleanor
+1305,Beck
+1306,Fowlkes
+1307,Arik
+1308,Valery
+1309,Heirva
+1310,(nobody)
+1311,Clerk
+1312,Clerk
+1313,Clerk
+1314,Priest
+1315,Villager
+1316,Deserter
+1317,Deserter
+1318,Deserter
+1319,Laszlo
+1320,Katya
+1321,Leonard
+1322,Halvan
+1323,Nieves
+1324,Elder
+1325,Lady
+1326,Lady
+1327,Lady
+1328,Girl
+1329,Mercenary
+1330,Mercenary
+1331,Mercenary
+1332,Adenau
+1333,Ex-Cleim
+1334,Jirra
+1335,Bornian
+1336,Bowen
+1337,Narvian Knight
+1338,Markos
+1339,Eliza
+1340,Eliza
+1341,Eliza
+1342,Ellis
+1343,Trespasser
+1344,Columban
+1345,Raquel
+1346,Gomorrah
+1347,Erzheimer
+1348,Barselphon
+1349,Moniz
+1350,Catherine
+1351,Maris
+1352,Liz
+1353,City Kid
+1354,City Kid
+1355,Karmell
+1356,Actor
+1357,Actor
+1358,Actor
+1359,Actor
+1360,Newbie
+1361,Townsperson
+1362,Morrison
+1363,Marshe
+1364,Russel
+1365,Martha
+1366,Western Army
+1367,Vatolla
+1368,Arcturus
+1369,Soldier
+1370,Rosecchar
+1371,Virgil
+1372,Decker
+1373,Matthew
+1374,Rippula
+1375,Gibry
+1376,Lazlow
+1377,Phyllis
+1378,Lark
+1379,Siglis
+1380,Gina
+1381,Ophelia
+1382,Narvian Knight
+1383,Corona
+1384,Thompson
+1385,Genos
+1386,Pierre
+1387,Lydia
+1388,Quescria
+1389,Bharat
+1390,Tavan
+1391,Larsil
+1392,Manaclir
+1393,Raisel
+1394,Pamela
+1395,Lecter
+1396,Marx
+1397,Lena
+1398,Ex-Bianca
+1399,Remy
+1400,Coney
+1401,Marl
+1402,Marinia
+1403,Marolles
+1404,Leno
+1405,Dwight
+1406,Vectar
+1407,Graham
+1408,Maia
+1409,Marrow
+1410,Elmund
+1411,Shamrock
+1412,Cleo
+1413,Milia
+1414,Tina
+1415,Tina
+1416,Razenclaw
+1417,Razenclaw
+1418,Snow Bandit
+1419,Snow Bandit
+1420,Snow Bandit
+1421,Snow Bandit
+1422,Sinon Knight
+1423,Peddler
+1424,Serkis
+1425,Mazela
+1426,Lane
+1427,Moria
+1428,Citizen
+1429,Citizen
+1430,Citizen
+1431,Vall Pirate
+1432,Vall Pirate
+1433,Vall Pirate
+1434,Vall Pirate
+1435,Vall Pirate
+1436,Vall Pirate
+1437,Norman
+1438,Colette's Mom
+1439,Colette
+1440,Allied Soldier
+1441,Marx
+1442,Folmer
+1443,Bas
+1444,Celina
+1445,Seamus's Goon
+1446,Seamus's Goon
+1447,Seamus's Goon
+1448,Seamus's Goon
+1449,Ellis
+1450,Freyr
+1451,Rockefeller
+1452,Marua Villager
+1453,Marua Villager
+1454,Marua Villager
+1455,Golua Villager
+1456,Golua Villager
+1457,Aris Villager
+1458,Hert Villager
+1459,Palace Knight
+1460,Royal Knight
+1461,Grinid
+1462,Attendant
+1463,Elder
+1464,Lumberjack
+1465,Chaos
+1466,May
+1467,Lardil
+1468,Kappha
+1469,Marine
+1470,Phelps
+1471,Lilim
+1472,Blest
+1473,Anita
+1474,Velzen
+1475,Tinna
+1476,Foal
+1477,Citizen
+1478,Citizen
+1479,Citizen
+1480,Citizen
+1481,Citizen
+1482,Explainer
+1483,Establisher
+1484,Initiator
+1485,Guide
+1486,Fina
+1487,Gravekeeper
+1488,Soldier
+1489,Lidran
+1490,Lara
+1491,Hassan
+1492,Imperial
+1493,Imperial
+1494,Imperial Knight
+1495,Customer
+1496,Customer
+1497,Customer
+1498,Customer
+1499,Squad Leader
+1500,Priest
+1501,Cassandra
+1502,Chosen One
+1503,Military Police
+1504,Military Police
+1505,Police Chief
+1506,Priest
+1507,Sienna
+1508,Sienna
+1509,Sienna
+1510,Bernard
+1511,Captain
+1512,Palitzsch
+1513,Mark
+1514,Harold
+1515,Sabrina
+1516,Claudia
+1517,Chief Guardsman
+1518,Tensberger
+1519,Dolce
+1520,Vergil
+1521,Narvian Knight
+1522,Masked Man
+1523,Leticia
+1524,Manaris
+1525,Fraus
+1526,Agnes
+1527,Customer
+1528,Bornian
+1529,Anna
+1530,Lynette
+1531,Priest
+1532,Customer
+1533,Customer
+1534,Jean
+1535,Drunkard
+1536,Drunkard
+1537,Lynette
+1538,Almuth
+1539,Enoch
+1540,Spy
+1541,Woman
+1542,Messenger
+1543,Azrael
+1544,Pope Urbanus
+1545,Sarah
+1546,Rumi
+1547,Rumi's Mom
+1548,Shaiah
+1549,Magnard
+1550,Morai
+1551,Marius
+1552,Associate
+1553,Sentry
+1554,Witte
+1555,Sherpa
+1556,Sherpa
+1557,Owen
+1558,Reese
+1559,Dummy1
+1560,Dummy2
+1561,Cowen
+1562,Allied Scientist
+1563,Ferianne
+1564,Mordred
+1565,Clerk
+1566,Brighton

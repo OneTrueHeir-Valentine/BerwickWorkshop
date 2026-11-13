@@ -8,7 +8,7 @@ void Test(string name, Action test)
     try { test(); passed++; Console.WriteLine($"PASS {name}"); }
     catch (Exception e) { failed++; Console.WriteLine($"FAIL {name}: {e.Message}"); }
 }
-void Equal<T>(T expected, T actual) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected {expected}, got {actual}"); }
+void Equal<T>(T expected, T actual, [System.Runtime.CompilerServices.CallerLineNumber] int line = 0) { if (!EqualityComparer<T>.Default.Equals(expected, actual)) throw new Exception($"Expected {expected}, got {actual} (line {line})"); }
 void Throws<T>(Action action) where T:Exception
 {
     try { action(); } catch (T) { return; }
@@ -681,7 +681,8 @@ foreach(var exportDisc in new[]{jp!,en!})
                 new(EditSession.Rules,20,"expLevelGap0",-3),new(EditSession.Rules,36,"expHighest",60),new(EditSession.Rules,40,"iaidoBase",55),new(EditSession.Rules,44,"axebaneCap",70)});
             s.Apply(new FieldEdit[]{new(EditSession.Partners,0x54,"partner1Bond",400),new(EditSession.Partners,0x55,"partner2",0x58),new(EditSession.Partners,0x55,"partner2Bond",70),
                 new(EditSession.Bags,0x53,"bagItem2",0x1CD),new(EditSession.Bags,0x53,"bagItem2Uses",3),
-                new(EditSession.Mercenaries,0x90,"mercenaryBase",2000),new(EditSession.Mercenaries,0x95,"mercenaryPerLevel",300)});
+                new(EditSession.Mercenaries,0x90,"mercenaryBase",2000),new(EditSession.Mercenaries,0x95,"mercenaryPerLevel",300),
+                new(EditSession.ArmyUnits,ArmyData.Key(380,0),"level",20),new(EditSession.ArmyUnits,ArmyData.Key(380,0),"item1",0x1CD),new(EditSession.ArmyUnits,ArmyData.Key(380,1),"item1Drop",1)});
             Equal(11,disc.StablePriceBytes.Count);Equal(1000,s.Value(EditSession.StablePrices,0x205,"stablePrice"));
             s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000)});
             Throws<EditException>(()=>s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",0)}));
@@ -729,6 +730,10 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,back.BagBytes.Where(p=>p.Key!=0x53).All(p=>p.Value.Span.SequenceEqual(disc.BagBytes[p.Key].Span)));
             Equal(2000,reread.Value(EditSession.Mercenaries,0x90,"mercenaryBase"));Equal(300,reread.Value(EditSession.Mercenaries,0x95,"mercenaryPerLevel"));
             Equal(true,back.MercenaryBytes.Where(p=>p.Key is not (0x90 or 0x95)).All(p=>p.Value.Span.SequenceEqual(disc.MercenaryBytes[p.Key].Span)));
+            Equal(20,reread.Value(EditSession.ArmyUnits,ArmyData.Key(380,0),"level"));Equal(0x1CD,reread.Value(EditSession.ArmyUnits,ArmyData.Key(380,0),"item1"));
+            Equal(1,reread.Value(EditSession.ArmyUnits,ArmyData.Key(380,1),"item1Drop"));
+            Equal(true,back.ArmyUnitBytes.Where(p=>p.Key is not (380000 or 380001)).All(p=>p.Value.Span.SequenceEqual(disc.ArmyUnitBytes[p.Key].Span)));
+            Equal(disc.Armies.Count,back.Armies.Count);
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
@@ -876,6 +881,40 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,edited.AsSpan().SequenceEqual(exe));
             Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
             Equal(5000,BinaryPrimitives.ReadInt32LittleEndian(MercenaryData.Read(edited).Single(r=>r.Id==0x90).Bytes.AsSpan(8)));
+        }
+    });
+    Test("Armies: every team file on both discs, names, bosses and edits written to every copy",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            // The starting characters' file (36 unit blocks) is edited on the Characters page and is not an army.
+            Equal(275,disc.Armies.Count);Equal(3042,disc.Armies.Sum(a=>a.Units.Count));Equal(530,disc.Armies.Sum(a=>a.Locations.Count));
+            Equal(false,disc.Armies.Any(a=>a.Locations.Contains(disc.Files.Single(f=>f.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase)).Offset+disc.Profile!.UnitTable)));
+            Equal(disc.ArmyUnitBytes.Count,disc.Armies.Sum(a=>a.Units.Count));
+            var army=disc.Armies.Single(a=>a.Id==380);Equal(2,army.Locations.Count);
+            var baldur=army.Units[0];Equal("Baldur",baldur.Name);Equal(true,baldur.Named);Equal(false,army.Units[1].Named);
+            var s=new EditSession(disc);int key=baldur.Key;
+            Equal("145/11/47/487/1",$"{s.Value(EditSession.ArmyUnits,key,"class")}/{s.Value(EditSession.ArmyUnits,key,"level")}/{s.Value(EditSession.ArmyUnits,key,"item1")}/{s.Value(EditSession.ArmyUnits,key,"item3")}/{s.Value(EditSession.ArmyUnits,key,"item3Drop")}");
+            Equal("Murtagh",disc.Armies.Single(a=>a.Id==376).Units[0].Name);
+            Throws<EditException>(()=>s.Apply(EditSession.ArmyUnits,key,new Dictionary<string,int>{["item2"]=0x7FF}));
+            s.Apply(EditSession.ArmyUnits,key,new Dictionary<string,int>{["level"]=15,["item3Drop"]=0,["item1Drop"]=1,["strengthBonus"]=5});
+            var patches=Exporter.PatchesFor(s,disc);
+            // Level, drop flags and strength bonus: four changed bytes, each written to both copies of the army file.
+            Equal(8,patches.Count);
+            Equal(true,patches.All(p=>army.Locations.Any(l=>p.Offset>=l && p.Offset<l+army.Length)));
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            foreach(var p in patches){var b=new byte[1];stream.Position=p.Offset;stream.ReadExactly(b);Equal(p.Expected![0],b[0]);}
+            Equal(15,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.ArmyUnits,key,"level"));
+            // Units whose class or items are not in the lists can still be edited, keeping those values.
+            var odd=disc.ArmyUnitBytes.First(p=>!disc.ClassBytes.ContainsKey(p.Value.Span[19])).Key;
+            Equal(true,s.Apply(EditSession.ArmyUnits,odd,new Dictionary<string,int>{["level"]=(s.Value(EditSession.ArmyUnits,odd,"level")%30)+1}));
+            Throws<EditException>(()=>s.Apply(EditSession.ArmyUnits,key,new Dictionary<string,int>{["class"]=0xFF}));
+        }
+        Equal(true,jp!.Armies.Select(a=>a.Id).SequenceEqual(en!.Armies.Select(a=>a.Id)));
+        Equal(true,jp.ArmyUnitBytes.All(p=>p.Value.Span.SequenceEqual(en.ArmyUnitBytes[p.Key].Span)));
+        using(var stream=new FileStream(en.Path,FileMode.Open,FileAccess.Read,FileShare.Read))
+        {
+            var names=ArmyData.LoadNames(new GameArchives(new IsoImage(stream)));
+            Equal(1566,names.Count);Equal(true,names.All(n=>ArmyData.Names[n.Key]==n.Value));
         }
     });
     Test("Randomized starting items keep their type, level limit and restricted items, and repeat with the same seed",()=>{

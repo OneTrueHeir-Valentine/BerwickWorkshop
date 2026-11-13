@@ -263,8 +263,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, Classes, Terrain, TerrainKinds, Rules, StablePrices];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -283,6 +283,7 @@ public sealed class EditSession
     private readonly Dictionary<(string Table, int Id), int> copies = [];
     private readonly Dictionary<(string Table, int Id), string> names = [];
     private readonly List<Step> steps = [];
+    private HashSet<int>? armyClasses, armyItems;
     private int position, savedPosition;
 
     public EditSession(InspectionResult disc)
@@ -312,6 +313,18 @@ public sealed class EditSession
             [StablePrices] = new(StablePrices, "horse", [Core.StablePrices.Field], disc.StablePriceBytes),
             [Partners] = new(Partners, "character", PartnerData.Fields, disc.PartnerBytes, PartnerData.Validate),
             [Mercenaries] = new(Mercenaries, "character", MercenaryData.Fields, disc.MercenaryBytes),
+            [ArmyUnits] = new(ArmyUnits, "unit", ArmyData.Fields, disc.ArmyUnitBytes, values =>
+            {
+                // Some armies use classes and item numbers that are not in the lists; a unit may keep any value found in the armies.
+                armyClasses ??= disc.ArmyUnitBytes.Values.Select(b => (int)b.Span[19]).ToHashSet();
+                armyItems ??= disc.ArmyUnitBytes.Values.SelectMany(b => ArmyData.Fields.Where(f => f.ItemReference).Select(f => FieldCodec.Read(b.Span, f))).ToHashSet();
+                foreach (var field in ArmyData.Fields.Where(f => f.ItemReference))
+                    if (values.TryGetValue(field.Key, out int item) && item != 0 && !disc.ItemBytes.ContainsKey(item) && !armyItems.Contains(item))
+                        return $"{field.Label}: there is no item 0x{item:X3}.";
+                if (values.TryGetValue("class", out int classId) && !disc.ClassBytes.ContainsKey(classId) && !armyClasses.Contains(classId))
+                    return $"There is no class 0x{classId:X2}.";
+                return "";
+            }),
             [Bags] = new(Bags, "character", BagData.Fields, disc.BagBytes, values =>
             {
                 foreach (var field in BagData.Fields.Where(f => f.ItemReference))
@@ -549,6 +562,7 @@ public sealed class EditSession
         Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,
         TerrainKinds => id < TerrainData.Terrains ? TerrainData.TerrainLabel(id) : null,
         Rules => GameRules.All.FirstOrDefault(r => r.Id == id)?.Name,
+        ArmyUnits => disc.Armies.SelectMany(a => a.Units).FirstOrDefault(u => u.Key == id) is { } unit ? $"{disc.Armies.First(a => a.Id == unit.Army).Label}, {unit.Name}" : null,
         _ => null,
     };
 

@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Classes, Movement, Terrain, Skills, Rules, Events, Mechanics, Disc }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Skills, Rules, Events, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -106,7 +106,7 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditArmyUnitButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
         if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
         else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
@@ -139,6 +139,7 @@ public partial class MainWindow : Window
         characterRows=characters.Select(c=>new CharacterRow(c,characterGroups.TryGetValue(c.Id,out var list)?list:[],comparison is not null)
             { Edited=session is not null && CharacterTables.Any(t=>session.IsEdited(t,c.Id)) }).ToList();
         CharactersNav.IsEnabled=primary.Supported;
+        armyRows=BuildArmyRows();ArmiesNav.IsEnabled=primary.Supported && armyRows.Count>0;
         CharacterComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         CharacterChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         if(comparison is not null)
@@ -160,7 +161,7 @@ public partial class MainWindow : Window
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
     private void PopulateDiscDetails()
@@ -272,6 +273,7 @@ public partial class MainWindow : Window
     }
     private void ShowItems(object sender,RoutedEventArgs e) { view=View.Items;UpdatePage(); }
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
+    private void ShowArmies(object sender,RoutedEventArgs e) { view=View.Armies;UpdatePage(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
     private void ShowTerrain(object sender,RoutedEventArgs e) { view=View.Terrain;UpdatePage(); }
@@ -350,11 +352,12 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
+        ArmyPage.Visibility=view==View.Armies && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
@@ -367,6 +370,7 @@ public partial class MainWindow : Window
         var active=new SolidColorBrush(Color.FromRgb(60,84,69));
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
+        ArmiesNav.Background=view==View.Armies?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
@@ -375,6 +379,94 @@ public partial class MainWindow : Window
         EventsNav.Background=view==View.Events?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
+    }
+    private List<ArmyUnitRow> armyRows=[];
+    private static readonly byte[] NoGrowth=new byte[CharacterDecoder.GrowthLength];
+    private byte[] ArmyBytes(ArmyUnit unit)=>session is not null?session.EditedBytes(EditSession.ArmyUnits,unit.Key):primary!.ArmyUnitBytes[unit.Key].ToArray();
+    private CharacterRecord ArmyRecord(ArmyUnit unit,IReadOnlyDictionary<int,string> itemNames)=>
+        CharacterDecoder.Decode(new(unit.NameId,unit.Name,0),ArmyBytes(unit),NoGrowth,itemNames);
+    private string ArmyDrops(ArmyUnit unit,CharacterRecord record)
+    {
+        var bytes=ArmyBytes(unit);
+        var names=new List<string>();
+        for(int slot=0;slot<ArmyData.ItemSlots;slot++)
+        {
+            int at=0xBC+slot*8;int item=bytes[at]|bytes[at+1]<<8;
+            if(item!=0 && (bytes[at+3]&0x80)!=0) names.Add(record.Items.FirstOrDefault(i=>i.ItemId==item)?.Name??$"Item 0x{item:X3}");
+        }
+        return string.Join(", ",names);
+    }
+    private List<ArmyUnitRow> BuildArmyRows()
+    {
+        if(primary is null || !primary.Supported)return [];
+        var rows=new List<ArmyUnitRow>();
+        var itemNames=(session?.EditedItems()??primary.Items).ToDictionary(i=>i.Id,i=>i.DisplayName);
+        foreach(var army in primary.Armies)
+            foreach(var unit in army.Units)
+            {
+                var record=ArmyRecord(unit,itemNames);
+                string className=classLookup.TryGetValue(record.ClassId,out var k)?k.Name:$"Class 0x{record.ClassId:X2}";
+                rows.Add(new(army,unit,record,className,ArmyDrops(unit,record)) { Edited=session?.IsEdited(EditSession.ArmyUnits,unit.Key)==true });
+            }
+        return rows;
+    }
+    private void ApplyArmyFilter()
+    {
+        if(!ready)return;
+        string query=ArmySearch.Text.Trim();ArmySearchHint.Visibility=query.Length==0?Visibility.Visible:Visibility.Collapsed;
+        int? selected=(ArmyGrid.SelectedItem as ArmyUnitRow)?.Unit.Key;
+        var filtered=armyRows.Where(r=>(NamedUnitsOnly.IsChecked!=true || r.Unit.Named || r.Edited)
+            && (query.Length==0 || r.Name.Contains(query,StringComparison.OrdinalIgnoreCase) || r.ClassName.Contains(query,StringComparison.OrdinalIgnoreCase)
+                || r.ArmyLabel.Contains(query,StringComparison.OrdinalIgnoreCase) || r.Army.Id.ToString()==query.TrimStart('0'))).ToList();
+        ArmyGrid.ItemsSource=filtered;
+        NoArmyUnits.Visibility=filtered.Count==0?Visibility.Visible:Visibility.Collapsed;
+        ArmyCount.Text=$"{filtered.Count:N0} of {armyRows.Count:N0} units in {primary?.Armies.Count??0:N0} armies";
+        if(filtered.Count>0) ArmyGrid.SelectedItem=filtered.FirstOrDefault(r=>r.Unit.Key==selected)??filtered[0];
+        else ClearArmyUnit();
+    }
+    private void ArmyFilterChanged(object sender,TextChangedEventArgs e)=>ApplyArmyFilter();
+    private void ArmyOptionChanged(object sender,RoutedEventArgs e)=>ApplyArmyFilter();
+    private void ClearArmyUnit()
+    {
+        if(ArmyUnitName is null)return;ArmyUnitName.Text="Select a unit";ArmyUnitIdentity.Text="";ArmyUnitFields.Children.Clear();
+    }
+    private void ArmyUnitSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(ArmyGrid.SelectedItem is not ArmyUnitRow row){ClearArmyUnit();return;}
+        var c=row.Record;
+        if(editing?.Page==View.Armies && editing.Id!=row.Unit.Key) EndEdit();
+        UpdateEditButtons();
+        ArmyUnitName.Text=row.Name;
+        ArmyUnitIdentity.Text=$"{row.ArmyLabel}, unit {row.Unit.Index+1} of {row.Army.Units.Count} · {row.ClassName} · Level {c.Level}";
+        var panel=ArmyUnitFields;panel.Children.Clear();
+        if(classLookup.TryGetValue(c.ClassId,out var k))
+        {
+            AddSection(panel,"Class base plus bonus");
+            foreach(var (label,value) in new[]{("HP",k.Hp+c.HpBonus),("Strength",k.Strength+c.StrengthBonus),("Defense",k.Defense+c.DefenseBonus),("Agility",k.Agility+c.AgilityBonus),("Mind",k.Mind+c.MindBonus),("Move",k.Move)}) AddPair(panel,label,value.ToString());
+        }
+        AddSection(panel,"Bonus over class base");
+        foreach(var (label,value) in new[]{("HP",c.HpBonus),("Strength",c.StrengthBonus),("Defense",c.DefenseBonus),("Agility",c.AgilityBonus),("Mind",c.MindBonus)}) AddPair(panel,label,CharacterRecord.Signed(value));
+        if(c.WeaponLevels.Count>0){AddSection(panel,"Weapon levels");foreach(var w in c.WeaponLevels)AddPair(panel,w.Weapon,CharacterRecord.WeaponLevel(w.Value));}
+        AddSection(panel,"Personal skills");panel.Children.Add(new TextBlock {Text=c.Skills.Count==0?"None":string.Join(", ",c.Skills),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
+        AddSection(panel,"Items");
+        if(c.Items.Count==0)panel.Children.Add(new TextBlock {Text="None"});
+        else foreach(var i in c.Items)AddPair(panel,i.Name,i.Durability.ToString());
+        AddSection(panel,"Dropped when defeated");
+        panel.Children.Add(new TextBlock {Text=row.Drops.Length==0?"Nothing":row.Drops,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
+        AddChangeList(panel,ch=>ch.Table==EditSession.ArmyUnits && ch.Id==row.Unit.Key,()=>session!.Revert(EditSession.ArmyUnits,row.Unit.Key));
+    }
+    private void BeginArmyUnitEdit(object sender,RoutedEventArgs e)
+    {
+        if(ArmyGrid.SelectedItem is not ArmyUnitRow row)return;
+        var fields=ArmyData.Fields;
+        OpenEditor(new(View.Armies,row.Unit.Key,"Unit",ArmyUnitEditorPanel,ArmyUnitFields,EditArmyUnitButton,
+        [
+            new("Unit record",EditSession.ArmyUnits,fields.Where(f=>f.Group.Length==0).ToList()),
+            new("Weapon levels",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Weapon levels").ToList()),
+            new("Personal skills",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Personal skills").ToList()),
+            new("Items",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Items").ToList()),
+            new("Dropped when defeated",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Drops").ToList()),
+        ],"This unit's changes apply wherever this army is used. A class change affects only this unit; its stats become the new class's base plus its own bonus."));
     }
     private void ApplyCharacterFilter()
     {
@@ -924,7 +1016,10 @@ public partial class MainWindow : Window
                 if(field.ItemReference || field.ClassReference)
                 {
                     host.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)});
-                    var picker=new ComboBox {ItemsSource=field.ClassReference?ClassChoices():ItemChoices(),DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,8)};
+                    var options=field.ClassReference?ClassChoices():ItemChoices();
+                    int chosen=session.Value(section.Table,target.Id,field.Key);
+                    if(!options.Any(c=>c.Value==chosen)) options.Add(new(chosen,field.ClassReference?$"Class 0x{chosen:X2}":$"Item 0x{chosen:X3}"));
+                    var picker=new ComboBox {ItemsSource=options,DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,8)};
                     picker.ItemsPanel=new ItemsPanelTemplate(new FrameworkElementFactory(typeof(VirtualizingStackPanel)));
                     picker.SelectedValue=session.Value(section.Table,target.Id,field.Key);
                     System.Windows.Automation.AutomationProperties.SetName(picker,$"{section.Title}: {field.Label}");
@@ -1019,6 +1114,7 @@ public partial class MainWindow : Window
         RandomizeItemsButton.Visibility=NewItemButton.Visibility;RandomizeItemsButton.IsEnabled=can && loading is null;
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
+        EditArmyUnitButton.Visibility=can && ArmyGrid.SelectedItem is ArmyUnitRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
         EditMovementButton.Visibility=can && MovementGrid.SelectedItem is MovementRow?Visibility.Visible:Visibility.Collapsed;
         EditTerrainButton.Visibility=can && TerrainGrid.SelectedItem is TerrainKindRow?Visibility.Visible:Visibility.Collapsed;
@@ -1314,14 +1410,14 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
         if(e.Key==Key.F && primary?.Supported==true)
         {
-            if(view is not (View.Characters or View.Classes))view=View.Items;
-            UpdatePage();var box=view switch { View.Characters=>CharacterSearch, View.Classes=>ClassSearch, _=>Search };box.Focus();box.SelectAll();e.Handled=true;
+            if(view is not (View.Characters or View.Classes or View.Armies))view=View.Items;
+            UpdatePage();var box=view switch { View.Characters=>CharacterSearch, View.Classes=>ClassSearch, View.Armies=>ArmySearch, _=>Search };box.Focus();box.SelectAll();e.Handled=true;
         }
     }
     private void ShowHelp(object sender,RoutedEventArgs e)
@@ -1332,6 +1428,7 @@ public partial class MainWindow : Window
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
+            ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),

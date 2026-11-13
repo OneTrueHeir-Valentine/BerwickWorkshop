@@ -8,6 +8,15 @@ public sealed record CharacterRow(CharacterRecord Character, IReadOnlyList<ItemD
     public string EditedText => Edited ? "Edited" : "";
 }
 
+public sealed record ArmyUnitRow(Army Army, ArmyUnit Unit, CharacterRecord Record, string ClassName, string Drops)
+{
+    public string ArmyLabel => Army.Label;
+    public string Name => Unit.Name;
+    public int Level => Record.Level;
+    public bool Edited { get; init; }
+    public string EditedText => Edited ? "Edited" : "";
+}
+
 public sealed record ClassRow(ClassRecord Class, IReadOnlyList<ItemDifference> Differences, bool HasComparison, IReadOnlyList<string> StartingCharacters)
 {
     public string Comparison => HasComparison ? Differences.Count == 0 ? "Same" : "Different" : "";

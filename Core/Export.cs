@@ -29,7 +29,7 @@ public static class Exporter
                 ? [p.PartnerTable + row * (long)PartnerData.RowLength, p.SecondPartnerTable + row * (long)PartnerData.RowLength] : throw new EditException($"Character 0x{id:X3} has no partner row on this disc."),
             EditSession.Bags => disc.CharacterOffsets.TryGetValue(id, out int bagAt) && disc.BagBytes.ContainsKey(id)
                 ? [p.UnitTable + bagAt + BagData.OffsetFromRecord, p.SecondUnitTable + bagAt + BagData.OffsetFromRecord] : throw new EditException($"Character 0x{id:X3} has no starting bag on this disc."),
-            EditSession.Rules or EditSession.Mercenaries => [],
+            EditSession.Rules or EditSession.Mercenaries or EditSession.ArmyUnits => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
         if (table == EditSession.Rules) throw new EditException("Rules are written instruction by instruction; use PatchesFor.");
@@ -73,6 +73,22 @@ public static class Exporter
                 continue;
             }
             var runs = new List<(int Start, int Length)>();
+            if (table == EditSession.ArmyUnits)
+            {
+                // Army units are presented in the starting record layout; each changed byte goes back to its place in every copy of the army file.
+                var unit = disc.Armies.SelectMany(a => a.Units).FirstOrDefault(u => u.Key == id) ?? throw new EditException("This project changes a unit that is not on this disc.");
+                var army = disc.Armies.First(a => a.Id == unit.Army);
+                for (int i = 0; i < edited.Length; i++)
+                {
+                    if (edited[i] == original[i]) continue;
+                    if (i >= ArmyData.StatsLength && i < ArmyData.ItemListAt || i >= ArmyData.ItemListAt + ArmyData.ItemListLength)
+                        throw new InvalidDataException("An army unit change falls outside the unit's data.");
+                    int at = ArmyData.RealOffset(unit, i);
+                    foreach (long location in army.Locations)
+                        patches.Add(new(location + at, [edited[i]], [original[i]]));
+                }
+                continue;
+            }
             for (int i = 0; i < edited.Length; i++)
             {
                 if (edited[i] == original[i]) continue;

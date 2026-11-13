@@ -59,6 +59,9 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     /// <summary>Mercenary fee row of each hireable character (24 bytes in the game program), and the row's position.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> MercenaryBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, int> MercenaryRows { get; init; } = new Dictionary<int, int>();
+    /// <summary>Enemy and guest armies, and each of their units in the starting record layout (key: army × 1000 + unit).</summary>
+    public IReadOnlyList<Army> Armies { get; init; } = [];
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> ArmyUnitBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IsoEntry? ExecutableFile { get; init; }
@@ -207,6 +210,24 @@ public static class Inspector
         var mercenaryBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var mercenaryRows=new Dictionary<int,int>();
         if (profile is not null)
             foreach(var (id,row,rowBytes) in MercenaryData.Read(exe)){mercenaryBytes[id]=rowBytes;mercenaryRows[id]=row;}
+        var armies=new List<Army>();var armyUnitBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
+        if (profile is not null)
+        {
+            try
+            {
+                var archives=new GameArchives(iso);
+                // The starting characters' file has the same format; it is edited on the Characters page, so it is left out here.
+                var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
+                var startingTables=new[]{data.Offset+profile.UnitTable,data.Offset+profile.SecondUnitTable};
+                foreach(var (army,team) in ArmyData.Load(archives,ArmyData.Names))
+                {
+                    if(army.Locations.Any(l=>startingTables.Any(t=>t>=l && t<l+army.Length)))continue;
+                    armies.Add(army);
+                    foreach(var unit in army.Units) armyUnitBytes[unit.Key]=ArmyData.Present(team,unit);
+                }
+            }
+            catch (InvalidDataException) { armies.Clear();armyUnitBytes.Clear(); }
+        }
         var ruleWords=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
             foreach(var rule in GameRules.All)
@@ -225,6 +246,6 @@ public static class Inspector
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,Armies=armies.AsReadOnly(),ArmyUnitBytes=armyUnitBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices };
     }
 }
