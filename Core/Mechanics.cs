@@ -20,7 +20,7 @@ public sealed record Mechanic(string Section, string Name, string Formula, strin
 public static class Mechanics
 {
     private const string Wiki = "EmblemWiki, Berwick Saga Calculations";
-    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", Rules = "rules";
+    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", SkillsPage = "skills", Rules = "rules";
 
     public static IReadOnlyList<Mechanic> All { get; } = Array.AsReadOnly(new Mechanic[]
     {
@@ -111,13 +111,20 @@ public static class Mechanics
             [new("HP bonus limit", Rules, 3), new("Strength bonus limit", Rules, 4), new("Agility bonus limit", Rules, 5),
              new("Luck limit", Rules, 6), new("Defense bonus limit", Rules, 7), new("Mind bonus limit", Rules, 8)]),
 
+        // Skills
+        new("Skills", "Iaido and Knock Away", "Half the weapon level + 40 (Iaido, sword attacks) or + 30 (Knock Away), rolled against 0 to 99",
+            "A unit with a high weapon level activates these skills on almost every attack.",
+            MechanicStatus.Confirmed, "Program reading (0x00229E40, 0x0022788C), checked in a running game", [new("Iaido base chance", SkillsPage, 40), new("Knock Away base chance", SkillsPage, 41)]),
+        new("Skills", "Bane skills", "Attacker's hit rate, at most 33%",
+            "Spearbane, Swordbane, Axebane, Arrowbane and Magicbane each answer one kind of weapon, so a defender facing an accurate attacker gets the full 33%.",
+            MechanicStatus.Confirmed, "Program reading (0x0022753C to 0x002277C0), checked in a running game", [new("Bane skill chances", SkillsPage, 42)]),
         // Experience
         new("Experience", "Experience from a defeat", "Enemy class experience value + level difference bonus (-40 at 8 or more levels below up to +15 at 7 or more above), +20% with the experience skill, then kept between 0 and 100",
             "Only defeating an enemy gives battle experience. The level difference bonus, the highest amount and the class experience values are all editable.",
             MechanicStatus.Confirmed, "Program reading (0x00174050, table at 0x00429F10), checked in a running game", [new("Class experience value", Classes), new("Experience formula", Rules, 20)]),
         new("Experience", "Experience from a staff", "Staff level + 6 + random 0 to 3 - unit level ÷ 5, at least 0, then the skill bonus",
             "A higher level healer gains less from the same staff.",
-            MechanicStatus.Located, "Program reading (0x00224340)", [], "Needs a test in game before it can be offered."),
+            MechanicStatus.Confirmed, "Program reading (0x00224340), checked in a running game", [new("Staff experience", Rules, 37)]),
         new("Experience", "Experience after a fight", "Added to the unit after each fight, at most up to the next level (100)",
             "The Experience after a fight rule can replace the game's amount with a fixed one.",
             MechanicStatus.Confirmed, "Program reading, checked in game", [new("Experience after a fight rule", Rules, 2)]),

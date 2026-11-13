@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Classes, Movement, Terrain, Rules, Mechanics, Disc }
+    private enum View { Items, Characters, Classes, Movement, Terrain, Skills, Rules, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -159,7 +159,7 @@ public partial class MainWindow : Window
         MovementNav.IsEnabled=primary.Supported && movementRows.Count>0;
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
-        RulesNav.IsEnabled=primary.Supported;
+        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;
         PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
@@ -265,13 +265,14 @@ public partial class MainWindow : Window
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
     private void ShowTerrain(object sender,RoutedEventArgs e) { view=View.Terrain;UpdatePage(); }
     private void ShowRules(object sender,RoutedEventArgs e) { view=View.Rules;UpdatePage(); }
+    private void ShowSkills(object sender,RoutedEventArgs e) { view=View.Skills;UpdatePage(); }
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
     private void UpdatePage()
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -280,6 +281,7 @@ public partial class MainWindow : Window
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
+        SkillsPage.Visibility=view==View.Skills && supported?Visibility.Visible:Visibility.Collapsed;
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
         EmptyState.Visibility=primary is null && view!=View.Mechanics?Visibility.Visible:Visibility.Collapsed;
@@ -290,6 +292,7 @@ public partial class MainWindow : Window
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
+        SkillsNav.Background=view==View.Skills?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
     }
@@ -870,7 +873,7 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, _=>View.Rules };UpdatePage();
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, _=>View.Rules };UpdatePage();
                         };
                         links.Children.Add(b);
                     }
@@ -917,16 +920,20 @@ public partial class MainWindow : Window
     }
     private void BuildRules()
     {
-        RulesList.Children.Clear();
+        RulesList.Children.Clear();SkillsList.Children.Clear();
         if(primary is null || !primary.Supported)return;
+        SkillsList.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
+            Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
+                Text="How often skills activate. Each card shows the game's own formula and the numbers in it you can change. Changes apply to every unit with the skill, enemies included. Which characters and classes have a skill is set on the Characters and Classes pages. Each skill here was seen working in a running game before being offered."}});
+        foreach(var group in GameRules.All.Where(r=>r.Confirmed && r.Section==GameRules.SkillsSection).Select(r=>r.Group).Distinct()) BuildRuleGroup(group,SkillsList);
         var intro=new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
                 Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Each rule here was checked in a running game before being offered."}};
         RulesList.Children.Add(intro);
         var shownGroups=new HashSet<string>();
-        foreach(var rule in GameRules.All.Where(r=>r.Confirmed))
+        foreach(var rule in GameRules.All.Where(r=>r.Confirmed && r.Section.Length==0))
         {
-            if(rule.Group.Length>0){if(shownGroups.Add(rule.Group))BuildRuleGroup(rule.Group);continue;}
+            if(rule.Group.Length>0){if(shownGroups.Add(rule.Group))BuildRuleGroup(rule.Group,RulesList);continue;}
             var card=new StackPanel();
             var border=new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card};
             RulesList.Children.Add(border);
@@ -1021,11 +1028,11 @@ public partial class MainWindow : Window
             }
         }
     }
-    private void BuildRuleGroup(string group)
+    private void BuildRuleGroup(string group,Panel target)
     {
         var rules=GameRules.All.Where(r=>r.Confirmed && r.Group==group).ToList();
         var card=new StackPanel();
-        RulesList.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card});
+        target.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card});
         card.Children.Add(new TextBlock {Text=group,FontSize=17,FontWeight=FontWeights.SemiBold});
         card.Children.Add(new TextBlock {Text=GameRules.GroupDescriptions.TryGetValue(group,out var d)?d:"",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
         if(session is null || rules.Any(r=>!session.IsRuleAvailable(r.Id)))
@@ -1133,6 +1140,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance) and the five bane skills (the attacker's hit rate, up to a highest chance). Who has a skill is set on the Characters and Classes pages."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),

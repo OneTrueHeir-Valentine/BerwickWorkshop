@@ -32,6 +32,8 @@ public sealed class GameRule(int id, string key, string name, string description
     /// <summary>Rules that share a group are shown together as one formula; Short is the name inside the group.</summary>
     public string Group { get; init; } = "";
     public string Short { get; init; } = "";
+    /// <summary>Skills is shown on its own page; everything else on the Rules page.</summary>
+    public string Section { get; init; } = "";
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
 
@@ -198,8 +200,32 @@ public static class GameRules
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
+        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates.",
+        ["Knock Away"] = "When the unit attacks, Knock Away activates at a chance of half the unit's weapon level plus the base chance. The game's base is 30. The roll is 0 to 99, so a total of 100 or more always activates.",
+        ["Spearbane"] = BaneText("a spear"),
+        ["Swordbane"] = BaneText("a sword"),
+        ["Axebane"] = BaneText("an axe"),
+        ["Arrowbane"] = BaneText("a bow"),
+        ["Magicbane"] = BaneText("magic"),
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
+
+    private static string BaneText(string weapon) =>
+        $"When an enemy attacks the unit with {weapon}, the skill activates at a chance equal to the attacker's hit rate, but never above the highest chance. The game's highest chance is 33.";
+
+    public const string SkillsSection = "Skills";
+
+    private static GameRule SkillBase(int id, string key, string skill, uint address, uint prefix, int normal) =>
+        new(id, key, $"{skill} base chance", "", RuleKind.Limit, 0, 100, normal, null,
+            [new RuleSite(address, s => prefix | (uint)s, w => (w & 0xFFFF0000u) == prefix && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = skill, Short = "Base chance", Section = SkillsSection };
+
+    // Bane skills cap the attacker's hit rate with slti at,s0,N and addiu s0,zero,N.
+    private static GameRule Bane(int id, string key, string skill, uint compare, uint cap) =>
+        new(id, key, $"{skill} highest chance", "", RuleKind.Limit, 0, 100, 33, null,
+            [new RuleSite(compare, s => 0x2A010000u | (uint)s, w => (w & 0xFFFF0000u) == 0x2A010000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(cap, s => 0x24100000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24100000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = skill, Short = "Highest chance", Section = SkillsSection };
 
     // The level difference table is data in the program: 16 words, enemy level minus own level from -8 to +7.
     private const uint LevelGapTable = 0x00429F10;
@@ -256,13 +282,20 @@ public static class GameRules
              new RuleSite(0x00174124, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) is >= 1 and <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
             { Group = ExperienceGroup, Short = "Highest amount" },
         new GameRule(37, "staffBase", "Staff experience base", "", RuleKind.Limit, 0, 100, 6, null,
-            [new RuleSite(0x00224394, s => 0x26940000u | (uint)s, w => (w & 0xFFFF0000u) == 0x26940000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+            [new RuleSite(0x00224394, s => 0x26940000u | (uint)s, w => (w & 0xFFFF0000u) == 0x26940000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
             { Group = StaffGroup, Short = "Base amount" },
         new GameRule(38, "staffRandom", "Staff experience random bonus", "", RuleKind.Limit, 0, 50, 3, null,
             [new RuleSite(0x00224358, s => 0x24060000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x00224370, s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 51 ? (int)(w & 0xFFFF) - 1 : null),
-             new RuleSite(0x00224380, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+             new RuleSite(0x00224380, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
             { Group = StaffGroup, Short = "Random bonus up to" },
+        SkillBase(40, "iaidoBase", "Iaido", 0x00229E7C, 0x24700000u, 40),
+        SkillBase(41, "knockAwayBase", "Knock Away", 0x002278B8, 0x24750000u, 30),
+        Bane(42, "spearbaneCap", "Spearbane", 0x002275F0, 0x00227604),
+        Bane(43, "swordbaneCap", "Swordbane", 0x00227694, 0x002276A8),
+        Bane(44, "axebaneCap", "Axebane", 0x00227734, 0x00227748),
+        Bane(45, "arrowbaneCap", "Arrowbane", 0x00227550, 0x00227564),
+        Bane(46, "magicbaneCap", "Magicbane", 0x002277D4, 0x002277E8),
         Limit(3, "hpLimit", "HP bonus limit", "The most HP a character can gain above the class base, through level ups and other gains.", 127, 50, 0x00174BD8, 0x001746A8),
         Limit(4, "strengthLimit", "Strength bonus limit", "The most Strength a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C34, 0x00174704),
         Limit(5, "agilityLimit", "Agility bonus limit", "The most Agility a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C4C, 0x0017471C),

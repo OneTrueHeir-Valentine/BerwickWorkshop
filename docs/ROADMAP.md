@@ -164,7 +164,8 @@ Everything found so far and whether a user can change it. Editable means offered
 | Shields | block chance, block roll, Might reduction, guard on failure, training | Shield block, Shield guard, Shield training speed, Training from failed attempts |
 | Parry | Parry skill roll | Parry rule |
 | Weapon training | step, cutoff at level 20, growth chance | Weapon training speed, Training from failed attempts |
-| Experience | defeat formula: class experience + level difference table, skill +20%, cap 100; staff formula | level difference table and cap editable (v0.18.0); staff values decoded, not tested |
+| Experience | defeat formula: class experience + level difference table, skill +20%, cap 100; staff formula | level difference table, cap and staff values editable (v0.18.0, v0.19.0) |
+| Skills | 90 skill checks mapped (skillsites.py); activation formulas read for Iaido, Knock Away, banes, Robust+ area, Vengeful, Vulnerable, Pursuit, Slow Start II | Iaido, Knock Away and bane chances editable (v0.19.0); others not yet |
 | Stat limits | HP, Strength, Agility, Luck, Defense, Mind | six limit rules; level 30 cap not yet (three linked values) |
 | Knives | ignore Defense and shields (program reading) | not yet (needs a knife user to test) |
 | Hit, avoid, critical rate | published formulas | not located |
