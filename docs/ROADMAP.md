@@ -175,6 +175,8 @@ Everything found so far and whether a user can change it. Editable means offered
 ### M8 and later
 PCSX2 link and PNACH, saves, patch packs, audio, maps and events, and Berwick specific systems (food, Pavilion). Each starts with a read-only viewer and a round-trip test before any writes.
 
+Stable-price research is complete at the static level: event 602 supplies both menu and purchase amounts, with 11 horse prices and three identical compressed copies per edition. See `RESEARCH.md`. Next implementation step is a safe compressed-event writer with all-copy verification, then a controlled in-game test. Changing item base prices does not change stable prices. Other open town data includes furniture prices, mercenary fees, supports and bag contents.
+
 ## Rules that apply to every milestone
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.
 - Offsets are per edition. Never reuse a Japanese address on English or the reverse.

@@ -94,6 +94,30 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Command menu `0x0038B400` to `0x0038CB00`: action state +0x2C bit 1 means the unit has moved. Move-limited commands test it with andi 1 (Aim, Deadeye, Sunder, Pulverize, Overwatch, Axe Guard, Windsweep, Battle Cry, Steal) or a 0x4283 mask (Hurry, Provoke, Evasion, Silence, Imbue); open commands use 0x4282, 0x282 or 2 (Double Shot, Triple Shot, Astra, Focus Chant, Guard, Search, Return, Convert); Throw, Mercy, Desperation, Flourish and Deathmatch after a move ask the weapon (item property 0x15). Allowing Hurry after a move gives endless movement. Checked live for Aim, Deadeye, Sunder, Battle Cry, Evasion, Provoke (allowed) and Desperation, Astra, Guard, Search (blocked).
 - Tamper checks: a unit check (`0x00183540`, stats and weapon-level check bits) and a program checksum (`0x00125E60`) both set a marker (`0x00506E64`) that is copied into save data. Program rules trip the program check. No effect of the marker has been seen in play yet. Starting records on the disc carry no weapon check bits, so editing them is safe for the unit check.
 
+### Stable prices (2026-11-13, script and town-overlay trace)
+
+The stable uses event `e0000602.dat`, not the item table's base price. Event 601 builds the purchase list; event 600 obtains stock from event 603 and price from event 602, then calls command `0x4A6` with horse ID, stock and price. In the saved English town overlay, the handler at `0x0053F9D0` passes those arguments to `0x00551DE0`, which appends a 0x44-byte menu row. The price is the row's third word. Rendering at `0x00551920` and the affordability check at `0x00551590` read that same word.
+
+Event 604 also calls 602 for the purchase amount. Event 598 uses that result for its funds check (`0x127`) and payment (`0x126`), then event 605 equips the horse and decrements its stock. Thus the event price is used beyond the displayed menu.
+
+| Item ID | Horse | Price | Value offset in decoded event 602 |
+|---|---|---:|---|
+| 0x205 | Thin Horse | 1000 | 0xAC |
+| 0x206 | Plain Horse | 2500 | 0x110 |
+| 0x207 | Spry Horse | 5000 | 0x174 |
+| 0x208 | Tough Horse | 8000 | 0x1D8 |
+| 0x209 | Strong Horse | 15000 | 0x23C |
+| 0x20A | Ish's Stallion | 15000 | 0x2A0 |
+| 0x20B | Sinon Stallion | 12000 | 0x304 |
+| 0x20C | Liga Destrier | 18000 | 0x368 |
+| 0x20D | Liga Courser | 20000 | 0x3CC |
+| 0x20E | Morach Horse | 24000 | 0x430 |
+| 0x20F | Ish's Courser | 10000 | 0x494 |
+
+The event has three copies per disc: top archive 14 under `ev_all.ar`, top 3376, and top 3546. All six decoded copies across Japanese retail and English v2.3 are byte-identical: 1188 bytes, SHA-256 `bf69a4ca7b3cc17be68f1311c9725fd0322d7948d94b71582ad3d159201df2b6`. Each is stored as a 185-byte compressed child. The value offsets above refer to decoded bytes, not ISO offsets. Tico (0x210) has no explicit price case and is absent from event 601's purchase list; the lookup's default is zero, which must not be presented as a free purchasable horse.
+
+Verification: direct extraction from both owned ISOs, Ghidra call tracing, and comparison with three rows in the existing English stable RAM dump (Thin 1000, Plain 2500, Tough 8000). No new live patch or purchase test was performed. Town-overlay addresses were traced in the English snapshot only; matching event data does not prove Japanese overlay addresses. A price editor still needs compression and archive-size handling, all-copy export verification, and an in-game display/payment test. Earlier searches missed these values because the price assignments are separated by 100-byte script blocks.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.
