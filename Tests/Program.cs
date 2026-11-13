@@ -415,7 +415,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
     Equal(11,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));
-    Equal(0x2443000Au,GameRules.ById(50).Original[0]);Equal(0x240200BEu,GameRules.ById(51).Original[0]);Equal(0x2402012Cu,GameRules.ById(51).Encode(300)[0]);
+    Equal(0x2443000Au,GameRules.ById(50).Original[0]);Equal(0x0002B040u,GameRules.ById(52).Original[0]);Equal(0x0002B080u,GameRules.ById(52).Encode(2)[0]);Equal("Times 4",GameRules.ById(52).Describe(2));Equal(0x240200BEu,GameRules.ById(51).Original[0]);Equal(0x2402012Cu,GameRules.ById(51).Encode(300)[0]);
     Equal("28420005,28630005",string.Join(",",GameRules.ById(47).Original.Select(x=>x.ToString("X8"))));Equal(0x26100012u,GameRules.ById(48).Original[0]);
     var paragon=GameRules.ById(49);Equal("3C026666,34426667,00021043",string.Join(",",paragon.Original.Select(x=>x.ToString("X8"))));Equal("40%",paragon.Describe(5));
     Equal("3C026666,34426667,00021003",string.Join(",",paragon.Encode(5).Select(x=>x.ToString("X8"))));Equal<int?>(null,paragon.Decode(new[]{0x3C026666u,0x34426667u,0x00021083u|0x40u}));Equal(true,GameRules.All.Where(r=>r.Group.Length>0).All(r=>GameRules.GroupDescriptions.ContainsKey(r.Group) && r.Short.Length>0));

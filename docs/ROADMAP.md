@@ -168,7 +168,7 @@ Everything found so far and whether a user can change it. Editable means offered
 | Skills | 90 skill checks mapped (skillsites.py); activation formulas read for Iaido, Knock Away, banes, Robust+ area, Vengeful, Vulnerable, Pursuit, Slow Start II | Iaido, Knock Away, bane chances (v0.19.0), Pursuit lead, Shieldfaire bonus, Paragon bonus (v0.20.0); Vengeful, Vulnerable, Slow Start II read but meaning unclear |
 | Stat limits | HP, Strength, Agility, Luck, Defense, Mind | six limit rules; level 30 cap not yet (three linked values) |
 | Knives | ignore Defense and shields (program reading) | not yet (needs a knife user to test) |
-| Hit, avoid, critical rate | published formulas | not located |
+| Hit, avoid, critical rate | final hit = hit - avoid, crit = crit - crit evade; avoid = attack speed x 2 + items + terrain; hit and crit are item, weapon level and skill sums | Attack speed in avoid (v0.22.0); terrain avoid on the Terrain page; range doubling read, not checked; situational bonuses (+33, -15, +25, +30, +22) triggers unknown |
 | Tamper marker | unit check and program checksum set a saved marker | not needed; no effect seen |
 | Vantage and shield training | no block roll, no training | Shield training with Vantage rule (v0.17.0): one training roll per battle |
 
