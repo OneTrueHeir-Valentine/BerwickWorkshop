@@ -12,6 +12,15 @@ public sealed record TableField(string Key, string Label, int Offset, int Bit, i
     public string Group { get; init; } = "";
     /// <summary>Names for each stored value from Min upward, when the field is a choice.</summary>
     public IReadOnlyList<string>? Choices { get; init; }
+    /// <summary>The stored value of each choice, when the stored values are not Min, Min + 1 and so on.</summary>
+    public IReadOnlyList<int>? ChoiceValues { get; init; }
+    public int ChoiceValue(int index) => ChoiceValues is { } v ? v[index] : Min + index;
+    public int ChoiceIndex(int value)
+    {
+        if (ChoiceValues is not { } v) return value - Min;
+        for (int i = 0; i < v.Count; i++) if (v[i] == value) return i;
+        return -1;
+    }
     /// <summary>The value is an item ID (0 means empty).</summary>
     public bool ItemReference { get; init; }
     /// <summary>The value is a class ID.</summary>
@@ -63,7 +72,8 @@ public static class FieldCodec
     public static string Format(TableField field, int value) =>
         field.SpecialValue == value ? field.SpecialText
         : field.IsFlag ? (value != 0 ? "Yes" : "No")
-        : field.Choices is { } choices && value - field.Min >= 0 && value - field.Min < choices.Count ? choices[value - field.Min]
+        : field.Choices is { } choices && field.ChoiceIndex(value) is var index && index >= 0 && index < choices.Count ? choices[index]
+        : field.ChoiceValues is not null ? $"Other ({value})"
         : field.Display == 1 ? value.ToString(CultureInfo.InvariantCulture)
         : (value * field.Display).ToString(field.Display < 1 ? "0.#" : "0", CultureInfo.InvariantCulture);
 
@@ -76,7 +86,7 @@ public static class FieldCodec
         if (field.Choices is { } choices)
         {
             int index = choices.ToList().FindIndex(c => c.Equals(text, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0) { value = field.Min + index; return true; }
+            if (index >= 0) { value = field.ChoiceValue(index); return true; }
         }
         if (!decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal shown))
         { error = $"{field.Label} must be a number."; return false; }
@@ -106,6 +116,10 @@ public static class ItemEncoder
         (29, "General only"), (26, "Gigas Knight only"), (69, "Paladin only"), (72, "Assassin only"), (79, "Black Rider only"), (80, "Apostle only"),
     ];
 
+    // One special effect per item: byte 27 holds 100 + the effect number (0 for none), byte 26 its chance or amount.
+    private static readonly (string Name, int Value)[] SpecialEffects =
+        [("None", 0), .. ItemDecoder.EffectNames.Select((n, i) => (n, 100 + i)).Where(e => e.n != "Unknown").OrderBy(e => e.n, StringComparer.Ordinal)];
+
     public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(new TableField[]
     {
         new("type", "Type", 0, 0, 5, 0, 24) { Choices = ItemDecoder.Types },
@@ -131,6 +145,8 @@ public static class ItemEncoder
         new("windResist", "Wind", 19, 2, 6, -32, 31) { Signed = true, Group = "Resistances" },
         new("holyResist", "Holy", 20, 6, 6, -32, 31) { Signed = true, Group = "Resistances" },
         new("darkResist", "Dark", 20, 0, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        new("effectKind", "Effect", 27, 0, 8, 0, 255) { Group = "Special effect", Choices = SpecialEffects.Select(e => e.Name).ToArray(), ChoiceValues = SpecialEffects.Select(e => e.Value).ToArray() },
+        new("effectAmount", "Chance or amount", 26, 0, 7, 0, 127) { Group = "Special effect" },
     }.Concat(Effects.Select(e => new TableField($"effect{e.Bit}", e.Name, 28 + e.Bit / 8, e.Bit % 8, 1, 0, 1) { Group = "Effects" })).ToArray());
 
 

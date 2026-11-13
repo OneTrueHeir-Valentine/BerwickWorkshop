@@ -128,6 +128,8 @@ Test("Item encoder fields agree with decoded record properties",()=>{
             Array.Clear(rec);ItemEncoder.Write(rec,f,v);Equal($"{f.Key}={v}",$"{f.Key}={ItemEncoder.Read(rec,f)}");
             foreach(var g in ItemEncoder.Fields.Where(g=>g!=f && g.Group.Length>0)) Equal($"{g.Key}=0",$"{g.Key}={ItemEncoder.Read(rec,g)}");
         }
+    var kind=ItemEncoder.Field("effectKind");Equal("None/Sword break/Other (125)/Other (50)",$"{FieldCodec.Format(kind,0)}/{FieldCodec.Format(kind,108)}/{FieldCodec.Format(kind,125)}/{FieldCodec.Format(kind,50)}");
+    Equal(true,FieldCodec.TryParse(kind,"injury",out int injury,out _));Equal(131,injury);Equal(-1,kind.ChoiceIndex(125));Equal(0,kind.ChoiceIndex(0));Equal(108,kind.ChoiceValue(kind.ChoiceIndex(108)));
     Equal(33,ItemEncoder.Fields.Count(f=>f.Group=="Effects"));Equal(ItemEncoder.Fields.Count,ItemEncoder.Fields.Select(f=>f.Key).Distinct().Count());
 });
 Test("Item encoder rejects out of range values",()=>{
@@ -727,6 +729,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             int V(int id,string key)=>ItemEncoder.Read(disc.ItemBytes[id].Span,ItemEncoder.Field(key));
             Equal("5/2/-2/-10/10/12/30/-8",$"{V(429,"hitBonus")}/{V(442,"strengthBonus")}/{V(442,"agilityBonus")}/{V(446,"avoidBonus")}/{V(446,"hitBonus")}/{V(456,"criticalEvade")}/{V(456,"fireResist")}/{V(456,"windResist")}");
             Equal("5/18/18/18/18/0/3/1",$"{V(340,"fireResist")}/{V(388,"fireResist")}/{V(388,"thunderResist")}/{V(388,"windResist")}/{V(388,"holyResist")}/{V(388,"darkResist")}/{V(349,"mindBonus")}/{V(432,"defenseBonus")}");
+            Equal("108/33/131/12/0/0",$"{V(0x0D,"effectKind")}/{V(0x0D,"effectAmount")}/{V(0x7B,"effectKind")}/{V(0x7B,"effectAmount")}/{V(1,"effectKind")}/{V(1,"effectAmount")}");
             Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
         }
     });

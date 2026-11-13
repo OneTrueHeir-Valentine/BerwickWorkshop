@@ -681,6 +681,7 @@ public partial class MainWindow : Window
             new("",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group.Length==0).ToList()),
             new("Bonuses while equipped",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Bonuses").ToList()),
             new("Resistances",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Resistances").ToList()),
+            new("Special effect",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Special effect").ToList()),
             new("Effects",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Effects").ToList()),
         ],null));
     }
@@ -769,8 +770,18 @@ public partial class MainWindow : Window
                 if(field.Choices is { } choices)
                 {
                     var combo=new ComboBox {Padding=new Thickness(6,4,6,4),DisplayMemberPath="Text",SelectedValuePath="Value",
-                        ItemsSource=choices.Select((text,i)=>new Choice(field.Min+i,text)).ToList()};
+                        ItemsSource=choices.Select((text,i)=>new Choice(field.ChoiceValue(i),text)).Concat(field.ChoiceIndex(current)<0?[new Choice(current,FieldCodec.Format(field,current))]:[]).ToList()};
                     combo.SelectedValue=current;input=combo;
+                    if(choices.Any(c=>c.Length>8))
+                    {
+                        host.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)});
+                        combo.Margin=new Thickness(0,0,0,8);combo.ToolTip=null;
+                        System.Windows.Automation.AutomationProperties.SetName(combo,section.Title.Length>0?$"{section.Title}: {field.Label}":field.Label);
+                        host.Children.Add(combo);
+                        var wideError=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,-4,0,8),Visibility=Visibility.Collapsed};
+                        host.Children.Add(wideError);editors.Add((section.Table,field,combo,wideError));
+                        continue;
+                    }
                 }
                 else input=new TextBox {Text=FieldCodec.Format(field,current),Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right};
                 System.Windows.Automation.AutomationProperties.SetName(input,section.Title.Length>0?$"{section.Title}: {field.Label}":field.Label);
@@ -1155,7 +1166,7 @@ public partial class MainWindow : Window
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances and effects. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
