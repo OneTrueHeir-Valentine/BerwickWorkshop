@@ -93,6 +93,8 @@ public static partial class BerwickLz
             }
             position += token.Length;
         }
+        // The game's decompressor has no output count: it stops at a long copy whose length byte is 0.
+        Bit(false); Bit(true); encoded.Add(0); encoded.Add(0); encoded.Add(0);
         var result = new byte[8 + encoded.Count];
         BinaryPrimitives.WriteInt32LittleEndian(result, n);
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4), encoded.Count);

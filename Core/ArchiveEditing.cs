@@ -38,6 +38,13 @@ public static class ArchiveEditing
         var updated = Tarc.Parse(result)[index];
         if (!Tarc.Extract(result, updated).AsSpan().SequenceEqual(decoded))
             throw new InvalidDataException("The edited archive could not be verified.");
+        if (entry.Compressed)
+        {
+            // Check it the way the game reads it too: everything up to the end marker, nothing after it.
+            var (game, read) = BerwickLz.DecompressToEndMarker(stored, decoded.Length);
+            if (!game.AsSpan().SequenceEqual(decoded) || read != stored.Length - 8)
+                throw new InvalidDataException("The edited archive could not be verified.");
+        }
         return result;
     }
 }

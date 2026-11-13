@@ -57,6 +57,62 @@ public static class Tarc
 /// (distance up to 256, length 2 to 5) and long copies (13-bit distance, length 3 to 9 or a length byte).</summary>
 public static partial class BerwickLz
 {
+    /// <summary>Decode the way the game does: no output count, stop at a long copy whose length byte is 0.
+    /// Returns the output and how many payload bytes were read.</summary>
+    public static (byte[] Output, int Read) DecompressToEndMarker(ReadOnlySpan<byte> data, int maxOutput)
+    {
+        if (data.Length < 8) throw new InvalidDataException("A compressed file is too short.");
+        var buf = data[8..];
+        var output = new List<byte>();
+        int p = 0, flags = 0, left = 0;
+        int Bit(ReadOnlySpan<byte> b)
+        {
+            if (left == 0)
+            {
+                if (p >= b.Length) throw new InvalidDataException("A compressed file has no end marker.");
+                flags = b[p++]; left = 8;
+            }
+            left--;
+            return (flags >> left) & 1;
+        }
+        while (true)
+        {
+            if (output.Count > maxOutput) throw new InvalidDataException("A compressed file has no end marker.");
+            if (Bit(buf) == 1)
+            {
+                if (p >= buf.Length) throw new InvalidDataException("A compressed file has no end marker.");
+                output.Add(buf[p++]); continue;
+            }
+            int length, distance;
+            if (Bit(buf) == 1)
+            {
+                if (p + 1 >= buf.Length) throw new InvalidDataException("A compressed file has no end marker.");
+                int t = (buf[p] << 8) | buf[p + 1]; p += 2;
+                distance = 8192 - (t >> 3);
+                if ((t & 7) != 0) length = (t & 7) + 2;
+                else
+                {
+                    if (p >= buf.Length) throw new InvalidDataException("A compressed file has no end marker.");
+                    int n = buf[p++];
+                    if (n == 0) return (output.ToArray(), p);
+                    length = n + 1;
+                }
+            }
+            else
+            {
+                length = Bit(buf) * 2 + Bit(buf) + 2;
+                if (p >= buf.Length) throw new InvalidDataException("A compressed file has no end marker.");
+                distance = 256 - buf[p++];
+            }
+            for (int i = 0; i < length; i++)
+            {
+                int src = output.Count - distance;
+                if (src < 0) throw new InvalidDataException("A compressed file is damaged.");
+                output.Add(output[src]);
+            }
+        }
+    }
+
     public static byte[] Decompress(ReadOnlySpan<byte> data)
     {
         if (data.Length < 9) throw new InvalidDataException("A compressed file is too short.");
