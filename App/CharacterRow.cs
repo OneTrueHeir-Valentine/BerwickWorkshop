@@ -17,6 +17,13 @@ public sealed record ArmyUnitRow(Army Army, ArmyUnit Unit, CharacterRecord Recor
     public string EditedText => Edited ? "Edited" : "";
 }
 
+public sealed record FurnitureRow(int Id, string Name, int Price, int Original)
+{
+    public string PriceText => Price.ToString("N0");
+    public bool Edited => Price != Original;
+    public string EditedText => Edited ? "Edited" : "";
+}
+
 public sealed record ClassRow(ClassRecord Class, IReadOnlyList<ItemDifference> Differences, bool HasComparison, IReadOnlyList<string> StartingCharacters)
 {
     public string Comparison => HasComparison ? Differences.Count == 0 ? "Same" : "Different" : "";

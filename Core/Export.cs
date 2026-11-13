@@ -49,11 +49,17 @@ public static class Exporter
             throw new EditException("This project belongs to a different disc image. Open its original disc before exporting.");
         var patches = new List<DiscPatch>();
         var stable = new Dictionary<int, int>();
+        var furniture = new Dictionary<int, int>();
         foreach (var (table, id) in session.EditedRecords)
         {
             if (table == EditSession.StablePrices)
             {
                 stable[id] = session.Value(table, id, StablePrices.Field.Key);
+                continue;
+            }
+            if (table == EditSession.FurniturePrices)
+            {
+                furniture[id] = session.Value(table, id, FurniturePrices.Table.Field.Key);
                 continue;
             }
             var original = session.Table(table).Records[id].Span;
@@ -103,13 +109,20 @@ public static class Exporter
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
-        if (stable.Count > 0)
+        if (stable.Count > 0 || furniture.Count > 0)
         {
-            // Stable prices live in a compressed event script, stored three times; each copy is rewritten in place.
+            // Stable and furniture prices live in compressed event scripts, each stored several times and partly in the same
+            // archives; every copy is rewritten in place, one archive at a time.
             using var stream = new FileStream(disc.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var archives = new GameArchives(new IsoImage(stream));
-            var (_, decoded, copies) = StablePrices.Load(archives);
-            patches.AddRange(StablePrices.Patches(archives, copies, StablePrices.Write(decoded, stable)));
+            var events = new List<(ScriptPrices, IReadOnlyList<StableCopy>, byte[])>();
+            foreach (var (table, prices) in new[] { (StablePrices.Table, stable), (FurniturePrices.Table, furniture) })
+            {
+                if (prices.Count == 0) continue;
+                var (_, decoded, copies) = table.Load(archives);
+                events.Add((table, copies, table.Write(decoded, prices)));
+            }
+            patches.AddRange(ScriptPrices.Combined(archives, events));
         }
         return patches.AsReadOnly();
     }

@@ -141,6 +141,12 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - A unit block is the tag `UNIT` plus the starting-record layout (name ID at +12 and +14, class at +19, level at +20, bonuses, weapon levels from +36, skills at +56), then zero words the loader skips, then `ITEM`, a count of 8 and 8-byte item slots (item, uses, flag 0x80 at slot +3 = dropped when defeated). The `ITEM` tag sits between 0x90 and 0xB8 depending on the block.
 - Unit names: `namene.ar` (top 14) holds `un001` to `un1566`, glyph numbers (0 to 25 capitals, 26 to 51 small letters, 0x34 to 0x3C digits 1 to 9, 0x3D zero, 0x44/0x45 brackets, 0x46 hyphen, 0x47 apostrophe, 0x50 space). The Japanese disc uses the same numbers for Japanese glyphs, so the English names ship as reference/units.csv. Bosses are units whose name ID occurs once in their army (Baldur in army 380, Murtagh in 376).
 
+### Furniture prices (2026-11-13)
+
+- The developer memory dump also lists event script names in event order: the name's position minus 530 is the event number (`city012_get_horse_price` = 602, `get_horse_vidx` = 603, as traced before). `get_furniture_price` = event 727, `select_buy_furniture` = 729, `town_map27_kaguya` (the furniture shop) = 730.
+- Event 727 returns the price for furniture numbers 1 to 5 and 7 to 14 (number records at 0xA0 + 88 per piece, each after the comparison with the piece number). The pieces are event items (names in `sysfont.ar` `evitem001` onward): Pile of Bags 23,000, Sword Mount 19,000, Big Rug 25,000, Porcelain Vase 26,000, Deer Mount 27,500, Rug 30,000, Coffers 45,000, Tapestry 17,000, Bird Statue 22,000, Art "Revival" 42,000, Maiden Statue 36,000, Treasure Chest 14,500, Art "Hope" 32,000. Identical in both editions.
+- Event 727 shares archives with event 602 (ev_all.ar), so edits to both are written into each archive together (`ScriptPrices.Combined`).
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.

@@ -20,7 +20,7 @@ public sealed record Mechanic(string Section, string Name, string Formula, strin
 public static class Mechanics
 {
     private const string Wiki = "EmblemWiki, Berwick Saga Calculations";
-    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", SkillsPage = "skills", Rules = "rules";
+    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", SkillsPage = "skills", Rules = "rules", Furniture = "furniture";
 
     public static IReadOnlyList<Mechanic> All { get; } = Array.AsReadOnly(new Mechanic[]
     {
@@ -97,6 +97,10 @@ public static class Mechanics
         new("Prices", "Mercenary fee", "Base fee + level × fee per level (Volo 200 + 150 per level, Faramir 1,200 + 50 per level)",
             "Eighteen characters can be hired as mercenaries. When both values are 0 the game picks a random fee instead (Saphira). Some hires cost half; the game marks this for each mercenary.",
             MechanicStatus.Confirmed, "Program reading (fee table at 0x0042D450, fee 0x00170480), checked in a running game", [new("Mercenary fee", Characters)]),
+
+        new("Prices", "Furniture prices", "Pile of Bags 23,000, Sword Mount 19,000, Big Rug 25,000, Porcelain Vase 26,000, Deer Mount 27,500, Rug 30,000, Coffers 45,000, Tapestry 17,000, Bird Statue 22,000, Art: \"Revival\" 42,000, Maiden Statue 36,000, Treasure Chest 14,500, Art: \"Hope\" 32,000",
+            "The furniture shop asks an event script for each piece's price, the same way the stable does for horses.",
+            MechanicStatus.Located, "Event script 727 (stored in several copies on each disc)", [new("Furniture prices", Furniture)]),
 
         // Partners
         new("Partners", "Partner bonus", "For each partner within 2 spaces: hit + bond ÷ 10; critical + (total of those amounts) ÷ 5",

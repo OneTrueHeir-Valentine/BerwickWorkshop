@@ -263,8 +263,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -311,6 +311,7 @@ public sealed class EditSession
             [TerrainKinds] = new(TerrainKinds, "terrain", TerrainKindData.Fields, disc.TerrainKindBytes),
             [Rules] = new(Rules, "rule", GameRules.All.Select(r => r.Field).ToList(), disc.RuleWords),
             [StablePrices] = new(StablePrices, "horse", [Core.StablePrices.Field], disc.StablePriceBytes),
+            [FurniturePrices] = new(FurniturePrices, "piece of furniture", [Core.FurniturePrices.Table.Field], disc.FurniturePriceBytes),
             [Partners] = new(Partners, "character", PartnerData.Fields, disc.PartnerBytes, PartnerData.Validate),
             [Mercenaries] = new(Mercenaries, "character", MercenaryData.Fields, disc.MercenaryBytes),
             [ArmyUnits] = new(ArmyUnits, "unit", ArmyData.Fields, disc.ArmyUnitBytes, values =>
@@ -562,6 +563,7 @@ public sealed class EditSession
         Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,
         TerrainKinds => id < TerrainData.Terrains ? TerrainData.TerrainLabel(id) : null,
         Rules => GameRules.All.FirstOrDefault(r => r.Id == id)?.Name,
+        FurniturePrices => Core.FurniturePrices.Names.TryGetValue(id, out var piece) ? piece : null,
         ArmyUnits => disc.Armies.SelectMany(a => a.Units).FirstOrDefault(u => u.Key == id) is { } unit ? $"{disc.Armies.First(a => a.Id == unit.Army).Label}, {unit.Name}" : null,
         _ => null,
     };

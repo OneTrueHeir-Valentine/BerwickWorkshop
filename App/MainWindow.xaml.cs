@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Skills, Rules, Events, Mechanics, Disc }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Skills, Rules, Events, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -106,7 +106,7 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditArmyUnitButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditArmyUnitButton,EditFurnitureButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
         if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
         else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
@@ -160,8 +160,9 @@ public partial class MainWindow : Window
         MovementNav.IsEnabled=primary.Supported && movementRows.Count>0;
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
+        FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
         RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
     private void PopulateDiscDetails()
@@ -274,6 +275,7 @@ public partial class MainWindow : Window
     private void ShowItems(object sender,RoutedEventArgs e) { view=View.Items;UpdatePage(); }
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowArmies(object sender,RoutedEventArgs e) { view=View.Armies;UpdatePage(); }
+    private void ShowFurniture(object sender,RoutedEventArgs e) { view=View.Furniture;UpdatePage(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
     private void ShowTerrain(object sender,RoutedEventArgs e) { view=View.Terrain;UpdatePage(); }
@@ -352,12 +354,13 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ArmyPage.Visibility=view==View.Armies && supported?Visibility.Visible:Visibility.Collapsed;
+        FurniturePage.Visibility=view==View.Furniture && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
@@ -371,6 +374,7 @@ public partial class MainWindow : Window
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ArmiesNav.Background=view==View.Armies?active:Brushes.Transparent;
+        FurnitureNav.Background=view==View.Furniture?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
@@ -585,6 +589,36 @@ public partial class MainWindow : Window
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
         AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    private void ApplyFurnitureList()
+    {
+        if(!ready || primary is null)return;
+        int? selected=(FurnitureGrid.SelectedItem as FurnitureRow)?.Id;
+        var field=FurniturePrices.Table.Field;
+        var rows=primary.FurniturePriceBytes.Keys.Order().Select(id=>
+        {
+            int original=FieldCodec.Read(primary.FurniturePriceBytes[id].Span,field);
+            return new FurnitureRow(id,FurniturePrices.Names.TryGetValue(id,out var n)?n:$"Piece {id}",session?.Value(EditSession.FurniturePrices,id,field.Key)??original,original);
+        }).ToList();
+        FurnitureGrid.ItemsSource=rows;
+        FurnitureCount.Text=$"{rows.Count} pieces of furniture";
+        if(rows.Count>0) FurnitureGrid.SelectedItem=rows.FirstOrDefault(r=>r.Id==selected)??rows[0];
+    }
+    private void FurnitureSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(FurnitureGrid.SelectedItem is not FurnitureRow row){FurnitureName.Text="Select a piece";FurnitureFields.Children.Clear();return;}
+        if(editing?.Page==View.Furniture && editing.Id!=row.Id) EndEdit();
+        UpdateEditButtons();
+        FurnitureName.Text=row.Name;FurnitureFields.Children.Clear();
+        if(row.Edited) AddPair(FurnitureFields,"Price on the disc",row.Original.ToString("N0"));
+        AddPair(FurnitureFields,"Price",row.PriceText);
+        AddChangeList(FurnitureFields,ch=>ch.Table==EditSession.FurniturePrices && ch.Id==row.Id,()=>session!.Revert(EditSession.FurniturePrices,row.Id));
+    }
+    private void BeginFurnitureEdit(object sender,RoutedEventArgs e)
+    {
+        if(FurnitureGrid.SelectedItem is not FurnitureRow row)return;
+        OpenEditor(new(View.Furniture,row.Id,"Price",FurnitureEditorPanel,FurnitureFields,EditFurnitureButton,
+            [new("",EditSession.FurniturePrices,[FurniturePrices.Table.Field])],null));
     }
     private void ApplyTerrainList()
     {
@@ -1115,6 +1149,7 @@ public partial class MainWindow : Window
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditArmyUnitButton.Visibility=can && ArmyGrid.SelectedItem is ArmyUnitRow?Visibility.Visible:Visibility.Collapsed;
+        EditFurnitureButton.Visibility=can && FurnitureGrid.SelectedItem is FurnitureRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
         EditMovementButton.Visibility=can && MovementGrid.SelectedItem is MovementRow?Visibility.Visible:Visibility.Collapsed;
         EditTerrainButton.Visibility=can && TerrainGrid.SelectedItem is TerrainKindRow?Visibility.Visible:Visibility.Collapsed;
@@ -1157,7 +1192,7 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, _=>View.Rules };UpdatePage();
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, "furniture"=>View.Furniture, _=>View.Rules };UpdatePage();
                         };
                         links.Children.Add(b);
                     }
@@ -1410,7 +1445,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
@@ -1429,13 +1464,14 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
+            ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Armies: class, level, bonuses, weapon levels, skills, items and drops of any enemy, boss or guest unit. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Armies: class, level, bonuses, weapon levels, skills, items and drops of any enemy, boss or guest unit. Furniture: the shop price of each piece. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),

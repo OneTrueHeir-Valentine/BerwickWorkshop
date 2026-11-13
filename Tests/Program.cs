@@ -684,7 +684,8 @@ foreach(var exportDisc in new[]{jp!,en!})
                 new(EditSession.Mercenaries,0x90,"mercenaryBase",2000),new(EditSession.Mercenaries,0x95,"mercenaryPerLevel",300),
                 new(EditSession.ArmyUnits,ArmyData.Key(380,0),"level",20),new(EditSession.ArmyUnits,ArmyData.Key(380,0),"item1",0x1CD),new(EditSession.ArmyUnits,ArmyData.Key(380,1),"item1Drop",1)});
             Equal(11,disc.StablePriceBytes.Count);Equal(1000,s.Value(EditSession.StablePrices,0x205,"stablePrice"));
-            s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000)});
+            s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000),
+                new(EditSession.FurniturePrices,13,"furniturePrice",777),new(EditSession.FurniturePrices,8,"furniturePrice",50000)});
             Throws<EditException>(()=>s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",0)}));
             Equal(1234,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.StablePrices,0x205,"stablePrice"));
             Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedMovementType(5).Costs[4]==15);
@@ -720,6 +721,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
             Equal(1234,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x205].Span));Equal(30000,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x20E].Span));
             Equal(2500,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x206].Span));
+            Equal("777/50000/23000",$"{BinaryPrimitives.ReadInt32LittleEndian(back.FurniturePriceBytes[13].Span)}/{BinaryPrimitives.ReadInt32LittleEndian(back.FurniturePriceBytes[8].Span)}/{BinaryPrimitives.ReadInt32LittleEndian(back.FurniturePriceBytes[1].Span)}");
             Equal(true,back.PartnerCopiesMatch);Equal(16,back.PartnerBytes.Count);
             var reread=new EditSession(back);
             Equal(400,reread.Value(EditSession.Partners,0x54,"partner1Bond"));Equal(0x53,reread.Value(EditSession.Partners,0x54,"partner1"));
@@ -943,6 +945,38 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,edits.All(e=>back.Value(e.Table,e.Id,e.Field)==e.Value));
             s.Undo();Equal(false,s.IsDirty);
         }
+    });
+    Test("Furniture prices: event 727 on both discs, and stable and furniture edits share archives without overlapping",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal("23000,19000,25000,26000,27500,30000,45000,17000,22000,42000,36000,14500,32000",
+                string.Join(",",FurniturePrices.Table.Slots.Select(s=>BinaryPrimitives.ReadInt32LittleEndian(disc.FurniturePriceBytes[s.Item].Span))));
+            Equal(13,FurniturePrices.Names.Count);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));
+            var (_,stableDecoded,stableCopies)=StablePrices.Load(archives);
+            var (_,furnitureDecoded,furnitureCopies)=FurniturePrices.Table.Load(archives);
+            Equal(true,furnitureCopies.Count>=2);
+            Equal(true,furnitureCopies.Any(c=>stableCopies.Any(s=>s.Top==c.Top)));
+            var stableEdited=StablePrices.Write(stableDecoded,new Dictionary<int,int>{[0x205]=1234});
+            var furnitureEdited=FurniturePrices.Table.Write(furnitureDecoded,new Dictionary<int,int>{[13]=99,[8]=60000});
+            Throws<EditException>(()=>FurniturePrices.Table.Write(furnitureDecoded,new Dictionary<int,int>{[6]=500}));
+            var patches=ScriptPrices.Combined(archives,[(StablePrices.Table,stableCopies,stableEdited),(FurniturePrices.Table,furnitureCopies,furnitureEdited)]);
+            var ordered=patches.OrderBy(p=>p.Offset).ToList();
+            for(int i=1;i<ordered.Count;i++) Equal(true,ordered[i].Offset>=ordered[i-1].Offset+ordered[i-1].Bytes.Length);
+            foreach(int top in stableCopies.Select(c=>c.Top).Concat(furnitureCopies.Select(c=>c.Top)).Distinct())
+            {
+                var bytes=archives.Top(top);long start=archives.TopOffset(top);
+                foreach(var p in patches.Where(p=>p.Offset>=start && p.Offset<start+bytes.Length)) p.Bytes.CopyTo(bytes,(int)(p.Offset-start));
+                foreach(var copy in stableCopies.Where(c=>c.Top==top)) Equal(true,StablePrices.Extract(bytes,copy).AsSpan().SequenceEqual(stableEdited));
+                foreach(var copy in furnitureCopies.Where(c=>c.Top==top)) Equal(true,FurniturePrices.Table.Extract(bytes,copy).AsSpan().SequenceEqual(furnitureEdited));
+            }
+            var s=new EditSession(disc);
+            s.Apply(EditSession.FurniturePrices,13,new Dictionary<string,int>{["furniturePrice"]=99});
+            Throws<EditException>(()=>s.Apply(EditSession.FurniturePrices,13,new Dictionary<string,int>{["furniturePrice"]=0}));
+            Equal(99,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.FurniturePrices,13,"furniturePrice"));
+        }
+        Equal(true,jp!.FurniturePriceBytes.All(p=>p.Value.Span.SequenceEqual(en!.FurniturePriceBytes[p.Key].Span)));
     });
     Test("Stable prices: event 602 on both discs, all copies agree, and an edit fits and touches only the event",()=>{
         foreach(var disc in new[]{jp!,en!})
