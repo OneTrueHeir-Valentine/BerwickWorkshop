@@ -145,6 +145,40 @@ Test("Archive decompression and script parsing on built samples",()=>{
     var parsed=ScriptParser.Parse(ms.ToArray());
     Equal("event (3 local values)|    v2 = 7|    command32(517)",string.Join("|",ScriptText.Format(parsed).TrimEnd().Split("\r\n")));
 });
+Test("Compression round trips literals, repeats, control boundaries and distant copies",()=>{
+    var random=new Random(48);
+    var noise=new byte[9000];random.NextBytes(noise);
+    var distant=noise.Concat(noise.Take(256)).ToArray();
+    foreach(var data in new[]{new byte[]{42},Encoding.ASCII.GetBytes("abcdefghi"),Enumerable.Repeat((byte)7,800).ToArray(),
+        Encoding.ASCII.GetBytes(string.Concat(Enumerable.Repeat("abcabcxyz",100))),noise,distant})
+    {
+        var packed=BerwickLz.Compress(data);
+        Equal(data.Length,BinaryPrimitives.ReadInt32LittleEndian(packed));
+        Equal(true,BerwickLz.Decompress(packed).AsSpan().SequenceEqual(data));
+    }
+    Equal(true,BerwickLz.Compress(Enumerable.Repeat((byte)7,800).ToArray()).Length<40);
+    Throws<ArgumentException>(()=>BerwickLz.Compress([]));
+});
+Test("Archive replacement preserves neighbors and rejects growth or ambiguous storage",()=>{
+    // Two children: a literal-only compressed 'hello' in 14 bytes, and three untouched bytes.
+    var archive=new byte[83];Encoding.ASCII.GetBytes("TARC").CopyTo(archive,0);
+    void Put(int at,int value)=>BinaryPrimitives.WriteInt32LittleEndian(archive.AsSpan(at),value);
+    Put(4,2);Put(8,40);Put(16,64*2+1);Put(20,14);Put(28,80*2);Put(32,3);
+    Encoding.ASCII.GetBytes("a.dat\0b.dat\0").CopyTo(archive,40);
+    byte[] original=[5,0,0,0,6,0,0,0,0xF8,104,101,108,108,111];original.CopyTo(archive,64);
+    archive[80]=91;archive[81]=92;archive[82]=93;
+    Equal(true,ArchiveEditing.Replace(archive,"a.dat",Encoding.ASCII.GetBytes("hello")).AsSpan().SequenceEqual(archive));
+    var edited=ArchiveEditing.Replace(archive,"a.dat",Encoding.ASCII.GetBytes("world"));
+    Equal(archive.Length,edited.Length);
+    Equal("world",Encoding.ASCII.GetString(Tarc.Extract(edited,Tarc.Parse(edited)[0])));
+    Equal(true,edited.AsSpan(78).SequenceEqual(archive.AsSpan(78)));
+    Equal(true,edited.AsSpan(0,20).SequenceEqual(archive.AsSpan(0,20)));
+    Equal(true,edited.AsSpan(24,40).SequenceEqual(archive.AsSpan(24,40)));
+    Throws<EditException>(()=>ArchiveEditing.Replace(archive,"missing",[1]));
+    Throws<EditException>(()=>ArchiveEditing.Replace(archive,"a.dat",Enumerable.Range(0,80).Select(i=>(byte)i).ToArray()));
+    Put(28,68*2);Throws<EditException>(()=>ArchiveEditing.Replace(archive,"a.dat",[1]));Put(28,80*2);
+    archive[46]=(byte)'a';Throws<EditException>(()=>ArchiveEditing.Replace(archive,"a.dat",[1]));
+});
 Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("might"),64));
     Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("durability"),-1));
@@ -762,6 +796,35 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,commands>20000);
             string text=library.Text(172);
             Equal(true,text.StartsWith("event ("));Equal(true,text.Contains("517"));
+        }
+    });
+    Test("Stable prices: event 602 on both discs, all copies agree, and an edit fits and touches only the event",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));
+            var (prices,decoded,copies)=StablePrices.Load(archives);
+            Equal(3,copies.Count);Equal(1188,decoded.Length);
+            Equal("1000,2500,5000,8000,15000,15000,12000,18000,20000,24000,10000",string.Join(",",StablePrices.Slots.Select(s=>prices[s.Item])));
+            Equal(0,StablePrices.Patches(archives,copies,decoded).Count);
+            var edited=StablePrices.Write(decoded,new Dictionary<int,int>{[0x205]=1234,[0x20E]=99999});
+            Equal(1234,StablePrices.Read(edited)[0x205]);Equal(99999,StablePrices.Read(edited)[0x20E]);Equal(2500,StablePrices.Read(edited)[0x206]);
+            var patches=StablePrices.Patches(archives,copies,edited);
+            Equal(true,patches.Count>0);
+            foreach(var copy in copies)
+            {
+                var top=archives.Top(copy.Top);long at=archives.TopOffset(copy.Top);
+                foreach(var p in patches.Where(p=>p.Offset>=at && p.Offset<at+top.Length))
+                {
+                    Equal(true,top.AsSpan((int)(p.Offset-at),p.Bytes.Length).SequenceEqual(p.Expected));
+                    p.Bytes.CopyTo(top,(int)(p.Offset-at));
+                }
+                Equal(true,StablePrices.Extract(top,copy).AsSpan().SequenceEqual(edited));
+            }
+            Equal(patches.Count,copies.Sum(c=>{long at=archives.TopOffset(c.Top);int len=archives.Top(c.Top).Length;return patches.Count(p=>p.Offset>=at && p.Offset+p.Bytes.Length<=at+len);}));
+            Throws<EditException>(()=>StablePrices.Write(decoded,new Dictionary<int,int>{[0x205]=0}));
+            Throws<EditException>(()=>StablePrices.Write(decoded,new Dictionary<int,int>{[0x210]=500}));
+            var broken=decoded.ToArray();broken[0xAC-4]=2;Throws<InvalidDataException>(()=>StablePrices.Read(broken));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

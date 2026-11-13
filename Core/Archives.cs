@@ -55,7 +55,7 @@ public static class Tarc
 
 /// <summary>The game's compression: output size, stored size, then control bits choosing literals, short copies
 /// (distance up to 256, length 2 to 5) and long copies (13-bit distance, length 3 to 9 or a length byte).</summary>
-public static class BerwickLz
+public static partial class BerwickLz
 {
     public static byte[] Decompress(ReadOnlySpan<byte> data)
     {
@@ -140,6 +140,14 @@ public sealed class GameArchives
         uint sector = BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(4));
         uint size = BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(8));
         return size == 0 ? [] : iso.ReadRange(data3 + sector * (long)SectorSize, size, 256 * 1024 * 1024);
+    }
+
+    /// <summary>Where a top-level archive starts in the disc image.</summary>
+    public long TopOffset(int index)
+    {
+        if (index < 0 || index >= Count) throw new ArgumentOutOfRangeException(nameof(index));
+        var row = iso.ReadRange(data4 + IndexStart + index * 12L, 12, 12);
+        return data3 + BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(4)) * (long)SectorSize;
     }
 
     /// <summary>Part of a top-level archive, so its file names can be listed without reading it whole.</summary>
