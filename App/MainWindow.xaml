@@ -14,6 +14,7 @@
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
+     <Button x:Name="EventsNav" Content="Eve_nts" Style="{StaticResource NavButton}" Click="ShowEvents" IsEnabled="False"/>
      <Button x:Name="MechanicsNav" Content="_Mechanics" Style="{StaticResource NavButton}" Click="ShowMechanics"/>
      <Button x:Name="DiscNav" Content="_Disc details" Style="{StaticResource NavButton}" Click="ShowDisc"/>
     </StackPanel>
@@ -22,7 +23,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.27.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.28.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -232,6 +233,21 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="2" x:Name="TerrainCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="EventsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Border Grid.ColumnSpan="3" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands whose meaning is known are named; the rest are shown by number. This page is for reading; script editing is not available yet."/>
+     </Border>
+     <DockPanel Grid.Row="1">
+      <TextBlock DockPanel.Dock="Top" Text="Event number or text to find, then Enter" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
+      <TextBox x:Name="EventSearch" DockPanel.Dock="Top" Padding="8,6,8,6" Margin="0,0,0,8" KeyDown="EventSearchKey" ToolTip="Type an event number, or text to find in every event, then press Enter" AutomationProperties.Name="Find an event"/>
+      <ListBox x:Name="EventList" SelectionChanged="EventSelected" BorderBrush="{StaticResource Line}"/>
+     </DockPanel>
+     <TextBox Grid.Row="1" Grid.Column="2" x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
+              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
+     <TextBlock Grid.Row="2" Grid.ColumnSpan="3" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <ScrollViewer x:Name="MechanicsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="MechanicsList" Margin="0,0,8,0" MaxWidth="860" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="SkillsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SkillsList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>

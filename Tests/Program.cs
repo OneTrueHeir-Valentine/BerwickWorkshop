@@ -132,6 +132,19 @@ Test("Item encoder fields agree with decoded record properties",()=>{
     Equal(true,FieldCodec.TryParse(kind,"injury",out int injury,out _));Equal(131,injury);Equal(-1,kind.ChoiceIndex(125));Equal(0,kind.ChoiceIndex(0));Equal(108,kind.ChoiceValue(kind.ChoiceIndex(108)));
     Equal(33,ItemEncoder.Fields.Count(f=>f.Group=="Effects"));Equal(ItemEncoder.Fields.Count,ItemEncoder.Fields.Select(f=>f.Key).Distinct().Count());
 });
+Test("Archive decompression and script parsing on built samples",()=>{
+    // literal run: header (size 5, stored), control byte with five literal bits
+    byte[] lz=[5,0,0,0,0,0,0,0,0xF8,(byte)'h',(byte)'e',(byte)'l',(byte)'l',(byte)'o'];
+    Equal("hello",System.Text.Encoding.ASCII.GetString(BerwickLz.Decompress(lz)));
+    // event with one assignment v2 = 7 and one call command32(517)
+    var ms=new MemoryStream();var w=new BinaryWriter(ms);
+    void Num(int v){w.Write(12);w.Write(1);w.Write(v);}
+    w.Write(20+16+12+12+12);w.Write(5);w.Write(0);w.Write(3);w.Write(16+12+12+12);
+    w.Write(16+12);w.Write(4);w.Write(2);w.Write(12);Num(7);
+    w.Write(12+12);w.Write(0x20);w.Write(12);Num(517);
+    var parsed=ScriptParser.Parse(ms.ToArray());
+    Equal("event (3 local values)|    v2 = 7|    command32(517)",string.Join("|",ScriptText.Format(parsed).TrimEnd().Split("\r\n")));
+});
 Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("might"),64));
     Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("durability"),-1));
@@ -731,6 +744,24 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("5/18/18/18/18/0/3/1",$"{V(340,"fireResist")}/{V(388,"fireResist")}/{V(388,"thunderResist")}/{V(388,"windResist")}/{V(388,"holyResist")}/{V(388,"darkResist")}/{V(349,"mindBonus")}/{V(432,"defenseBonus")}");
             Equal("108/33/131/12/0/0",$"{V(0x0D,"effectKind")}/{V(0x0D,"effectAmount")}/{V(0x7B,"effectKind")}/{V(0x7B,"effectAmount")}/{V(1,"effectKind")}/{V(1,"effectAmount")}");
             Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
+        }
+    });
+    Test("Event scripts: every event on both discs reads and parses",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var library=new EventLibrary(new GameArchives(iso));
+            Equal(3983,library.Numbers.Count);Equal(1,library.Numbers[0]);Equal(3986,library.Numbers[^1]);
+            int commands=0;
+            foreach(int n in library.Numbers)
+            {
+                var nodes=ScriptParser.Parse(library.Bytes(n));
+                Equal(1,nodes.Count);Equal(ScriptParser.Event,nodes[0].Command);commands+=nodes[0].Args[0].Count;
+            }
+            Equal(true,commands>20000);
+            string text=library.Text(172);
+            Equal(true,text.StartsWith("event ("));Equal(true,text.Contains("517"));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

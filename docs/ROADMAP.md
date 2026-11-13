@@ -26,7 +26,7 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: first-time setup | Setup: locate ISOs, PCSX2 folder, memory cards, export folder | M3 | planned |
 | FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT) | M5 | research (`extract_berwick_tarc_file_v2.py`) |
 | FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M8+ | research |
-| FEBuilder: map editor, event editor | Chapter maps, unit placement, events | M8+ | research |
+| FEBuilder: map editor, event editor | Chapter maps, unit placement, events | M8+ | event script viewer done (v0.28.0, Events page: archives, decompression and the script format decoded); editing and maps not yet |
 | FEBuilder: emulator RAM link | PCSX2 PINE live viewer (read-only first), launch PCSX2 with export | M8+ | research (`pine_*.py`) |
 | FEBuilder: patch manager | PNACH patch manager with per-CRC files, community data packs (Redux safe core) | M6 / M8+ | planned |
 | ReWeaver: save data editor with auto backup | Memory card (.ps2) browser, then save editing with automatic backups | M8+ | research (no saves yet) |

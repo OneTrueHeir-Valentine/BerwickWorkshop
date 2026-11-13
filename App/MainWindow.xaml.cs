@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Classes, Movement, Terrain, Skills, Rules, Mechanics, Disc }
+    private enum View { Items, Characters, Classes, Movement, Terrain, Skills, Rules, Events, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -83,7 +83,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                EndEdit();primary=result;comparison=null;
+                EndEdit();CloseEvents();primary=result;comparison=null;
                 session=result.Supported?new EditSession(result):null;
                 Search.Clear();Category.SelectedIndex=0;OnlyDifferences.IsChecked=false;
                 CharacterSearch.Clear();CharacterDifferencesOnly.IsChecked=false;
@@ -159,7 +159,7 @@ public partial class MainWindow : Window
         MovementNav.IsEnabled=primary.Supported && movementRows.Count>0;
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
-        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;
+        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;
         PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
@@ -267,12 +267,79 @@ public partial class MainWindow : Window
     private void ShowRules(object sender,RoutedEventArgs e) { view=View.Rules;UpdatePage(); }
     private void ShowSkills(object sender,RoutedEventArgs e) { view=View.Skills;UpdatePage(); }
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
+    private void ShowEvents(object sender,RoutedEventArgs e) { view=View.Events;UpdatePage();_=OpenEvents(); }
+
+    // Event scripts are read from the disc on demand, so the disc stays open while the page is used.
+    private FileStream? eventStream;
+    private EventLibrary? events;
+    private string? eventsPath;
+    private readonly Dictionary<int,string> eventTexts=new();
+    private void CloseEvents(){events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private async Task OpenEvents()
+    {
+        if(primary is null || !primary.Supported)return;
+        if(events is not null && eventsPath==primary.Path)return;
+        CloseEvents();
+        EventCount.Text="Reading the event list...";
+        string path=primary.Path;
+        try
+        {
+            var (stream,library)=await Task.Run(()=>{var s=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read);return (s,new EventLibrary(new GameArchives(new IsoImage(s))));});
+            if(primary?.Path!=path){stream.Dispose();return;}
+            eventStream=stream;events=library;eventsPath=path;
+            ShowEventList(library.Numbers,$"{library.Numbers.Count:N0} events");
+        }
+        catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            EventCount.Text="The event scripts could not be read from this disc.";
+        }
+    }
+    private void ShowEventList(IReadOnlyList<int> numbers,string caption)
+    {
+        EventList.DisplayMemberPath="Text";EventList.SelectedValuePath="Value";
+        EventList.ItemsSource=numbers.Select(n=>new Choice(n,$"Event {n}")).ToList();
+        EventCount.Text=caption;
+        if(numbers.Count>0) EventList.SelectedIndex=0; else EventText.Text="";
+    }
+    private string EventScript(EventLibrary library,int number)
+    {
+        lock(eventTexts)
+        {
+            if(eventTexts.TryGetValue(number,out var t))return t;
+        }
+        string text;
+        lock(library) text=library.Text(number);
+        lock(eventTexts) eventTexts[number]=text;
+        return text;
+    }
+    private async void EventSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(events is not { } library || EventList.SelectedValue is not int number)return;
+        try{string text=await Task.Run(()=>EventScript(library,number));if(events==library && EventList.SelectedValue is int now && now==number){EventText.Text=text;EventText.ScrollToHome();}}
+        catch(InvalidDataException){EventText.Text="This event could not be read.";}
+    }
+    private async void EventSearchKey(object sender,KeyEventArgs e)
+    {
+        if(e.Key!=Key.Enter || events is not { } library)return;
+        e.Handled=true;
+        string query=EventSearch.Text.Trim();
+        if(query.Length==0){ShowEventList(library.Numbers,$"{library.Numbers.Count:N0} events");return;}
+        if(int.TryParse(query,out int number) && library.Numbers.Contains(number))
+        {
+            ShowEventList(library.Numbers,$"{library.Numbers.Count:N0} events");
+            EventList.SelectedValue=number;EventList.ScrollIntoView(EventList.SelectedItem);return;
+        }
+        EventCount.Text="Searching every event...";
+        var found=await Task.Run(()=>library.Numbers.Where(n=>{try{return EventScript(library,n).Contains(query,StringComparison.OrdinalIgnoreCase);}catch(InvalidDataException){return false;}}).ToList());
+        if(events!=library)return;
+        ShowEventList(found,found.Count==1?$"1 event contains \"{query}\"":$"{found.Count:N0} events contain \"{query}\"");
+    }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
     private void UpdatePage()
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -282,6 +349,7 @@ public partial class MainWindow : Window
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
         SkillsPage.Visibility=view==View.Skills && supported?Visibility.Visible:Visibility.Collapsed;
+        EventsPage.Visibility=view==View.Events && supported?Visibility.Visible:Visibility.Collapsed;
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
         EmptyState.Visibility=primary is null && view!=View.Mechanics?Visibility.Visible:Visibility.Collapsed;
@@ -293,6 +361,7 @@ public partial class MainWindow : Window
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
         SkillsNav.Background=view==View.Skills?active:Brushes.Transparent;
+        EventsNav.Background=view==View.Events?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
     }
@@ -482,7 +551,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender,CancelEventArgs e)
     {
         if(!closing && !ConfirmDiscard()){e.Cancel=true;return;}
-        closing=true;loading?.Cancel();
+        closing=true;loading?.Cancel();CloseEvents();
     }
 
     // Editing and projects
@@ -1163,6 +1232,7 @@ public partial class MainWindow : Window
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
+            ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
