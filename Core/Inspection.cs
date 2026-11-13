@@ -18,12 +18,15 @@ public sealed record GameProfile(string Name, string Sha256, long ItemTable, lon
     /// <summary>Start of the terrain cost table header (terrain count, type count), followed by one row per movement type.</summary>
     public long TerrainTable { get; init; }
     public long SecondTerrainTable { get; init; }
+    /// <summary>Partner table (ufavor.dat in basedata.ar): 17 rows of 34 bytes.</summary>
+    public long PartnerTable { get; init; }
+    public long SecondPartnerTable { get; init; }
 }
 public static class Profiles
 {
     public static IReadOnlyList<GameProfile> All { get; } = Array.AsReadOnly(new[] {
-        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0,TerrainTable=0x0CD7928,SecondTerrainTable=0x08EB3BFC,ExecutableSha256="bb6f98ecac7eba7cbcb5d618150df92d06c4a3e1e27b3e08c67c8adcde4be462",Data3Length=1073741824 },
-        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0,TerrainTable=0x0CCE128,SecondTerrainTable=0x08ECB3FC,ExecutableSha256="c9fa5ea707ac1074ed15f607998b084cee50fe09957ffe5cf066103d82fabb6f",Data3Length=1073741824 }
+        new GameProfile("Japanese retail", "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320",0x0CC0C04,0x08E9CED8) { UnitTable=0x0890E9F0,SecondUnitTable=0x08DD7830,GrowthTable=0x0CB4520,SecondGrowthTable=0x08E907F4,ClassTable=0x0CAE5CC,SecondClassTable=0x08E8A8A0,TerrainTable=0x0CD7928,SecondTerrainTable=0x08EB3BFC,PartnerTable=0x0CC09C0,SecondPartnerTable=0x08E9CC94,ExecutableSha256="bb6f98ecac7eba7cbcb5d618150df92d06c4a3e1e27b3e08c67c8adcde4be462",Data3Length=1073741824 },
+        new GameProfile("English v2.3", "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111",0x0CB7404,0x08EB46D8) { UnitTable=0x0891A9F0,SecondUnitTable=0x08DE3830,GrowthTable=0x0CAAD20,SecondGrowthTable=0x08EA7FF4,ClassTable=0x0CA4DCC,SecondClassTable=0x08EA20A0,TerrainTable=0x0CCE128,SecondTerrainTable=0x08ECB3FC,PartnerTable=0x0CB71C0,SecondPartnerTable=0x08EB4494,ExecutableSha256="c9fa5ea707ac1074ed15f607998b084cee50fe09957ffe5cf066103d82fabb6f",Data3Length=1073741824 }
     });
     public static GameProfile? Match(string hash) => All.FirstOrDefault(p=>string.Equals(p.Sha256,hash,StringComparison.OrdinalIgnoreCase));
 }
@@ -47,6 +50,12 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> TerrainKindBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public bool TerrainKindCopiesMatch { get; init; } = true;
     public IReadOnlyDictionary<int, int> CharacterOffsets { get; init; } = new Dictionary<int, int>();
+    /// <summary>Partner row of each character that has one (34 bytes), and the row's position in the table.</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> PartnerBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, int> PartnerRows { get; init; } = new Dictionary<int, int>();
+    public bool PartnerCopiesMatch { get; init; } = true;
+    /// <summary>Starting bag contents of each character that has one, padded to the longest bag the editor allows.</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> BagBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IsoEntry? ExecutableFile { get; init; }
@@ -173,6 +182,25 @@ public static class Inspector
                 characters.Add(character with { ClassName=classNames.TryGetValue(character.ClassId,out var cn)?cn:$"Class 0x{character.ClassId:X2}" });
             }
         }
+        var partnerBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var partnerRows=new Dictionary<int,int>();bool partnerCopiesMatch=true;
+        var bagBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
+        if (profile is not null && characters.Count>0)
+        {
+            var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
+            var ids=characters.Select(c=>c.Id).ToHashSet();
+            if(profile.PartnerTable+PartnerData.TableLength<=data.Length && profile.SecondPartnerTable+PartnerData.TableLength<=data.Length)
+            {
+                var table=iso.ReadRange(data.Offset+profile.PartnerTable,PartnerData.TableLength,64*1024);
+                partnerCopiesMatch=table.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondPartnerTable,PartnerData.TableLength,64*1024));
+                foreach(var (id,row,rowBytes) in PartnerData.Read(table,ids)){partnerBytes[id]=rowBytes;partnerRows[id]=row;}
+            }
+            foreach(var (id,offset) in characterOffsets)
+            {
+                long at=profile.UnitTable+offset+BagData.OffsetFromRecord;
+                if(at+BagData.ReadLength>data.Length)continue;
+                if(BagData.Read(iso.ReadRange(data.Offset+at,BagData.ReadLength,64*1024)) is { } bag) bagBytes[id]=bag;
+            }
+        }
         var ruleWords=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
             foreach(var rule in GameRules.All)
@@ -191,6 +219,6 @@ public static class Inspector
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices };
     }
 }

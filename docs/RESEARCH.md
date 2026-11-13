@@ -120,6 +120,16 @@ Verification: direct extraction from both owned ISOs, Ghidra call tracing, and c
 
 Writing (v0.29.0): BerwickLz.Compress encodes literals, short and long copies, and must end with the game's end marker: the decompressor at `0x0013C268` has no output count and stops at a long copy whose length byte is 0 (every original file ends with `00 00 00`, after a fresh control byte when needed, and the header's second word counts it). A first test disc without the marker hung the game at the stable. ArchiveEditing replaces a compressed child in place when the new data fits its recorded size; the entry's third word is a name hash and stays unchanged. Checked in PCSX2: Thin Horse at 1234 showed in the menu and the shopkeeper's line, and buying it took exactly 1234.
 
+### Starting unit data, bags and partners (2026-11-13, program reading)
+
+The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST` (allocates history), `UNIT` (the record), `ITEM` (inventory list), `SACK` (bag contents), `FAVP` (partners, 12 bytes copied to unit +0xA4), several 100-byte `CP21`-style blocks (unit +0x80 to +0x9C) and `ENDC`. Unknown tags are skipped four bytes at a time.
+
+- `SACK`: inventory slot of the bag item, item count, then one 8-byte entry per item in the inventory slot layout. On both discs only Reese (2 x item 0x21), Sherlock (3 x Bronze Arrow) and Christine (4 x Vulnerary) start with contents; the block sits right after the character record (record offset + 0xFC). Its size is fixed, so entries can be changed or emptied in place.
+- Partners: `ufavor.dat` in basedata.ar, 17 rows of 34 bytes (16 used): character ID, then four entries of partner ID, bond value, flags byte. Both copies sit 0x244 bytes before each item table copy (EN `0x0CB71C0`, `0x08EB4494`; JP `0x0CC09C0`, `0x08E9CC94`); both editions identical. The growth record's word at +6 picks the row. `0x00173B10` copies partner IDs and flags into the unit's partner block every time units are loaded (keeping the progress bits 0x11 per partner), and `0x00173C80` returns the bond from the table unless flag 0x10 is set. Only characters with a `FAVP` block (the same 16) can hold partners.
+- Partner bonus: `0x001B8430` sums bond / 10 for each partner within 2 spaces that can act. Hook 0x30 (`0x001B7F70`, inside hit `0x00179620`) adds the sum to hit; hook 0x38 (`0x001B79D0`, inside critical `0x00179250`) adds the sum / 5. The hook table at 0x523340 is filled by `0x001B7580`.
+- Script variables 0x170 to 0x17F read partner slot state (enabled, ID, bond, flag bits 1 and 2); 0x170 to 0x173 toggle flag 0x10.
+- Command 0x14D (`0x00269C20`) weights 2000/1500/1200/1000/500 are a unit sort order, not fees.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.

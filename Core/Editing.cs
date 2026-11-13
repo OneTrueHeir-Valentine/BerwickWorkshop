@@ -263,8 +263,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Terrain, TerrainKinds, Rules, StablePrices];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Classes, Terrain, TerrainKinds, Rules, StablePrices];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -310,6 +310,14 @@ public sealed class EditSession
             [TerrainKinds] = new(TerrainKinds, "terrain", TerrainKindData.Fields, disc.TerrainKindBytes),
             [Rules] = new(Rules, "rule", GameRules.All.Select(r => r.Field).ToList(), disc.RuleWords),
             [StablePrices] = new(StablePrices, "horse", [Core.StablePrices.Field], disc.StablePriceBytes),
+            [Partners] = new(Partners, "character", PartnerData.Fields, disc.PartnerBytes, PartnerData.Validate),
+            [Bags] = new(Bags, "character", BagData.Fields, disc.BagBytes, values =>
+            {
+                foreach (var field in BagData.Fields.Where(f => f.ItemReference))
+                    if (values.TryGetValue(field.Key, out int item) && item != 0 && !disc.ItemBytes.ContainsKey(item))
+                        return $"{field.Label}: there is no item 0x{item:X3}.";
+                return BagData.Validate(values);
+            }),
         };
     }
 
@@ -535,7 +543,7 @@ public sealed class EditSession
     private string? RecordName(string table, int id) => CustomName(table, id) ?? table switch
     {
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
-        Characters or Growths => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
+        Characters or Growths or Partners or Bags => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
         Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,
         TerrainKinds => id < TerrainData.Terrains ? TerrainData.TerrainLabel(id) : null,

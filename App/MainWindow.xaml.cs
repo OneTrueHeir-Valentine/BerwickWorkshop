@@ -137,7 +137,7 @@ public partial class MainWindow : Window
         var characterDifferences=comparison is null?[]:RecordComparison.Compare(characters,comparison.Characters);
         var characterGroups=characterDifferences.GroupBy(d=>d.Id).ToDictionary(g=>g.Key,g=>g.ToArray());
         characterRows=characters.Select(c=>new CharacterRow(c,characterGroups.TryGetValue(c.Id,out var list)?list:[],comparison is not null)
-            { Edited=session is not null && (session.IsEdited(EditSession.Characters,c.Id) || session.IsEdited(EditSession.Growths,c.Id)) }).ToList();
+            { Edited=session is not null && CharacterTables.Any(t=>session.IsEdited(t,c.Id)) }).ToList();
         CharactersNav.IsEnabled=primary.Supported;
         CharacterComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         CharacterChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
@@ -422,7 +422,29 @@ public partial class MainWindow : Window
         if(c.Learned.Count==0)Text("None");else foreach(var l in c.Learned)Pair(l.Skill,$"Level {l.Level}");
         Section("Starting items");
         if(c.Items.Count==0)Text("None");else foreach(var i in c.Items)Pair(i.Name,i.Durability.ToString());
-        AddChangeList(CharacterFields,ch=>ch.Id==c.Id && ch.Table is EditSession.Characters or EditSession.Growths,()=>session!.Revert((EditSession.Characters,c.Id),(EditSession.Growths,c.Id)));
+        if(primary?.BagBytes.TryGetValue(c.Id,out var bag)==true)
+        {
+            Section("Bag contents");
+            int count=BagData.Count(bag.Span);bool any=false;
+            for(int slot=0;slot<count;slot++)
+            {
+                int item=CharacterValue(EditSession.Bags,c.Id,BagData.ItemKey(slot));if(item==0)continue;any=true;
+                Pair(DescribeValue(BagData.Fields.First(f=>f.Key==BagData.ItemKey(slot)),item),CharacterValue(EditSession.Bags,c.Id,BagData.UsesKey(slot)).ToString());
+            }
+            if(!any)Text("Empty");
+        }
+        if(primary?.PartnerBytes.ContainsKey(c.Id)==true)
+        {
+            Section("Partners");bool any=false;
+            for(int slot=0;slot<PartnerData.Slots;slot++)
+            {
+                int partner=CharacterValue(EditSession.Partners,c.Id,PartnerData.PartnerKey(slot));if(partner==0)continue;any=true;
+                int bond=CharacterValue(EditSession.Partners,c.Id,PartnerData.BondKey(slot));
+                Pair(primary.Characters.FirstOrDefault(p=>p.Id==partner)?.Name??$"Character 0x{partner:X3}",bond/10>0?$"Bond {bond}, +{bond/10} hit":$"Bond {bond}");
+            }
+            if(!any)Text("None");
+        }
+        AddChangeList(CharacterFields,ch=>ch.Id==c.Id && CharacterTables.Contains(ch.Table),()=>session!.Revert(CharacterTables.Where(t=>session.IsEdited(t,c.Id)).Select(t=>(t,c.Id)).ToArray()));
         CharacterComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This character's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
     private void ApplyClassFilter()
@@ -543,6 +565,14 @@ public partial class MainWindow : Window
         var grid=new Grid {Margin=new Thickness(0,0,0,7)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
         grid.Children.Add(new TextBlock {Text=label,Foreground=(Brush)FindResource("Muted"),FontSize=13,TextWrapping=TextWrapping.Wrap});
         var v=new TextBlock {Text=value,FontWeight=FontWeights.SemiBold,Margin=new Thickness(12,0,0,0)};Grid.SetColumn(v,1);grid.Children.Add(v);panel.Children.Add(grid);
+    }
+    private static readonly string[] CharacterTables=[EditSession.Characters,EditSession.Growths,EditSession.Partners,EditSession.Bags];
+    private int CharacterValue(string table,int id,string key)
+    {
+        if(session is not null)return session.Value(table,id,key);
+        bool partners=table==EditSession.Partners;
+        var bytes=(partners?primary!.PartnerBytes:primary!.BagBytes)[id].Span;
+        return FieldCodec.Read(bytes,(partners?PartnerData.Fields:BagData.Fields).First(f=>f.Key==key));
     }
     private void Section(string title)=>CharacterFields.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
     private void Text(string text)=>CharacterFields.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
@@ -729,6 +759,50 @@ public partial class MainWindow : Window
         ItemGrid.SelectedItem=rows.FirstOrDefault(r=>r.Item.Id==createdSlot);ItemGrid.ScrollIntoView(ItemGrid.SelectedItem);
         Status.Text="New item created. Edit it, give it to a character, then save the project.";
     }
+    private void RandomizeItems(object sender,RoutedEventArgs e)
+    {
+        if(session is null || loading is not null)return;
+        EndEdit();
+        var dialog=new Window {Title="Randomize items",Owner=this,Width=460,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,ShowInTaskbar=false};
+        var panel=new StackPanel {Margin=new Thickness(24)};
+        CheckBox Option(string text,bool on)=>new() {Content=new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap},IsChecked=on,Margin=new Thickness(0,0,0,8),FontSize=13};
+        panel.Children.Add(new TextBlock {Text="Each starting item is replaced by a random item of the same type. Items tied to one character or class, and items that cannot be bought or sold, stay where they are. A full item stays full.",
+            TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=12,LineHeight=18,Margin=new Thickness(0,0,0,14)});
+        var weapons=Option("Weapons, orbs, staves and shields",true);
+        var ammunition=Option("Arrows and bolts",true);
+        var other=Option("Accessories and consumables",false);
+        var bags=Option("Bag contents too",true);
+        var level=Option("Never pick an item with a higher level than the one it replaces",true);
+        foreach(var box in new[]{weapons,ammunition,other,bags,level})panel.Children.Add(box);
+        panel.Children.Add(new TextBlock {Text="Seed",Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,6,0,4)});
+        var seed=new TextBox {Text=Random.Shared.Next(1,1000000).ToString(),Margin=new Thickness(0,0,0,6)};
+        panel.Children.Add(seed);
+        panel.Children.Add(new TextBlock {Text="The same seed and options give the same items. The result is one change you can undo.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=12,Margin=new Thickness(0,0,0,12)});
+        var error=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),TextWrapping=TextWrapping.Wrap,FontSize=12,Margin=new Thickness(0,0,0,10)};
+        panel.Children.Add(error);
+        var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var cancel=new Button {Content="Cancel",IsCancel=true,Margin=new Thickness(0,0,8,0)};
+        var go=new Button {Content="Randomize",IsDefault=true,Style=(Style)FindResource("PrimaryButton")};
+        int changed=0;
+        go.Click+=(_,_)=>
+        {
+            if(!int.TryParse(seed.Text.Trim(),out int value) || value<0){error.Text="The seed must be a whole number of 0 or more.";return;}
+            var options=new RandomizeOptions(value) {Weapons=weapons.IsChecked==true,Ammunition=ammunition.IsChecked==true,Other=other.IsChecked==true,Bags=bags.IsChecked==true,LimitLevel=level.IsChecked==true};
+            if(!options.Weapons && !options.Ammunition && !options.Other){error.Text="Choose at least one kind of item.";return;}
+            try
+            {
+                var edits=Randomizer.StartingItems(session,options);
+                changed=edits.Where(x=>x.Field.EndsWith("Uses",StringComparison.Ordinal)==false).Count(x=>session.Value(x.Table,x.Id,x.Field)!=x.Value);
+                session.Apply(edits);dialog.DialogResult=true;
+            }
+            catch(EditException ex){error.Text=ex.Message;}
+        };
+        buttons.Children.Add(cancel);buttons.Children.Add(go);panel.Children.Add(buttons);
+        dialog.Content=panel;
+        if(dialog.ShowDialog()!=true)return;
+        RefreshDocument();
+        Status.Text=changed==0?"No items were changed.":$"{changed} starting items changed. Save the project to keep them, or undo to go back.";
+    }
     private void RenameItem(int id,string current)
     {
         if(session is null)return;
@@ -777,6 +851,8 @@ public partial class MainWindow : Window
             new("Weapon growth",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group=="Weapon growth").ToList()),
             new("Personal skills",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Personal skills").ToList()),
             new("Starting items",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Starting items").ToList()),
+            new("Bag contents",EditSession.Bags,session?.Disc.BagBytes.TryGetValue(row.Character.Id,out var bag)==true?BagData.EditableFor(BagData.Count(bag.Span)):[]),
+            new("Partners",EditSession.Partners,session?.Disc.PartnerBytes.ContainsKey(row.Character.Id)==true?PartnerData.Editable:[]),
         ],"Changing a character's class changes their base stats, movement and allowed weapons to the new class's. Weapon levels above the new class's caps stay as they are."));
     }
     private void BeginClassEdit(object sender,RoutedEventArgs e)
@@ -927,6 +1003,7 @@ public partial class MainWindow : Window
         if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null || EditMovementButton is null || EditTerrainButton is null)return;
         bool can=session is not null && editing is null;
         NewItemButton.Visibility=session is not null?Visibility.Visible:Visibility.Collapsed;NewItemButton.IsEnabled=can && loading is null;
+        RandomizeItemsButton.Visibility=NewItemButton.Visibility;RandomizeItemsButton.IsEnabled=can && loading is null;
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
@@ -1241,14 +1318,14 @@ public partial class MainWindow : Window
         foreach(var (title,text) in new[]{
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
-            ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
+            ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, and partners with their bond. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents and partners. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),

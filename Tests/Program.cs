@@ -679,6 +679,8 @@ foreach(var exportDisc in new[]{jp!,en!})
             s.Apply(new FieldEdit[]{new(EditSession.Terrain,5,"cost4",15),new(EditSession.Terrain,5,"cost15",10),new(EditSession.Classes,0x1E,"movementType",2)});
             s.Apply(new FieldEdit[]{new(EditSession.TerrainKinds,36,"flyersCannotStop",0),new(EditSession.TerrainKinds,51,"recovery",10),new(EditSession.TerrainKinds,0,"avoid",7),
                 new(EditSession.Rules,20,"expLevelGap0",-3),new(EditSession.Rules,36,"expHighest",60),new(EditSession.Rules,40,"iaidoBase",55),new(EditSession.Rules,44,"axebaneCap",70)});
+            s.Apply(new FieldEdit[]{new(EditSession.Partners,0x54,"partner1Bond",400),new(EditSession.Partners,0x55,"partner2",0x58),new(EditSession.Partners,0x55,"partner2Bond",70),
+                new(EditSession.Bags,0x53,"bagItem2",0x1CD),new(EditSession.Bags,0x53,"bagItem2Uses",3)});
             Equal(11,disc.StablePriceBytes.Count);Equal(1000,s.Value(EditSession.StablePrices,0x205,"stablePrice"));
             s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000)});
             Throws<EditException>(()=>s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",0)}));
@@ -716,6 +718,14 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
             Equal(1234,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x205].Span));Equal(30000,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x20E].Span));
             Equal(2500,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x206].Span));
+            Equal(true,back.PartnerCopiesMatch);Equal(16,back.PartnerBytes.Count);
+            var reread=new EditSession(back);
+            Equal(400,reread.Value(EditSession.Partners,0x54,"partner1Bond"));Equal(0x53,reread.Value(EditSession.Partners,0x54,"partner1"));
+            Equal(0x58,reread.Value(EditSession.Partners,0x55,"partner2"));Equal(70,reread.Value(EditSession.Partners,0x55,"partner2Bond"));
+            Equal(true,back.PartnerBytes.Where(p=>p.Key is not (0x54 or 0x55)).All(p=>p.Value.Span.SequenceEqual(disc.PartnerBytes[p.Key].Span)));
+            Equal(true,back.BagBytes[0x53].Span.SequenceEqual(s.EditedBytes(EditSession.Bags,0x53)));
+            Equal(0x1CD,reread.Value(EditSession.Bags,0x53,"bagItem2"));Equal(3,reread.Value(EditSession.Bags,0x53,"bagItem2Uses"));Equal(0x21,reread.Value(EditSession.Bags,0x53,"bagItem1"));
+            Equal(true,back.BagBytes.Where(p=>p.Key!=0x53).All(p=>p.Value.Span.SequenceEqual(disc.BagBytes[p.Key].Span)));
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
@@ -808,6 +818,65 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,commands>20000);
             string text=library.Text(172);
             Equal(true,text.StartsWith("event ("));Equal(true,text.Contains("517"));
+        }
+    });
+    Test("Partners and bags read the same on both discs, and edits are checked",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(16,disc.PartnerBytes.Count);Equal(true,disc.PartnerCopiesMatch);
+            var s=new EditSession(disc);
+            string Partners(EditSession session,int id)=>string.Join(",",Enumerable.Range(0,PartnerData.Slots).Where(k=>session.Value(EditSession.Partners,id,PartnerData.PartnerKey(k))!=0)
+                .Select(k=>$"{session.Value(EditSession.Partners,id,PartnerData.PartnerKey(k)):X}:{session.Value(EditSession.Partners,id,PartnerData.BondKey(k))}"));
+            Equal("53:40",Partners(s,0x54));Equal("98:50,60:10",Partners(s,0x86));Equal("53:100",Partners(s,0x7D));Equal("84:100",Partners(s,0x74));
+            Equal((byte)0x06,disc.PartnerBytes[0x54].Span[6]);
+            Equal("53,59,7C",string.Join(",",disc.BagBytes.Keys.Order().Select(k=>k.ToString("X"))));
+            string Bag(int id)=>string.Join(",",Enumerable.Range(0,s.Value(EditSession.Bags,id,"bagCount")).Select(k=>$"{s.Value(EditSession.Bags,id,BagData.ItemKey(k)):X}:{s.Value(EditSession.Bags,id,BagData.UsesKey(k))}"));
+            Equal("21:101,21:101",Bag(0x53));Equal("1CD:1,1CD:1,1CD:1,1CD:1",Bag(0x7C));Equal("192:20,192:20,192:20",Bag(0x59));
+            Equal(2,s.Value(EditSession.Bags,0x53,"bagSlot"));
+            Throws<EditException>(()=>s.Apply(EditSession.Partners,0x54,new Dictionary<string,int>{["partner2"]=0x54}));
+            Throws<EditException>(()=>s.Apply(EditSession.Partners,0x54,new Dictionary<string,int>{["partner2"]=0x53}));
+            Throws<EditException>(()=>s.Apply(EditSession.Partners,0x54,new Dictionary<string,int>{["partner2"]=0x999}));
+            Throws<EditException>(()=>s.Apply(EditSession.Partners,0x54,new Dictionary<string,int>{["partner1Bond"]=1001}));
+            Throws<EditException>(()=>s.Apply(EditSession.Bags,0x53,new Dictionary<string,int>{["bagItem3"]=0x1CD}));
+            Throws<EditException>(()=>s.Apply(EditSession.Bags,0x53,new Dictionary<string,int>{["bagItem1"]=0x7FF}));
+            Equal(false,s.IsDirty);
+            s.Apply(new FieldEdit[]{new(EditSession.Partners,0x54,"partner2",0x55),new(EditSession.Partners,0x54,"partner2Bond",30),new(EditSession.Bags,0x53,"bagItem1",0)});
+            var back=EditSession.FromJson(disc,s.ToJson());
+            Equal("53:40,55:30",Partners(back,0x54));
+            Equal(0,back.Value(EditSession.Bags,0x53,"bagItem1"));
+            s.Undo();Equal(false,s.IsEdited(EditSession.Partners,0x54));Equal(false,s.IsEdited(EditSession.Bags,0x53));
+            // Bag records are padded past the end of the block on the disc; nothing in the padding is ever written.
+            Equal(BagData.RecordLength,disc.BagBytes[0x53].Length);Equal(true,disc.BagBytes[0x53].Span[(BagData.HeaderLength+2*BagData.EntryLength)..].ToArray().All(b=>b==0));
+        }
+        Equal(true,jp!.PartnerBytes.Keys.Order().SequenceEqual(en!.PartnerBytes.Keys.Order()));
+        Equal(true,jp.PartnerBytes.All(p=>p.Value.Span.SequenceEqual(en.PartnerBytes[p.Key].Span)));
+        Equal(true,jp.BagBytes.All(p=>p.Value.Span.SequenceEqual(en.BagBytes[p.Key].Span)));
+    });
+    Test("Randomized starting items keep their type, level limit and restricted items, and repeat with the same seed",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            var s=new EditSession(disc);
+            var options=new RandomizeOptions(1234);
+            var edits=Randomizer.StartingItems(s,options);
+            Equal(true,edits.Count>40);
+            Equal(true,edits.SequenceEqual(Randomizer.StartingItems(s,options)));
+            Equal(false,edits.SequenceEqual(Randomizer.StartingItems(s,options with {Seed=99})));
+            var items=disc.Items.ToDictionary(i=>i.Id);
+            foreach(var e in edits.Where(e=>!e.Field.EndsWith("Uses",StringComparison.Ordinal)))
+            {
+                var old=items[s.Value(e.Table,e.Id,e.Field)];var picked=items[e.Value];
+                Equal(old.Type,picked.Type);Equal(true,picked.Level<=old.Level);Equal(true,picked.Price>0);Equal(false,picked.Name=="Bag");
+            }
+            // Enid's Lady Sword is hers alone, and bags stay in place so their contents still have somewhere to go.
+            Equal(false,edits.Any(e=>e.Table==EditSession.Characters && e.Id==0x84 && e.Field=="item1"));
+            Equal(false,edits.Any(e=>!e.Field.EndsWith("Uses",StringComparison.Ordinal) && e.Value==0x1DA));
+            Equal(true,edits.Any(e=>e.Table==EditSession.Bags));
+            Equal(false,Randomizer.StartingItems(s,options with {Bags=false}).Any(e=>e.Table==EditSession.Bags));
+            Equal(false,Randomizer.StartingItems(s,options with {Weapons=false,Ammunition=false,Other=true}).Any(e=>items[s.Value(e.Table,e.Id,e.Field.Replace("Uses",""))].Type<21));
+            s.Apply(edits);Equal(true,s.IsDirty);
+            var back=EditSession.FromJson(disc,s.ToJson());
+            Equal(true,edits.All(e=>back.Value(e.Table,e.Id,e.Field)==e.Value));
+            s.Undo();Equal(false,s.IsDirty);
         }
     });
     Test("Stable prices: event 602 on both discs, all copies agree, and an edit fits and touches only the event",()=>{

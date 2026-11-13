@@ -94,6 +94,11 @@ public static class Mechanics
             MechanicStatus.Published, Wiki, [new("Weapon level requirement", Items), new("Character level", Characters)],
             "Not located in the game program yet."),
 
+        // Partners
+        new("Partners", "Partner bonus", "For each partner within 2 spaces: hit + bond ÷ 10; critical + (total of those amounts) ÷ 5",
+            "Sixteen characters have up to four partners, each with a bond value (Ward and Reese 40, Lynette and Reese 100). The partner has to be on the map and able to act. The game reloads each character's partners from this table whenever units are loaded, so edits also reach existing saves.",
+            MechanicStatus.Located, "Program reading (partner table at 0x00173C80, hit 0x001B7F70, critical 0x001B79D0)", [new("Partners", Characters)]),
+
         // Growth
         new("Growth", "Stat growth", "Expected stat = starting stat + growth rate × levels gained; the actual stat stays within the bracket around it",
             "Growth is not purely random: each level the game keeps a stat near its expected value. The bracket sets how far it may drift: Loose ±3, Tight closer, None unlimited (only Daoud and Lynette).",
