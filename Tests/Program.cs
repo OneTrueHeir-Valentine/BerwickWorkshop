@@ -339,7 +339,12 @@ Test("Skill, starting item and bracket fields agree with the decoders",()=>{
 Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     foreach(var rule in GameRules.All)
     {
-        for(int s=rule.Min;s<=rule.Max;s++) Equal($"{rule.Key}={s}",$"{rule.Key}={rule.Decode(rule.Encode(s))}");
+        for(int s=rule.Min;s<=rule.Max;s++)
+        {
+            uint[] words;
+            try{words=rule.Encode(s);}catch(EditException){if(rule.Kind==RuleKind.Range)continue;throw;}
+            Equal($"{rule.Key}={s}",$"{rule.Key}={rule.Decode(words)}");
+        }
         Equal<int?>(null,rule.Decode(Enumerable.Repeat(0xDEADBEEFu,rule.Sites.Count).ToArray()));
         Throws<EditException>(()=>rule.Encode(rule.Max+1));
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
@@ -349,6 +354,10 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
+    var crit=GameRules.ById(13);Equal("2405000A,24060014",string.Join(",",crit.Original.Select(x=>x.ToString("X8"))));Equal("10 to 20 (normal)",crit.Describe(crit.Default));
+    Equal("24050019,24060019",string.Join(",",crit.Encode(GameRules.RangeSetting(25,25)).Select(x=>x.ToString("X8"))));
+    Throws<EditException>(()=>crit.Encode(GameRules.RangeSetting(30,20)));Equal<int?>(null,crit.Decode(new[]{0x2405001Eu,0x24060014u}));
+    var failed=GameRules.ById(14);Equal(0x28A10002u,failed.Original[0]);Equal(0x28A10006u,failed.Encode(1)[0]);
     var guard=GameRules.ById(10);Equal(26,guard.Sites.Count);Equal(0x0022A640u,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[25].Address);
     Equal(0x24020001u,guard.Original[0]);Equal(0x10000003u,guard.Original[22]);Equal(0xAFA20130u,guard.Original[25]);
     Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[20].ToString("X8"))));
@@ -470,6 +479,19 @@ if(args.Length>=2)
             Equal(true,disc.Classes.All(k=>k.MovementType<TerrainData.Types && disc.MovementTypes[k.MovementType].Mount==k.Mount));
         }
         Equal(true,Enumerable.Range(0,TerrainData.Types).All(t=>jp!.TerrainBytes[t].Span.SequenceEqual(en!.TerrainBytes[t].Span)));
+    });
+    Test("Class shield sizes agree with shield caps, and a character's class can be changed",()=>{
+        foreach(var k in en!.Classes)
+        {
+            int caps=(k.WeaponCaps.Any(c=>c.Weapon=="Small shield")?1:0)|(k.WeaponCaps.Any(c=>c.Weapon=="Medium shield")?2:0)|(k.WeaponCaps.Any(c=>c.Weapon=="Large shield")?4:0);
+            Equal($"{k.Name} {caps}",$"{k.Name} {k.ShieldSizes}");
+        }
+        var s=new EditSession(en!);var reese=en!.Characters.Single(c=>c.Name=="Reese");Equal(0x01,reese.ClassId);
+        s.Apply(EditSession.Characters,reese.Id,new Dictionary<string,int>{["class"]=0x02});
+        var moved=s.EditedCharacter(reese.Id);Equal(0x02,moved.ClassId);Equal(en.Classes.Single(k=>k.Id==0x02).Name,moved.ClassName);
+        Equal(1,s.EditedBytes(EditSession.Characters,reese.Id).Zip(en.UnitBytes[reese.Id].ToArray()).Count(p=>p.First!=p.Second));
+        Throws<EditException>(()=>s.Apply(EditSession.Characters,reese.Id,new Dictionary<string,int>{["class"]=0xFF}));
+        s.Apply(EditSession.Classes,0x01,new Dictionary<string,int>{["shieldLarge"]=1});Equal(true,(s.EditedClass(0x01).ShieldSizes&4)!=0);
     });
     Test("No character starts above a class weapon cap",()=>{
         foreach(var c in en!.Characters)

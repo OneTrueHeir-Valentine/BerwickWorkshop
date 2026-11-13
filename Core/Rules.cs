@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Berwick.Core;
 
-public enum RuleKind { Choice, FixedAmount, Limit }
+public enum RuleKind { Choice, FixedAmount, Limit, Range }
 
 /// <summary>One instruction a rule changes: how a setting becomes the instruction word, and back.</summary>
 public sealed record RuleSite(uint Address, Func<int, uint> Encode, Func<uint, int?> Decode)
@@ -15,7 +15,7 @@ public sealed record RuleSite(uint Address, Func<int, uint> Encode, Func<uint, i
 /// <see cref="Default"/> is the game's own behaviour. Addresses are the same in both supported editions.
 /// </summary>
 public sealed class GameRule(int id, string key, string name, string description, RuleKind kind, int min, int max, int @default,
-    IReadOnlyList<string>? choices, IReadOnlyList<RuleSite> sites, bool confirmed)
+    IReadOnlyList<string>? choices, IReadOnlyList<RuleSite> sites, bool confirmed, Func<IReadOnlyList<uint>, int?>? decode = null, Func<int, string?>? check = null)
 {
     public int Id { get; } = id;
     public string Key { get; } = key;
@@ -35,6 +35,7 @@ public sealed class GameRule(int id, string key, string name, string description
     public uint[] Encode(int setting)
     {
         if (setting < Min || setting > Max) throw new EditException($"{Name} must be between {Min} and {Max}.");
+        if (check?.Invoke(setting) is { } problem) throw new EditException(problem);
         return Sites.Select(s => s.Encode(setting)).ToArray();
     }
 
@@ -42,6 +43,7 @@ public sealed class GameRule(int id, string key, string name, string description
     public int? Decode(IReadOnlyList<uint> words)
     {
         if (words.Count != Sites.Count) return null;
+        if (decode is not null) return decode(words);
         int? setting = null;
         bool changed = false;
         for (int i = 0; i < Sites.Count; i++)
@@ -76,6 +78,7 @@ public sealed class GameRule(int id, string key, string name, string description
     public string Describe(int setting) =>
         Choices is { } c && setting - Min >= 0 && setting - Min < c.Count ? c[setting - Min]
         : Kind == RuleKind.FixedAmount ? (setting == 0 ? "Normal" : setting.ToString())
+        : Kind == RuleKind.Range ? $"{GameRules.RangeLow(setting)} to {GameRules.RangeHigh(setting)}{(setting == Default ? " (normal)" : "")}"
         : setting == Default ? $"Normal ({setting})" : setting.ToString();
 
     public TableField Field => new(Key, Name, 0, 0, 1, Min, Max) { Choices = Choices };
@@ -100,6 +103,26 @@ public static class GameRules
     }
 
     private const uint S1 = 17, S2 = 18, T1 = 9;
+
+    /// <summary>Range rules keep a low and a high value in one setting: low × 256 + high.</summary>
+    public static int RangeSetting(int low, int high) => low * 256 + high;
+    public static int RangeLow(int setting) => setting / 256;
+    public static int RangeHigh(int setting) => setting % 256;
+
+    private const uint A1 = 5, A2 = 6;
+    private static GameRule CriticalDamage() => new(13, "criticalBonus", "Critical hit bonus damage",
+        "A critical hit adds a random amount between these two values to the damage, both included. The game uses 10 to 20. The low value cannot be higher than the high value.",
+        RuleKind.Range, 0, RangeSetting(99, 99), RangeSetting(10, 20), null,
+        [new RuleSite(0x0022AEE8, s => 0x24000000u | A1 << 16 | (uint)RangeLow(s), w => null),
+         new RuleSite(0x0022AEF0, s => 0x24000000u | A2 << 16 | (uint)RangeHigh(s), w => null)], confirmed: true,
+        decode: words =>
+        {
+            uint lowPrefix = 0x24000000u | A1 << 16, highPrefix = 0x24000000u | A2 << 16;
+            if ((words[0] & 0xFFFF0000u) != lowPrefix || (words[1] & 0xFFFF0000u) != highPrefix) return null;
+            int low = (int)(words[0] & 0xFFFF), high = (int)(words[1] & 0xFFFF);
+            return low <= high && high <= 99 ? RangeSetting(low, high) : null;
+        },
+        check: s => RangeHigh(s) > 99 ? "Critical hit bonus damage can be at most 99." : RangeLow(s) > RangeHigh(s) ? "The low value of the critical hit bonus cannot be higher than the high value." : null);
 
     private static GameRule Step(int id, string key, string name, string description, int normal, uint address, bool confirmed) =>
         new(id, key, name, description, RuleKind.Limit, 0, 50, normal, null, [Immediate(address, T1, 0, 50)], confirmed);
@@ -161,6 +184,11 @@ public static class GameRules
         Step(12, "weaponTraining", "Weapon training speed",
             "How much a weapon level rises on each successful training roll after an attack, in tenths of a level (the game's 1 is 0.1 of a level). 0 stops weapon levels from rising in battle.",
             1, 0x001716C4, confirmed: true),
+        new GameRule(14, "failedTraining", "Training from failed attempts",
+            "A missed attack or a failed shield block can still train the weapon or shield. The game allows this only below level 20; At every level lets failed attempts train at any level. Successful attempts train at every level either way.",
+            RuleKind.Choice, 0, 1, 0, ["Below level 20", "At every level"],
+            [new RuleSite(0x00171760, s => s == 0 ? 0x28A10002u : 0x28A10006u, w => w switch { 0x28A10002u => 0, 0x28A10006u => 1, _ => null })], confirmed: true),
+        CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formula. A fixed amount gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
             RuleKind.FixedAmount, 0, 100, 0, null,

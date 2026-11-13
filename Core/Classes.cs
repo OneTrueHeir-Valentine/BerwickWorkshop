@@ -13,6 +13,9 @@ public sealed record ClassRecord(
     public int MovementType { get; init; }
     /// <summary>Class record byte 3 bits 4 to 5: 0 on foot, 1 mounted, 2 flying.</summary>
     public int Mount { get; init; }
+    /// <summary>Class record byte 0x1B bits 4 to 6: small, medium and large shields the class can use.</summary>
+    public int ShieldSizes { get; init; }
+    public string ShieldSizeText => ShieldSizes == 0 ? "None" : string.Join(", ", new[] { "Small", "Medium", "Large" }.Where((_, i) => (ShieldSizes >> i & 1) != 0));
     public string MovementTypeText => MovementType < TerrainData.TypeNames.Length ? TerrainData.TypeNames[MovementType] : $"Type {MovementType}";
     public string MountText => Mount switch { 0 => "On foot", 1 => "Mounted", 2 => "Flying", _ => $"Mount {Mount}" };
     public string SkillText => Skills.Count == 0 ? "None" : string.Join(", ", Skills);
@@ -23,7 +26,7 @@ public sealed record ClassRecord(
         {
             ["HP"] = Hp.ToString(), ["Strength"] = Strength.ToString(), ["Defense"] = Defense.ToString(),
             ["Agility"] = Agility.ToString(), ["Mind"] = Mind.ToString(), ["Move"] = Move.ToString(),
-            ["Experience"] = Experience.ToString(), ["Skills"] = SkillText, ["Movement type"] = MovementTypeText, ["Mount"] = MountText,
+            ["Experience"] = Experience.ToString(), ["Skills"] = SkillText, ["Movement type"] = MovementTypeText, ["Mount"] = MountText, ["Shield sizes"] = ShieldSizeText,
         };
         foreach (var cap in WeaponCaps) fields[$"{cap.Weapon} cap"] = cap.Value.ToString();
         return fields;
@@ -59,7 +62,7 @@ public static class ClassDecoder
         return new(id, name,
             Hp: B(record, 2, 5, 5), Strength: B(record, 0, 0, 5), Defense: B(record, 1, 2, 5), Agility: B(record, 0, 5, 5), Mind: B(record, 2, 0, 5),
             Move: B(record, 8, 0, 4), Experience: B(record, 4, 0, 7), Skills: skills.AsReadOnly(), WeaponCaps: caps.AsReadOnly())
-        { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2) };
+        { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2), ShieldSizes = B(record, 0x1B, 4, 3) };
     }
 
     public static string DisplayName(string raw)

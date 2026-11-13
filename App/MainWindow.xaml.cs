@@ -369,6 +369,7 @@ public partial class MainWindow : Window
         AddSection(ClassFields,"Class skills");AddText(ClassFields,k.SkillText);
         AddSection(ClassFields,"Weapon level caps");
         if(k.WeaponCaps.Count==0)AddText(ClassFields,"None");else foreach(var w in k.WeaponCaps)AddPair(ClassFields,w.Weapon,w.Value.ToString());
+        AddSection(ClassFields,"Shield sizes");AddText(ClassFields,k.ShieldSizeText);
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
         AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
@@ -540,6 +541,8 @@ public partial class MainWindow : Window
     private void RedoEdit(object sender,RoutedEventArgs e){if(session?.CanRedo!=true || loading is not null)return;EndEdit();session.Redo();RefreshDocument();Status.Text="Redone.";}
     private sealed record EditSection(string Title,string Table,IReadOnlyList<TableField> Fields);
     private sealed record Choice(int Value,string Text);
+    private List<Choice> ClassChoices() =>
+        (session?.EditedClasses()??[]).OrderBy(k=>k.Name).Select(k=>new Choice(k.Id,$"{k.Name} ({k.IdText})")).ToList();
     private List<Choice> ItemChoices() =>
         [new(0,"Empty"),..(session?.EditedItems()??[]).OrderBy(i=>i.IsUnused).ThenBy(i=>i.DisplayName).Select(i=>new Choice(i.Id,$"{i.DisplayName} ({i.IdText})"))];
     private void NewItem(object sender,RoutedEventArgs e)
@@ -616,6 +619,7 @@ public partial class MainWindow : Window
     }
     private string DescribeValue(TableField field,int value)
     {
+        if(field.ClassReference) return session?.Disc.Classes.FirstOrDefault(k=>k.Id==value)?.Name??$"Class 0x{value:X2}";
         if(field.ItemReference) return value==0?"Empty":session?.Disc.ItemBytes.ContainsKey(value)==true?session.EditedItem(value).DisplayName:$"Item 0x{value:X3}";
         if(field.IsFlag) return value!=0?"Added":"Removed";
         return FieldCodec.Format(field,value);
@@ -637,7 +641,7 @@ public partial class MainWindow : Window
             new("Weapon growth",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group=="Weapon growth").ToList()),
             new("Personal skills",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Personal skills").ToList()),
             new("Starting items",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Starting items").ToList()),
-        ],null));
+        ],"Changing a character's class changes their base stats, movement and allowed weapons to the new class's. Weapon levels above the new class's caps stay as they are."));
     }
     private void BeginClassEdit(object sender,RoutedEventArgs e)
     {
@@ -650,7 +654,8 @@ public partial class MainWindow : Window
             new("Base stats",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group.Length==0).ToList()),
             new("Weapon level caps",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Weapon level caps").ToList()),
             new("Class skills",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Class skills").ToList()),
-        ],warning));
+            new("Shield sizes",EditSession.Classes,CoreClassFields.Fields.Where(f=>f.Group=="Shield sizes").ToList()),
+        ],warning+" A shield size needs both its box ticked here and a shield level cap above 0."));
     }
     private void BeginMovementEdit(object sender,RoutedEventArgs e)
     {
@@ -691,10 +696,10 @@ public partial class MainWindow : Window
             }
             foreach(var field in section.Fields)
             {
-                if(field.ItemReference)
+                if(field.ItemReference || field.ClassReference)
                 {
                     host.Children.Add(new TextBlock {Text=field.Label,Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)});
-                    var picker=new ComboBox {ItemsSource=ItemChoices(),DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,8)};
+                    var picker=new ComboBox {ItemsSource=field.ClassReference?ClassChoices():ItemChoices(),DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,8)};
                     picker.ItemsPanel=new ItemsPanelTemplate(new FrameworkElementFactory(typeof(VirtualizingStackPanel)));
                     picker.SelectedValue=session.Value(section.Table,target.Id,field.Key);
                     System.Windows.Automation.AutomationProperties.SetName(picker,$"{section.Title}: {field.Label}");
@@ -899,7 +904,22 @@ public partial class MainWindow : Window
                 }
                 catch(EditException ex){error.Text=ex.Message;}
             }
-            if(rule.Kind==RuleKind.Limit)
+            if(rule.Kind==RuleKind.Range)
+            {
+                TextBox Box(int v,string name){var b=new TextBox {Width=56,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=v.ToString()};System.Windows.Automation.AutomationProperties.SetName(b,name);return b;}
+                var low=Box(GameRules.RangeLow(current),$"{rule.Name} low");var high=Box(GameRules.RangeHigh(current),$"{rule.Name} high");
+                var applyRange=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(8,0,0,0)};
+                void ApplyRange()
+                {
+                    if(!int.TryParse(low.Text.Trim(),out int a) || !int.TryParse(high.Text.Trim(),out int b) || a<0 || b>99 || a>b){error.Text="Enter two whole numbers from 0 to 99, the first no higher than the second.";return;}
+                    error.Text="";Set(GameRules.RangeSetting(a,b));
+                }
+                applyRange.Click+=(_,_)=>ApplyRange();
+                low.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyRange();e.Handled=true;}};high.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyRange();e.Handled=true;}};
+                row.Children.Add(low);row.Children.Add(new TextBlock {Text="to",VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,0)});row.Children.Add(high);row.Children.Add(applyRange);
+                row.Children.Add(new TextBlock {Text=$"Game default {rule.Describe(rule.Default).Replace(" (normal)","")}",Foreground=(Brush)FindResource("Muted"),FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(12,0,0,0)});
+            }
+            else if(rule.Kind==RuleKind.Limit)
             {
                 var limit=new TextBox {Width=70,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};
                 var applyLimit=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(8,0,0,0)};
@@ -1010,13 +1030,13 @@ public partial class MainWindow : Window
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
-            ("Classes","Lists base stats, movement, movement type, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
-            ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
+            ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
             ("New items","New item turns one of the disc's unused item slots into a new item. It starts as a full copy of an item you choose, including properties not shown in the editor, and can then be edited and given to characters as a starting item. Your name for it is saved in the project; until text editing is added, the game shows the slot's own name. Remove new item frees the slot again."),
             ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps stats within 3 of it; Tight keeps them closer; None lets them drift (only Daoud and Lynette use None). Loose and None are confirmed from published play notes; the exact range of Tight is not yet measured."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),

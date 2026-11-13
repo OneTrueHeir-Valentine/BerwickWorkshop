@@ -79,6 +79,9 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Amount (`0x001716D0`): nothing with 0 growth; at level 20 and above a failed attempt gives nothing (`0x00171760`); one or two rolls (two below level 10) plus one on success; each passes when random < growth × 10 and random < 190 − 3 × level, adding one step. Capped at the class cap.
 - Vantage: a defender that kills its attacker first never gets a block roll, so it gains no shield training. A fix needs new code in the battle sequence.
 - Live tests: shield step 4 changed to 50 made a shield level jump after one block; weapon step 1 changed to 50 made a weapon level jump after one attack.
+- Class record byte 0x1B bits 4 to 6 are the shield sizes a class can use (small, medium, large); they agree with the class's shield level caps for all 217 classes.
+- Critical bonus: Random(1, 10, 20) at `0x0022AEE4` to `0x0022AEF0`; the range routine loops forever if the high value is below the low one. Live test: forced criticals with 30 to 30 added exactly 30.
+- Failed-attempt cutoff: `slti at, a1, 2` at `0x00171760` (rank below 2, level below 20). Live test with the growth check forced: a failed block at shield level 25 trained once the cutoff was lifted.
 - Tamper checks: a unit check (`0x00183540`, stats and weapon-level check bits) and a program checksum (`0x00125E60`) both set a marker (`0x00506E64`) that is copied into save data. Program rules trip the program check. No effect of the marker has been seen in play yet. Starting records on the disc carry no weapon check bits, so editing them is safe for the unit check.
 
 ### Editors

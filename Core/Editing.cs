@@ -14,6 +14,8 @@ public sealed record TableField(string Key, string Label, int Offset, int Bit, i
     public IReadOnlyList<string>? Choices { get; init; }
     /// <summary>The value is an item ID (0 means empty).</summary>
     public bool ItemReference { get; init; }
+    /// <summary>The value is a class ID.</summary>
+    public bool ClassReference { get; init; }
     /// <summary>A stored value with its own meaning, shown as text instead of a number (for example a terrain that cannot be entered).</summary>
     public int? SpecialValue { get; init; }
     public string SpecialText { get; init; } = "";
@@ -151,6 +153,7 @@ public static class CharacterFields
     /// <summary>Fields in the starting unit record.</summary>
     public static IReadOnlyList<TableField> Record { get; } = Array.AsReadOnly(new TableField[]
     {
+        new("class", "Class", 19, 0, 8, 1, 255) { ClassReference = true },
         new("level", "Level", 20, 0, 6, 1, 63),
         new("hpBonus", "HP bonus", 22, 4, 7, 0, 127),
         new("strengthBonus", "Strength bonus", 23, 3, 5, -16, 15) { Signed = true },
@@ -192,6 +195,12 @@ public static class ClassFields
         new("experience", "Experience value", 4, 0, 7, 0, 127),
         new("movementType", "Movement type", 6, 1, 8, 0, TerrainData.Types - 1) { Choices = TerrainData.TypeNames },
     }.Concat(Caps.Select(c => new TableField(CharacterFields.Key(c.Name, "Cap"), c.Name, c.Offset, c.Bit, 6, 0, 63) { Group = "Weapon level caps" }))
+     .Concat(new TableField[]
+     {
+         new("shieldSmall", "Small shields", 0x1B, 4, 1, 0, 1) { Group = "Shield sizes" },
+         new("shieldMedium", "Medium shields", 0x1B, 5, 1, 0, 1) { Group = "Shield sizes" },
+         new("shieldLarge", "Large shields", 0x1B, 6, 1, 0, 1) { Group = "Shield sizes" },
+     })
      .Concat(CharacterFields.SkillFlags(12, "Class skills")).ToArray());
 }
 
@@ -249,6 +258,8 @@ public sealed class EditSession
                 foreach (var field in CharacterFields.Record.Where(f => f.ItemReference))
                     if (values.TryGetValue(field.Key, out int item) && item != 0 && !disc.ItemBytes.ContainsKey(item))
                         return $"{field.Label}: there is no item 0x{item:X3}.";
+                if (values.TryGetValue("class", out int classId) && !disc.ClassBytes.ContainsKey(classId))
+                    return $"There is no class 0x{classId:X2}.";
                 return "";
             }),
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
@@ -334,7 +345,7 @@ public sealed class EditSession
         if (!IsEdited(Characters, id) && !IsEdited(Growths, id)) return original;
         var itemNames = EditedItems().ToDictionary(i => i.Id, i => i.DisplayName);
         var decoded = CharacterDecoder.Decode(new(id, original.Name, 0), EditedBytes(Characters, id), EditedBytes(Growths, id), itemNames);
-        return decoded with { ClassName = original.ClassName };
+        return decoded with { ClassName = decoded.ClassId == original.ClassId ? original.ClassName : originalClasses.TryGetValue(decoded.ClassId, out var k) ? k.Name : $"Class 0x{decoded.ClassId:X2}" };
     }
     public IReadOnlyList<CharacterRecord> EditedCharacters() => disc.Characters.Select(c => EditedCharacter(c.Id)).ToList();
 
