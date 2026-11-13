@@ -97,7 +97,7 @@ public static class Mechanics
         // Partners
         new("Partners", "Partner bonus", "For each partner within 2 spaces: hit + bond ÷ 10; critical + (total of those amounts) ÷ 5",
             "Sixteen characters have up to four partners, each with a bond value (Ward and Reese 40, Lynette and Reese 100). The partner has to be on the map and able to act. The game reloads each character's partners from this table whenever units are loaded, so edits also reach existing saves.",
-            MechanicStatus.Located, "Program reading (partner table at 0x00173C80, hit 0x001B7F70, critical 0x001B79D0)", [new("Partners", Characters)]),
+            MechanicStatus.Confirmed, "Program reading (partner table at 0x00173C80, hit 0x001B7F70, critical 0x001B79D0), checked in a running game", [new("Partners", Characters)]),
 
         // Growth
         new("Growth", "Stat growth", "Expected stat = starting stat + growth rate × levels gained; the actual stat stays within the bracket around it",
