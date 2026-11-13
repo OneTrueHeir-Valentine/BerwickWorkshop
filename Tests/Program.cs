@@ -409,12 +409,13 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(29,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(30,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
-    Equal(10,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));
+    Equal(11,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));
+    Equal(0x2443000Au,GameRules.ById(50).Original[0]);Equal(0x240200BEu,GameRules.ById(51).Original[0]);Equal(0x2402012Cu,GameRules.ById(51).Encode(300)[0]);
     Equal("28420005,28630005",string.Join(",",GameRules.ById(47).Original.Select(x=>x.ToString("X8"))));Equal(0x26100012u,GameRules.ById(48).Original[0]);
     var paragon=GameRules.ById(49);Equal("3C026666,34426667,00021043",string.Join(",",paragon.Original.Select(x=>x.ToString("X8"))));Equal("40%",paragon.Describe(5));
     Equal("3C026666,34426667,00021003",string.Join(",",paragon.Encode(5).Select(x=>x.ToString("X8"))));Equal<int?>(null,paragon.Decode(new[]{0x3C026666u,0x34426667u,0x00021083u|0x40u}));Equal(true,GameRules.All.Where(r=>r.Group.Length>0).All(r=>GameRules.GroupDescriptions.ContainsKey(r.Group) && r.Short.Length>0));

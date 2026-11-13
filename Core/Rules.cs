@@ -208,7 +208,8 @@ public static class GameRules
         ["Arrowbane"] = BaneText("a bow"),
         ["Magicbane"] = BaneText("magic"),
         ["Pursuit"] = "A unit with Pursuit attacks again when its attack speed beats the enemy's by at least the speed lead. The game's lead is 5. At 0, an equal attack speed is enough.",
-        ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus, and 10 more in some cases. The game's bonus is 18.",
+        ["Parry"] = "A unit with the Parry skill parries at a chance of the unit's weapon level plus this bonus, halved: (weapon level + bonus) ÷ 2. The game's bonus is 10. Whether parrying happens at all is set by the Parry rule on the Rules page.",
+        ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -276,6 +277,10 @@ public static class GameRules
         Step(12, "weaponTraining", "Weapon training speed",
             "How much a weapon level rises on each successful training roll after an attack, in tenths of a level (the game's 1 is 0.1 of a level). 0 stops weapon levels from rising in battle.",
             1, 0x001716C4, confirmed: true),
+        new GameRule(51, "trainingCeiling", "Training roll ceiling",
+            "Each weapon or shield training roll needs two random numbers from 0 to 99 to land low enough: one below the growth rate and one below this ceiling minus 3 times the current level (kept between 0 and 100). The game uses 190, so training slows above level 30 and stops near level 63. A higher ceiling keeps high levels training; a lower one makes all training rarer.",
+            RuleKind.Limit, 0, 300, 190, null,
+            [new RuleSite(0x001717A4, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) <= 300 ? (int)(w & 0xFFFF) : null)], confirmed: true),
         new GameRule(14, "failedTraining", "Training from failed attempts",
             "A missed attack or a failed shield block can still train the weapon or shield. The game allows this only below level 20; At every level lets failed attempts train at any level. Successful attempts train at every level either way.",
             RuleKind.Choice, 0, 1, 0, ["Below level 20", "At every level"],
@@ -310,6 +315,9 @@ public static class GameRules
         Bane(44, "axebaneCap", "Axebane", 0x00227734, 0x00227748),
         Bane(45, "arrowbaneCap", "Arrowbane", 0x00227550, 0x00227564),
         Bane(46, "magicbaneCap", "Magicbane", 0x002277D4, 0x002277E8),
+        new GameRule(50, "parryBonus", "Parry chance bonus", "", RuleKind.Limit, 0, 200, 10, null,
+            [new RuleSite(0x00177F50, s => 0x24430000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24430000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+            { Group = "Parry", Short = "Bonus", Section = SkillsSection },
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)

@@ -162,8 +162,8 @@ Everything found so far and whether a user can change it. Editable means offered
 | Terrain | 14 movement types by 64 terrain kinds, costs in tenths; per terrain avoid, recovery while resting, flags | costs yes; avoid, recovery and flyer stop flag yes (v0.18.0); other flags not mapped |
 | Damage | attack − defense − block reduction; critical bonus | critical bonus range (rule); the formula itself is fixed |
 | Shields | block chance, block roll, Might reduction, guard on failure, training | Shield block, Shield guard, Shield training speed, Training from failed attempts |
-| Parry | Parry skill roll | Parry rule |
-| Weapon training | step, cutoff at level 20, growth chance | Weapon training speed, Training from failed attempts |
+| Parry | Parry skill roll, chance (weapon level + 10) / 2 | Parry rule, Parry chance bonus (v0.21.0) |
+| Weapon training | step, cutoff at level 20, growth chance, roll ceiling 190 - 3 x level | Weapon training speed, Training from failed attempts, Training roll ceiling (v0.21.0) |
 | Experience | defeat formula: class experience + level difference table, skill +20%, cap 100; staff formula | level difference table, cap and staff values editable (v0.18.0, v0.19.0) |
 | Skills | 90 skill checks mapped (skillsites.py); activation formulas read for Iaido, Knock Away, banes, Robust+ area, Vengeful, Vulnerable, Pursuit, Slow Start II | Iaido, Knock Away, bane chances (v0.19.0), Pursuit lead, Shieldfaire bonus, Paragon bonus (v0.20.0); Vengeful, Vulnerable, Slow Start II read but meaning unclear |
 | Stat limits | HP, Strength, Agility, Luck, Defense, Mind | six limit rules; level 30 cap not yet (three linked values) |
