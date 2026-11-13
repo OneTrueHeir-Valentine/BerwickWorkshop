@@ -29,6 +29,9 @@ public sealed class GameRule(int id, string key, string name, string description
     public IReadOnlyList<RuleSite> Sites { get; } = sites;
     /// <summary>Checked in a running game. Only confirmed rules are offered on the Rules page.</summary>
     public bool Confirmed { get; } = confirmed;
+    /// <summary>Rules that share a group are shown together as one formula; Short is the name inside the group.</summary>
+    public string Group { get; init; } = "";
+    public string Short { get; init; } = "";
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
 
@@ -189,12 +192,29 @@ public static class GameRules
             w => w == original && w == patched ? AnySetting : w == original ? 0 : w == patched ? AnyChanged : null);
     }).ToList();
 
+    public const string ExperienceGroup = "Experience formula", StaffGroup = "Staff experience";
+
+    /// <summary>Group explanations: the game's own formula, with the editable numbers named.</summary>
+    public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
+    {
+        [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
+        [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
+    };
+
+    // The level difference table is data in the program: 16 words, enemy level minus own level from -8 to +7.
+    private const uint LevelGapTable = 0x00429F10;
+    private static readonly int[] LevelGapDefaults = [-40, -35, -30, -25, -20, -15, -10, -5, 0, 2, 4, 6, 8, 10, 12, 15];
+    private static string GapText(int i) => (i - 8) switch { -8 => "8 or more below", 7 => "7 or more above", 0 => "Same level", < 0 and var g => $"{-g} below", var g => $"{g} above" };
+    private static GameRule LevelGap(int i) => new(20 + i, $"expLevelGap{i}", $"Experience bonus, enemy {GapText(i)}", "", RuleKind.Limit, -100, 100, LevelGapDefaults[i], null,
+        [new RuleSite(LevelGapTable + (uint)i * 4, s => (uint)s, w => null)], confirmed: true,
+        decode: words => (int)words[0] is >= -100 and <= 100 and var v ? v : null) { Group = ExperienceGroup, Short = GapText(i) };
+
     private static GameRule Limit(int id, string key, string name, string description, int max, int normal, uint addAddress, uint storeAddress) =>
         new(id, key, name, description, RuleKind.Limit, 0, max, normal, null,
             [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: true);
 
-    public static IReadOnlyList<GameRule> All { get; } = Array.AsReadOnly(new[]
-    {
+    public static IReadOnlyList<GameRule> All { get; } = Array.AsReadOnly<GameRule>(
+    [
         new GameRule(1, "shieldParry", "Parry",
             "Parrying with a weapon cancels a hit completely. Normal: only units with the Parry skill parry, at a chance based on their weapon level. Always: every unit holding a usable weapon parries every hit. Never: nobody parries. Applies to every unit in battle, enemies included.",
             RuleKind.Choice, 0, 2, 0, ["Normal", "Always", "Never"],
@@ -225,18 +245,31 @@ public static class GameRules
             RuleKind.Choice, 0, 2, 0, ["Off", "Counts as a failed block", "Counts as a successful block"], VantageSites(), confirmed: true),
         CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
-            "Normal uses the game's experience formula. A fixed amount gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
+            "Normal uses the game's experience formulas below. A fixed amount replaces them and gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
             RuleKind.FixedAmount, 0, 100, 0, null,
             [new RuleSite(0x00224580,
                 s => s == 0 ? 0x0040982Du : 0x24130000u | (uint)s,
                 w => w == 0x0040982Du ? 0 : (w & 0xFFFF0000u) == 0x24130000u && (w & 0xFFFF) is >= 1 and <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true),
+        ..Enumerable.Range(0, 16).Select(LevelGap),
+        new GameRule(36, "expHighest", "Highest experience for defeating an enemy", "", RuleKind.Limit, 1, 100, 100, null,
+            [new RuleSite(0x0017410C, s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 2 and <= 101 ? (int)(w & 0xFFFF) - 1 : null),
+             new RuleSite(0x00174124, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) is >= 1 and <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+            { Group = ExperienceGroup, Short = "Highest amount" },
+        new GameRule(37, "staffBase", "Staff experience base", "", RuleKind.Limit, 0, 100, 6, null,
+            [new RuleSite(0x00224394, s => 0x26940000u | (uint)s, w => (w & 0xFFFF0000u) == 0x26940000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+            { Group = StaffGroup, Short = "Base amount" },
+        new GameRule(38, "staffRandom", "Staff experience random bonus", "", RuleKind.Limit, 0, 50, 3, null,
+            [new RuleSite(0x00224358, s => 0x24060000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x00224370, s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 51 ? (int)(w & 0xFFFF) - 1 : null),
+             new RuleSite(0x00224380, s => 0x24020000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24020000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+            { Group = StaffGroup, Short = "Random bonus up to" },
         Limit(3, "hpLimit", "HP bonus limit", "The most HP a character can gain above the class base, through level ups and other gains.", 127, 50, 0x00174BD8, 0x001746A8),
         Limit(4, "strengthLimit", "Strength bonus limit", "The most Strength a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C34, 0x00174704),
         Limit(5, "agilityLimit", "Agility bonus limit", "The most Agility a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C4C, 0x0017471C),
         Limit(6, "luckLimit", "Luck limit", "The highest Luck a character can reach.", 31, 20, 0x00174C64, 0x00174734),
         Limit(7, "defenseLimit", "Defense bonus limit", "The most Defense a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C7C, 0x0017474C),
         Limit(8, "mindLimit", "Mind bonus limit", "The most Mind a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C94, 0x00174764),
-    });
+    ]);
 
     public static GameRule ById(int id) => All.FirstOrDefault(r => r.Id == id) ?? throw new EditException("Unknown game rule.");
 

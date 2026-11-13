@@ -350,7 +350,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
+    Equal("Parry",parry.Name);Equal("37,38",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -374,7 +374,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     Equal(0x1275ECL,parry.Sites[0].FileOffset);
     var str=GameRules.ById(4);Equal("2411000F,2412000F",string.Join(",",str.Original.Select(x=>x.ToString("X8"))));
     Equal<int?>(null,str.Decode(new[]{0x2411000Au,0x2412000Fu}));Equal("2411000A,2412000A",string.Join(",",str.Encode(10).Select(x=>x.ToString("X8"))));
-    var exe=new byte[0x200000];
+    var exe=new byte[0x400000];
     void Put(GameRule r,int s){var ws=r.Encode(s);for(int i=0;i<ws.Length;i++)BitConverter.GetBytes(ws[i]).CopyTo(exe,r.Sites[i].FileOffset);}
     foreach(var r in GameRules.All) Put(r,r.Default);
     Put(parry,1);Put(exp,40);Put(str,5);
@@ -390,6 +390,27 @@ Test("Shown values parse back to stored values",()=>{
     Equal(false,FieldCodec.TryParse(growth,"75",out _,out _));Equal(false,FieldCodec.TryParse(growth,"160",out _,out _));
     var bonus=CharacterFields.Record.Single(f=>f.Key=="strengthBonus");
     Equal(true,FieldCodec.TryParse(bonus,"-3",out v,out _));Equal(-3,v);Equal(false,FieldCodec.TryParse(bonus,"16",out _,out _));
+});
+Test("Terrain effects decode signed values and the flyer flag, and 32-bit fields round trip",()=>{
+    var row=new byte[TerrainKindData.RowLength];
+    FieldCodec.Write(row,TerrainKindData.Fields[1],-20);Equal("EC-FF-FF-FF",BitConverter.ToString(row,0x10,4));Equal(-20,FieldCodec.Read(row,TerrainKindData.Fields[1]));
+    FieldCodec.Write(row,TerrainKindData.Fields[1],30);Equal("1E-00-00-00",BitConverter.ToString(row,0x10,4));
+    row[0x14]=0xC1;FieldCodec.Write(row,TerrainKindData.Fields[2],0);Equal(0x81,(int)row[0x14]);
+    FieldCodec.Write(row,TerrainKindData.Fields[0],-5);var k=TerrainKindData.Decode(36,row);
+    Equal("-5/+30%/False/Yes",$"{k.Avoid}/{k.RecoveryText}/{k.FlyersCannotStop}/{k.FlyersText}");
+    Throws<EditException>(()=>FieldCodec.Write(row,TerrainKindData.Fields[1],101));
+    Equal(4+64*24,TerrainKindData.TableLength);
+});
+Test("Experience formula values encode as data and as instructions",()=>{
+    var gap=GameRules.ById(20);Equal(0x00429F10u,gap.Sites[0].Address);Equal(0xFFFFFFD8u,gap.Original[0]);Equal(0xFFFFFFFDu,gap.Encode(-3)[0]);
+    Equal(0x00429F4Cu,GameRules.ById(35).Sites[0].Address);Equal(15,GameRules.ById(35).Default);Equal("8 or more below/Same level/1 above/7 or more above",string.Join("/",new[]{20,28,29,35}.Select(i=>GameRules.ById(i).Short)));
+    Equal<int?>(null,gap.Decode(new[]{0x00000065u}));Equal<int?>(-1,gap.Decode(new[]{0xFFFFFFFFu}));Equal<int?>(-2,gap.Decode(new[]{0xFFFFFFFEu}));Equal<int?>(-100,gap.Decode(new[]{0xFFFFFF9Cu}));
+    var highest=GameRules.ById(36);Equal("28410065,24020064",string.Join(",",highest.Original.Select(x=>x.ToString("X8"))));Equal("28410033,24020032",string.Join(",",highest.Encode(50).Select(x=>x.ToString("X8"))));
+    Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
+    Equal(0x26940006u,GameRules.ById(37).Original[0]);
+    var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
+    Equal(19,GameRules.All.Count(r=>r.Group.Length>0));Equal(true,GameRules.All.Where(r=>r.Group.Length>0).All(r=>GameRules.GroupDescriptions.ContainsKey(r.Group) && r.Short.Length>0));
+    Equal(GameRules.All.Count,GameRules.All.Select(r=>r.Id).Distinct().Count());Equal(GameRules.All.Count,GameRules.All.Select(r=>r.Key).Distinct().Count());
 });
 Test("Terrain costs show tenths and the impassable mark, and parse back",()=>{
     var forest=TerrainData.Fields[4];
@@ -486,6 +507,17 @@ if(args.Length>=2)
         }
         Equal(true,Enumerable.Range(0,TerrainData.Types).All(t=>jp!.TerrainBytes[t].Span.SequenceEqual(en!.TerrainBytes[t].Span)));
     });
+    Test("Terrain effect tables: both copies match, avoid matches the published list, flyers cannot stop on buildings",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(true,disc.TerrainKindCopiesMatch);Equal(TerrainData.Terrains,disc.TerrainKinds.Count);
+            Equal("2 3 5 9 8 10",string.Join(" ",new[]{0,1,2,4,6,50}.Select(t=>disc.TerrainKinds[t].Avoid)));
+            Equal(-20,disc.TerrainKinds[51].Recovery);Equal(30,disc.TerrainKinds[45].Recovery);
+            Equal("18,25,36,38,39,40,44,45,46,47,53,54,55",string.Join(",",disc.TerrainKinds.Where(k=>k.FlyersCannotStop).Select(k=>k.Id)));
+            Equal(true,new[]{36,38,39,44,45,46,47,53,54,55}.All(t=>disc.MovementTypes[2].Costs[t]!=TerrainData.Blocked));
+        }
+        Equal(true,Enumerable.Range(0,TerrainData.Terrains).All(t=>jp!.TerrainKindBytes[t].Span.SequenceEqual(en!.TerrainKindBytes[t].Span)));
+    });
     Test("Class shield sizes agree with shield caps, and a character's class can be changed",()=>{
         foreach(var k in en!.Classes)
         {
@@ -564,6 +596,8 @@ foreach(var exportDisc in new[]{jp!,en!})
                 new(EditSession.Rules,9,"shieldBlock",2),new(EditSession.Rules,10,"shieldGuard",2),new(EditSession.Rules,15,"vantageTraining",2)});
             s.Apply(EditSession.Characters,0x54,new Dictionary<string,int>{["item5"]=newSlot});
             s.Apply(new FieldEdit[]{new(EditSession.Terrain,5,"cost4",15),new(EditSession.Terrain,5,"cost15",10),new(EditSession.Classes,0x1E,"movementType",2)});
+            s.Apply(new FieldEdit[]{new(EditSession.TerrainKinds,36,"flyersCannotStop",0),new(EditSession.TerrainKinds,51,"recovery",10),new(EditSession.TerrainKinds,0,"avoid",7),
+                new(EditSession.Rules,20,"expLevelGap0",-3),new(EditSession.Rules,36,"expHighest",60)});
             Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedMovementType(5).Costs[4]==15);
             var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
@@ -588,6 +622,10 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);Equal(true,back.TerrainCopiesMatch);
             Equal("1.5/1/Flying",$"{back.MovementTypes[5].Cost(4)}/{back.MovementTypes[5].Cost(15)}/{vk.MovementTypeText}");
             Equal(true,Enumerable.Range(0,TerrainData.Types).Where(t=>t!=5).All(t=>back.TerrainBytes[t].Span.SequenceEqual(disc.TerrainBytes[t].Span)));
+            Equal(true,back.TerrainKindCopiesMatch);Equal("False/10/7/True",$"{back.TerrainKinds[36].FlyersCannotStop}/{back.TerrainKinds[51].Recovery}/{back.TerrainKinds[0].Avoid}/{back.TerrainKinds[38].FlyersCannotStop}");
+            Equal(0x81,back.TerrainKinds[36].Flags);
+            Equal(true,Enumerable.Range(0,TerrainData.Terrains).Where(t=>t is not (0 or 36 or 51)).All(t=>back.TerrainKindBytes[t].Span.SequenceEqual(disc.TerrainKindBytes[t].Span)));
+            Equal(-3,GameRules.ById(20).Decode(back.RuleWords[20].Span));Equal(60,GameRules.ById(36).Decode(back.RuleWords[36].Span));
             Equal(1,GameRules.ById(1).Decode(back.RuleWords[1].Span));Equal(50,GameRules.ById(2).Decode(back.RuleWords[2].Span));Equal(12,GameRules.ById(4).Decode(back.RuleWords[4].Span));
             Equal(2,GameRules.ById(9).Decode(back.RuleWords[9].Span));Equal(2,GameRules.ById(10).Decode(back.RuleWords[10].Span));Equal(2,GameRules.ById(15).Decode(back.RuleWords[15].Span));
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
@@ -595,7 +633,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(4+1+20+34,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4+1+20+34+1+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);

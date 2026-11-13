@@ -33,11 +33,11 @@ public static class ItemDecoder
     public static string DescribeEffect(int selector, int value) => selector == 0 ? "None" : selector >= 100 && selector - 100 < Rates.Length ? $"{Rates[selector - 100]}: {value}" : $"Unclassified ({selector}): {value}";
     public static int Bits(ReadOnlySpan<byte> data, int offset, int bit, int width)
     {
-        if (offset < 0 || bit is < 0 or > 7 || width is < 1 or > 24 || offset + (bit + width + 7) / 8 > data.Length)
+        if (offset < 0 || bit is < 0 or > 7 || width is < 1 or > 32 || offset + (bit + width + 7) / 8 > data.Length)
             throw new InvalidDataException("An item record is incomplete.");
-        uint value = 0;
-        for (int n = 0; n < (bit + width + 7) / 8; n++) value |= (uint)data[offset+n] << (8*n);
-        return (int)((value >> bit) & ((1u << width) - 1));
+        ulong value = 0;
+        for (int n = 0; n < (bit + width + 7) / 8; n++) value |= (ulong)data[offset+n] << (8*n);
+        return (int)(uint)((value >> bit) & ((1UL << width) - 1));
     }
     public static ItemRecord Decode(int id, string name, byte[] bytes)
     {

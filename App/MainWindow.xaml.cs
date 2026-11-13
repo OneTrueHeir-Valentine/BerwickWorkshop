@@ -18,7 +18,8 @@ public partial class MainWindow : Window
     private List<CharacterRow> characterRows=[];
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
-    private enum View { Items, Characters, Classes, Movement, Rules, Mechanics, Disc }
+    private List<TerrainKindRow> terrainRows=[];
+    private enum View { Items, Characters, Classes, Movement, Terrain, Rules, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -105,7 +106,7 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton,EditMovementButton}) b.IsEnabled=!busy;
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
         if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
         else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
@@ -156,21 +157,24 @@ public partial class MainWindow : Window
         movementRows=(session?.EditedMovementTypes()??primary.MovementTypes).Select(m=>new MovementRow(m,byType.TryGetValue(m.Id,out var names)?names:[])
             { Edited=session?.IsEdited(EditSession.Terrain,m.Id)==true }).ToList();
         MovementNav.IsEnabled=primary.Supported && movementRows.Count>0;
+        terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
+        TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         RulesNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
     private void PopulateDiscDetails()
     {
         DiscFields.Children.Clear();if(primary is null)return;
         AddInfo(DiscFields,"Edition",primary.Edition);
-        if(primary.Supported && primary.RuleWords.Count>0) AddInfo(DiscFields,"Game rules",string.Join(", ",GameRules.All.Where(r=>r.Confirmed && primary.RuleWords.ContainsKey(r.Id)).Select(r=>$"{r.Name}: {r.Describe(r.Decode(primary.RuleWords[r.Id].Span)??r.Default)}")));
+        if(primary.Supported && primary.RuleWords.Count>0) AddInfo(DiscFields,"Game rules",string.Join(", ",GameRules.All.Where(r=>r.Confirmed && r.Group.Length==0 && primary.RuleWords.ContainsKey(r.Id)).Select(r=>$"{r.Name}: {r.Describe(r.Decode(primary.RuleWords[r.Id].Span)??r.Default)}")));
         if(primary.Supported) AddInfo(DiscFields,"Recognized by",primary.IsModified?"Game program and data layout. This disc differs from the original release.":"Exact match with the original release.");AddInfo(DiscFields,"Serial",primary.Serial);
         AddInfo(DiscFields,"Disc version",primary.DiscVersion);AddInfo(DiscFields,"Size",$"{primary.Size:N0} bytes");
         AddInfo(DiscFields,"Executable CRC",primary.Crc);AddInfo(DiscFields,"Image SHA-256",primary.Sha256);
         AddInfo(DiscFields,"Executable SHA-256",primary.ExecutableSha256);AddInfo(DiscFields,"File",primary.Path);
         if(primary.Supported) AddInfo(DiscFields,"Character tables",primary.CharacterCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported) AddInfo(DiscFields,"Class tables",primary.ClassCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
+        if(primary.Supported && primary.TerrainKinds.Count>0) AddInfo(DiscFields,"Terrain effect tables",primary.TerrainKindCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported && primary.MovementTypes.Count>0) AddInfo(DiscFields,"Terrain tables",primary.TerrainCopiesMatch?"Both copies match.":"The two copies differ. Values shown are from the first copy.");
         if(primary.Supported) AddInfo(DiscFields,"Item tables",primary.DifferentTableRecords==0?"Both copies match in the compared fields.":$"{primary.DifferentTableRecords} records differ between copies.");
         FilesGrid.ItemsSource=primary.Files;
@@ -259,6 +263,7 @@ public partial class MainWindow : Window
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
+    private void ShowTerrain(object sender,RoutedEventArgs e) { view=View.Terrain;UpdatePage(); }
     private void ShowRules(object sender,RoutedEventArgs e) { view=View.Rules;UpdatePage(); }
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowDisc(object sender,RoutedEventArgs e) { view=View.Disc;UpdatePage(); }
@@ -266,13 +271,14 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
+        PageTitle.Text=view switch { View.Disc=>"Disc details", View.Characters=>"Characters", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
+        TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
@@ -282,6 +288,7 @@ public partial class MainWindow : Window
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
+        TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
@@ -373,6 +380,44 @@ public partial class MainWindow : Window
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
         AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    private void ApplyTerrainList()
+    {
+        if(!ready)return;
+        int? selected=(TerrainGrid.SelectedItem as TerrainKindRow)?.Kind.Id;
+        TerrainGrid.ItemsSource=terrainRows;
+        TerrainCount.Text=$"{terrainRows.Count} kinds of terrain";
+        if(terrainRows.Count>0) TerrainGrid.SelectedItem=terrainRows.FirstOrDefault(r=>r.Kind.Id==selected)??terrainRows[0];
+        else ClearTerrain();
+    }
+    private void ClearTerrain()
+    {
+        if(TerrainName is null)return;TerrainName.Text="Select a terrain";TerrainIdentity.Text="";TerrainFields.Children.Clear();
+    }
+    private void TerrainSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(TerrainGrid.SelectedItem is not TerrainKindRow row){ClearTerrain();return;}
+        var k=row.Kind;
+        if(editing?.Page==View.Terrain && editing.Id!=k.Id) EndEdit();
+        TerrainName.Text=TerrainData.TerrainNames[k.Id];
+        TerrainIdentity.Text=$"Terrain kind {k.Id}";
+        TerrainFields.Children.Clear();
+        AddSection(TerrainFields,"Effects");
+        AddPair(TerrainFields,"Avoid bonus",k.Avoid.ToString());
+        AddPair(TerrainFields,"Recovery while resting",k.RecoveryText);
+        AddPair(TerrainFields,"Flyers can stop here",k.FlyersCannotStop?"No, they can only pass over":"Yes");
+        AddSection(TerrainFields,"Cost to cross");
+        foreach(var m in movementRows) AddPair(TerrainFields,m.Type.Name,m.Type.Cost(k.Id));
+        AddChangeList(TerrainFields,ch=>ch.Id==k.Id && ch.Table==EditSession.TerrainKinds,()=>session!.Revert(EditSession.TerrainKinds,k.Id));
+        UpdateEditButtons();
+    }
+    private void BeginTerrainEdit(object sender,RoutedEventArgs e)
+    {
+        if(TerrainGrid.SelectedItem is not TerrainKindRow row)return;
+        OpenEditor(new(View.Terrain,row.Kind.Id,"Terrain",TerrainEditorPanel,TerrainFields,EditTerrainButton,
+        [
+            new("Effects",EditSession.TerrainKinds,TerrainKindData.Fields),
+        ],"Changes apply to every hex of this terrain on every map, for enemies too. A flying unit can only stop where its movement type can also enter."));
     }
     private void ApplyMovementList()
     {
@@ -778,13 +823,14 @@ public partial class MainWindow : Window
     }
     private void UpdateEditButtons()
     {
-        if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null || EditMovementButton is null)return;
+        if(EditItemButton is null || EditCharacterButton is null || EditClassButton is null || EditMovementButton is null || EditTerrainButton is null)return;
         bool can=session is not null && editing is null;
         NewItemButton.Visibility=session is not null?Visibility.Visible:Visibility.Collapsed;NewItemButton.IsEnabled=can && loading is null;
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
         EditMovementButton.Visibility=can && MovementGrid.SelectedItem is MovementRow?Visibility.Visible:Visibility.Collapsed;
+        EditTerrainButton.Visibility=can && TerrainGrid.SelectedItem is TerrainKindRow?Visibility.Visible:Visibility.Collapsed;
     }
     private void BuildMechanics()
     {
@@ -824,7 +870,7 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, _=>View.Rules };UpdatePage();
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, _=>View.Rules };UpdatePage();
                         };
                         links.Children.Add(b);
                     }
@@ -877,8 +923,10 @@ public partial class MainWindow : Window
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
                 Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Each rule here was checked in a running game before being offered."}};
         RulesList.Children.Add(intro);
+        var shownGroups=new HashSet<string>();
         foreach(var rule in GameRules.All.Where(r=>r.Confirmed))
         {
+            if(rule.Group.Length>0){if(shownGroups.Add(rule.Group))BuildRuleGroup(rule.Group);continue;}
             var card=new StackPanel();
             var border=new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card};
             RulesList.Children.Add(border);
@@ -973,6 +1021,60 @@ public partial class MainWindow : Window
             }
         }
     }
+    private void BuildRuleGroup(string group)
+    {
+        var rules=GameRules.All.Where(r=>r.Confirmed && r.Group==group).ToList();
+        var card=new StackPanel();
+        RulesList.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card});
+        card.Children.Add(new TextBlock {Text=group,FontSize=17,FontWeight=FontWeights.SemiBold});
+        card.Children.Add(new TextBlock {Text=GameRules.GroupDescriptions.TryGetValue(group,out var d)?d:"",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
+        if(session is null || rules.Any(r=>!session.IsRuleAvailable(r.Id)))
+        {
+            card.Children.Add(new TextBlock {Text="Not available for this disc: its game program has different code at this point, so these values are left alone.",TextWrapping=TextWrapping.Wrap,FontSize=13,Foreground=Brushes.DarkGoldenrod});
+            return;
+        }
+        var wrap=new WrapPanel();card.Children.Add(wrap);
+        var boxes=new List<(GameRule Rule,TextBox Box,int Current)>();
+        foreach(var r in rules)
+        {
+            int current=session.Value(EditSession.Rules,r.Id,r.Key);
+            var cell=new StackPanel {Width=118,Margin=new Thickness(0,0,10,12)};
+            cell.Children.Add(new TextBlock {Text=r.Short,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
+            var box=new TextBox {Width=70,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};
+            System.Windows.Automation.AutomationProperties.SetName(box,r.Name);
+            cell.Children.Add(box);
+            cell.Children.Add(new TextBlock {Text=current==r.Default?"Game value":$"Game value {r.Default}",FontSize=11,Foreground=current==r.Default?(Brush)FindResource("Muted"):(Brush)FindResource("Accent"),Margin=new Thickness(0,3,0,0)});
+            wrap.Children.Add(cell);boxes.Add((r,box,current));
+        }
+        var error=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),FontSize=12,Margin=new Thickness(0,4,0,0),TextWrapping=TextWrapping.Wrap};
+        void ApplyGroup()
+        {
+            if(loading is not null)return;
+            var edits=new List<FieldEdit>();
+            foreach(var (r,box,current) in boxes)
+            {
+                if(!int.TryParse(box.Text.Trim(),out int n) || n<r.Min || n>r.Max){error.Text=$"{r.Short}: enter a whole number from {r.Min} to {r.Max}.";box.Focus();return;}
+                if(n!=current) edits.Add(new(EditSession.Rules,r.Id,r.Key,n));
+            }
+            error.Text="";
+            if(edits.Count==0)return;
+            try{if(session.Apply(edits)){RefreshDocument();Status.Text=$"{group} updated. Save the project to keep this change.";}}
+            catch(EditException ex){error.Text=ex.Message;}
+        }
+        foreach(var (_,box,_) in boxes) box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyGroup();e.Handled=true;}};
+        var buttons=new StackPanel {Orientation=Orientation.Horizontal};
+        var apply=new Button {Content="Apply",Style=(Style)FindResource("SmallButton")};apply.Click+=(_,_)=>ApplyGroup();
+        buttons.Children.Add(apply);
+        var edited=rules.Where(r=>session.IsEdited(EditSession.Rules,r.Id)).ToList();
+        if(edited.Count>0)
+        {
+            var restore=new Button {Content="Restore original",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(8,0,0,0)};
+            restore.Click+=(_,_)=>{if(loading is not null)return;session.Revert(edited.Select(r=>(EditSession.Rules,r.Id)).ToArray());RefreshDocument();Status.Text=$"{group} restored. Save the project to keep this change.";};
+            buttons.Children.Add(restore);
+            buttons.Children.Add(new TextBlock {Text=edited.Count==1?"1 value changed in this project":$"{edited.Count} values changed in this project",Foreground=(Brush)FindResource("Accent"),FontSize=13,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(12,0,0,0)});
+        }
+        card.Children.Add(buttons);card.Children.Add(error);
+    }
     private void AddChangeList(Panel panel,Func<FieldChange,bool> belongs,Action restore)
     {
         if(session is null)return;
@@ -1012,7 +1114,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
@@ -1031,6 +1133,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
+            ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade and durability pool. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),

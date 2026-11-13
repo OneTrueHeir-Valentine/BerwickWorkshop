@@ -23,6 +23,8 @@ public static class Exporter
             EditSession.Growths => [p.GrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength, p.SecondGrowthTable + (id - 1) * (long)CharacterDecoder.GrowthLength],
             EditSession.Classes => [p.ClassTable + (id - 1) * (long)ClassDecoder.RecordLength, p.SecondClassTable + (id - 1) * (long)ClassDecoder.RecordLength],
             EditSession.Terrain => [p.TerrainTable + TerrainData.HeaderLength + id * (long)TerrainData.RowLength, p.SecondTerrainTable + TerrainData.HeaderLength + id * (long)TerrainData.RowLength],
+            EditSession.TerrainKinds => [p.TerrainTable + TerrainKindData.OffsetFromCosts + TerrainKindData.HeaderLength + id * (long)TerrainKindData.RowLength,
+                p.SecondTerrainTable + TerrainKindData.OffsetFromCosts + TerrainKindData.HeaderLength + id * (long)TerrainKindData.RowLength],
             EditSession.Rules => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };

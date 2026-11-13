@@ -29,6 +29,7 @@ public static class FieldCodec
     public static int Read(ReadOnlySpan<byte> record, TableField field)
     {
         int raw = ItemDecoder.Bits(record, field.Offset, field.Bit, field.Width);
+        if (field.Width == 32) return raw;
         return field.Signed && raw >= 1 << (field.Width - 1) ? raw - (1 << field.Width) : raw;
     }
 
@@ -37,10 +38,10 @@ public static class FieldCodec
         if (value < field.Min || value > field.Max) throw new EditException(RangeError(field));
         int bytes = (field.Bit + field.Width + 7) / 8;
         if (field.Offset + bytes > record.Length) throw new InvalidDataException("A record is incomplete.");
-        uint current = 0;
-        for (int n = 0; n < bytes; n++) current |= (uint)record[field.Offset + n] << (8 * n);
-        uint mask = ((1u << field.Width) - 1) << field.Bit;
-        current = (current & ~mask) | ((uint)value << field.Bit & mask);
+        ulong current = 0;
+        for (int n = 0; n < bytes; n++) current |= (ulong)record[field.Offset + n] << (8 * n);
+        ulong mask = ((1UL << field.Width) - 1) << field.Bit;
+        current = (current & ~mask) | ((ulong)(uint)value << field.Bit & mask);
         for (int n = 0; n < bytes; n++) record[field.Offset + n] = (byte)(current >> (8 * n));
     }
 
@@ -221,8 +222,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", Rules = "rules";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Terrain, Rules];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Classes, Terrain, TerrainKinds, Rules];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
@@ -265,6 +266,7 @@ public sealed class EditSession
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
             [Classes] = new(Classes, "class", ClassFields.Fields, disc.ClassBytes),
             [Terrain] = new(Terrain, "movement type", TerrainData.Fields, disc.TerrainBytes),
+            [TerrainKinds] = new(TerrainKinds, "terrain", TerrainKindData.Fields, disc.TerrainKindBytes),
             [Rules] = new(Rules, "rule", GameRules.All.Select(r => r.Field).ToList(), disc.RuleWords),
         };
     }
@@ -357,6 +359,8 @@ public sealed class EditSession
     public IReadOnlyList<ClassRecord> EditedClasses() => disc.Classes.Select(c => EditedClass(c.Id)).ToList();
 
     public MovementTypeRecord EditedMovementType(int id) => TerrainData.Decode(id, EditedBytes(Terrain, id));
+    public TerrainKindRecord EditedTerrainKind(int id) => TerrainKindData.Decode(id, EditedBytes(TerrainKinds, id));
+    public IReadOnlyList<TerrainKindRecord> EditedTerrainKinds() => disc.TerrainKinds.Select(k => EditedTerrainKind(k.Id)).ToList();
     public IReadOnlyList<MovementTypeRecord> EditedMovementTypes() => disc.MovementTypes.Select(m => EditedMovementType(m.Id)).ToList();
 
     // State capture for undo
@@ -492,6 +496,7 @@ public sealed class EditSession
         Characters or Growths => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
         Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,
+        TerrainKinds => id < TerrainData.Terrains ? TerrainData.TerrainLabel(id) : null,
         Rules => GameRules.All.FirstOrDefault(r => r.Id == id)?.Name,
         _ => null,
     };

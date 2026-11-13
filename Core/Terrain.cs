@@ -9,6 +9,37 @@ public sealed record MovementTypeRecord(int Id, string Name, int Mount, IReadOnl
     public string Cost(int terrain) => TerrainData.Format(Costs[terrain]);
 }
 
+/// <summary>One terrain kind's effects: avoid bonus, recovery while resting and flags. Shares its number with the cost table's terrain kinds.</summary>
+public sealed record TerrainKindRecord(int Id, int Avoid, int Recovery, int Flags)
+{
+    public string Name => TerrainData.TerrainLabel(Id);
+    public bool FlyersCannotStop => (Flags & TerrainKindData.FlyersCannotStopFlag) != 0;
+    public string FlyersText => FlyersCannotStop ? "Pass over only" : "Yes";
+    public string RecoveryText => Recovery == 0 ? "None" : Recovery > 0 ? $"+{Recovery}%" : $"{Recovery}%";
+}
+
+/// <summary>The terrain effect table: right after the cost table in DATA3.DAT, in both copies. A count (64), then 24 bytes per terrain kind.</summary>
+public static class TerrainKindData
+{
+    public const int OffsetFromCosts = 0x420, HeaderLength = 4, RowLength = 24, FlyersCannotStopFlag = 0x40;
+    public const int TableLength = HeaderLength + TerrainData.Terrains * RowLength;
+
+    public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(new TableField[]
+    {
+        new("avoid", "Avoid bonus", 0, 0, 32, -99, 99) { Signed = true },
+        new("recovery", "Recovery while resting (%)", 0x10, 0, 32, -100, 100) { Signed = true },
+        new("flyersCannotStop", "Flyers cannot stop here", 0x14, 6, 1, 0, 1),
+    });
+
+    public static TerrainKindRecord Decode(int id, ReadOnlySpan<byte> row)
+    {
+        if (row.Length < RowLength) throw new InvalidDataException("A terrain record is incomplete.");
+        return new(id, BitConverter.ToInt32(row[..4]), BitConverter.ToInt32(row[0x10..0x14]), BitConverter.ToInt32(row[0x14..0x18]));
+    }
+
+    public static bool HeaderValid(ReadOnlySpan<byte> table) => table.Length >= TableLength && BitConverter.ToInt32(table[..4]) == TerrainData.Terrains;
+}
+
 public static class TerrainData
 {
     public const int Terrains = 64, Types = 14, HeaderLength = 8, RowLength = 68, CostOffset = 4, Blocked = 255;

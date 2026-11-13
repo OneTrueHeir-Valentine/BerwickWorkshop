@@ -159,12 +159,12 @@ Everything found so far and whether a user can change it. Editable means offered
 | New items | 156 free placeholder slots | yes (copy of an item, custom name in the project) |
 | Characters | class, level, stat bonuses, weapon levels, personal skills, five starting items, growths, bracket, weapon growth | yes; learned skills and supports not yet |
 | Classes | bases, Move, experience value, weapon caps, class skills, movement type, shield sizes | yes; class growths and mount state not yet (mount state follows the movement type) |
-| Terrain | 14 movement types by 64 terrain kinds, costs in tenths | yes; terrain avoid bonuses not located |
+| Terrain | 14 movement types by 64 terrain kinds, costs in tenths; per terrain avoid, recovery while resting, flags | costs yes; avoid, recovery and flyer stop flag yes (v0.18.0); other flags not mapped |
 | Damage | attack − defense − block reduction; critical bonus | critical bonus range (rule); the formula itself is fixed |
 | Shields | block chance, block roll, Might reduction, guard on failure, training | Shield block, Shield guard, Shield training speed, Training from failed attempts |
 | Parry | Parry skill roll | Parry rule |
 | Weapon training | step, cutoff at level 20, growth chance | Weapon training speed, Training from failed attempts |
-| Experience | gain after a fight | fixed amount or normal (rule); formula itself not yet |
+| Experience | defeat formula: class experience + level difference table, skill +20%, cap 100; staff formula | level difference table and cap editable (v0.18.0); staff values decoded, not tested |
 | Stat limits | HP, Strength, Agility, Luck, Defense, Mind | six limit rules; level 30 cap not yet (three linked values) |
 | Knives | ignore Defense and shields (program reading) | not yet (needs a knife user to test) |
 | Hit, avoid, critical rate | published formulas | not located |

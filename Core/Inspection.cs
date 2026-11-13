@@ -43,6 +43,9 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyList<MovementTypeRecord> MovementTypes { get; init; } = [];
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> TerrainBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public bool TerrainCopiesMatch { get; init; } = true;
+    public IReadOnlyList<TerrainKindRecord> TerrainKinds { get; init; } = [];
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> TerrainKindBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public bool TerrainKindCopiesMatch { get; init; } = true;
     public IReadOnlyDictionary<int, int> CharacterOffsets { get; init; } = new Dictionary<int, int>();
     /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
@@ -112,6 +115,7 @@ public static class Inspector
         var unitBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var growthBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
         var classBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var characterOffsets=new Dictionary<int,int>();
         var terrainBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var movementTypes=new List<MovementTypeRecord>();bool terrainCopiesMatch=true;
+        var terrainKindBytes=new Dictionary<int,ReadOnlyMemory<byte>>();var terrainKinds=new List<TerrainKindRecord>();bool terrainKindCopiesMatch=true;
         if (profile is not null)
         {
             var data=iso.Entries.Single(e=>e.Name.Equals("DATA3.DAT",StringComparison.OrdinalIgnoreCase));
@@ -144,6 +148,16 @@ public static class Inspector
                     var row=terrain.AsSpan(TerrainData.HeaderLength+t*TerrainData.RowLength,TerrainData.RowLength).ToArray();
                     terrainBytes[t]=row;movementTypes.Add(TerrainData.Decode(t,row));
                 }
+                var kinds=iso.ReadRange(data.Offset+profile.TerrainTable+TerrainKindData.OffsetFromCosts,TerrainKindData.TableLength,64*1024);
+                if(TerrainKindData.HeaderValid(kinds))
+                {
+                    terrainKindCopiesMatch=kinds.AsSpan().SequenceEqual(iso.ReadRange(data.Offset+profile.SecondTerrainTable+TerrainKindData.OffsetFromCosts,TerrainKindData.TableLength,64*1024));
+                    for(int t=0;t<TerrainData.Terrains;t++)
+                    {
+                        var row=kinds.AsSpan(TerrainKindData.HeaderLength+t*TerrainKindData.RowLength,TerrainKindData.RowLength).ToArray();
+                        terrainKindBytes[t]=row;terrainKinds.Add(TerrainKindData.Decode(t,row));
+                    }
+                }
             }
             var classNames=classes.ToDictionary(c=>c.Id,c=>c.Name);
             var itemNames=items.ToDictionary(i=>i.Id,i=>i.DisplayName);
@@ -163,6 +177,6 @@ public static class Inspector
                 if(rule.Decode(GameRules.WordsAt(exe,rule)) is int setting) ruleWords[rule.Id]=rule.EncodeBytes(setting);
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
     }
 }

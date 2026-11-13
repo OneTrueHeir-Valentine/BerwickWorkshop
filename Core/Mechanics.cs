@@ -20,7 +20,7 @@ public sealed record Mechanic(string Section, string Name, string Formula, strin
 public static class Mechanics
 {
     private const string Wiki = "EmblemWiki, Berwick Saga Calculations";
-    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", Rules = "rules";
+    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", Rules = "rules";
 
     public static IReadOnlyList<Mechanic> All { get; } = Array.AsReadOnly(new Mechanic[]
     {
@@ -56,8 +56,8 @@ public static class Mechanics
             "Not located in the game program yet."),
         new("Hit and avoid", "Avoid", "Attack speed × 2 + terrain bonus (terrain counts twice at range 2 or more)",
             "Agility is the main source of avoid, which makes it the stat that most changes how often a unit is hit.",
-            MechanicStatus.Published, Wiki, [new("Agility bonus", Characters), new("Class Agility", Classes)],
-            "Not located in the game program yet."),
+            MechanicStatus.Published, Wiki, [new("Agility bonus", Characters), new("Class Agility", Classes), new("Terrain avoid", TerrainPage)],
+            "The terrain bonus comes from the terrain table and can be edited on the Terrain page (checked in a running game). The rest of the formula is not located in the game program yet."),
         new("Hit and avoid", "Hit rate", "Accuracy minus the target's avoid",
             "Against units with a matching Bane skill or Miracle, hit chances are reduced on a curve rather than by a flat amount.",
             MechanicStatus.Published, Wiki, [], "Not located in the game program yet."),
@@ -112,9 +112,12 @@ public static class Mechanics
              new("Luck limit", Rules, 6), new("Defense bonus limit", Rules, 7), new("Mind bonus limit", Rules, 8)]),
 
         // Experience
-        new("Experience", "Experience from a defeat", "Enemy class experience value + a modifier",
-            "The class experience value is part of each class record and is editable.",
-            MechanicStatus.Published, Wiki, [new("Class experience value", Classes)], "The modifier is not located yet."),
+        new("Experience", "Experience from a defeat", "Enemy class experience value + level difference bonus (-40 at 8 or more levels below up to +15 at 7 or more above), +20% with the experience skill, then kept between 0 and 100",
+            "Only defeating an enemy gives battle experience. The level difference bonus, the highest amount and the class experience values are all editable.",
+            MechanicStatus.Confirmed, "Program reading (0x00174050, table at 0x00429F10), checked in a running game", [new("Class experience value", Classes), new("Experience formula", Rules, 20)]),
+        new("Experience", "Experience from a staff", "Staff level + 6 + random 0 to 3 - unit level ÷ 5, at least 0, then the skill bonus",
+            "A higher level healer gains less from the same staff.",
+            MechanicStatus.Located, "Program reading (0x00224340)", [], "Needs a test in game before it can be offered."),
         new("Experience", "Experience after a fight", "Added to the unit after each fight, at most up to the next level (100)",
             "The Experience after a fight rule can replace the game's amount with a fixed one.",
             MechanicStatus.Confirmed, "Program reading, checked in game", [new("Experience after a fight rule", Rules, 2)]),

@@ -15,6 +15,16 @@ public sealed record ClassRow(ClassRecord Class, IReadOnlyList<ItemDifference> D
     public string EditedText => Edited ? "Edited" : "";
 }
 
+public sealed record TerrainKindRow(TerrainKindRecord Kind)
+{
+    public string Name => Kind.Name;
+    public int Avoid => Kind.Avoid;
+    public string Recovery => Kind.RecoveryText;
+    public string Flyers => Kind.FlyersText;
+    public bool Edited { get; init; }
+    public string EditedText => Edited ? "Edited" : "";
+}
+
 public sealed record MovementRow(MovementTypeRecord Type, IReadOnlyList<string> Classes)
 {
     public int ClassCount => Classes.Count;
