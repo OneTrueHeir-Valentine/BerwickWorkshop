@@ -213,13 +213,13 @@ public static class GameRules
         ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Steal"] = "In the game, Steal, Robbery and Mug II share one count per map: 3 steals, or 2 for a unit with Mug II, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
         ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Steal"] = "In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Evasion"] = "In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move.",
@@ -447,6 +447,8 @@ public static class GameRules
         Wait(92, "flourishWait", "Flourish", 0x001C363C, 3),
         WordSets(93, "swimmerMounted", "Swimmer while mounted", "Swimmer", "Works when", 0, ["Mounted or on foot", "On foot only"],
             Enumerable.Range(0, SwimmerGame.Length).Select(i => 0x001BA950u + (uint)i * 4).ToArray(), [SwimmerGame, SwimmerOnFoot]),
+        // Each steal lowers the shared count with addiu v1,v1,-1; adding 0 keeps it.
+        WordSets(94, "stealLimit", "Steal limit", "Steal", "Steals per map", 0, ["Limited", "No limit"], [0x001DF1BCu], [[0x246300FFu], [0x24630000u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
