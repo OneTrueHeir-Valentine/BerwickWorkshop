@@ -118,6 +118,12 @@ public static class Mechanics
         new("Skills", "Bane skills", "Attacker's hit rate, at most 33%",
             "Spearbane, Swordbane, Axebane, Arrowbane and Magicbane each answer one kind of weapon, so a defender facing an accurate attacker gets the full 33%.",
             MechanicStatus.Confirmed, "Program reading (0x0022753C to 0x002277C0), checked in a running game", [new("Bane skill chances", SkillsPage, 42)]),
+        new("Skills", "Pursuit", "An extra attack when attack speed beats the enemy's by 5 or more",
+            "Without Pursuit a unit never attacks twice in one fight.",
+            MechanicStatus.Confirmed, "Program reading (0x00225450), checked in a running game", [new("Pursuit speed lead", SkillsPage, 47)]),
+        new("Skills", "Shieldfaire and Paragon", "Shieldfaire: block chance + 18. Paragon: experience + 20%",
+            "Both are plain bonuses on top of the normal formula.",
+            MechanicStatus.Confirmed, "Program reading (0x00177E44, 0x00173DAC), checked in a running game", [new("Shieldfaire block bonus", SkillsPage, 48), new("Paragon experience bonus", SkillsPage, 49)]),
         // Experience
         new("Experience", "Experience from a defeat", "Enemy class experience value + level difference bonus (-40 at 8 or more levels below up to +15 at 7 or more above), +20% with the experience skill, then kept between 0 and 100",
             "Only defeating an enemy gives battle experience. The level difference bonus, the highest amount and the class experience values are all editable.",

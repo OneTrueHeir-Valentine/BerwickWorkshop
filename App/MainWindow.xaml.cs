@@ -1041,16 +1041,18 @@ public partial class MainWindow : Window
             return;
         }
         var wrap=new WrapPanel();card.Children.Add(wrap);
-        var boxes=new List<(GameRule Rule,TextBox Box,int Current)>();
+        var boxes=new List<(GameRule Rule,Control Box,int Current)>();
         foreach(var r in rules)
         {
             int current=session.Value(EditSession.Rules,r.Id,r.Key);
             var cell=new StackPanel {Width=118,Margin=new Thickness(0,0,10,12)};
             cell.Children.Add(new TextBlock {Text=r.Short,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
-            var box=new TextBox {Width=70,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};
+            Control box=r.Choices is { } choices
+                ?new ComboBox {Width=110,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(8,4,8,4),ItemsSource=choices,SelectedIndex=current-r.Min}
+                :new TextBox {Width=70,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};
             System.Windows.Automation.AutomationProperties.SetName(box,r.Name);
             cell.Children.Add(box);
-            cell.Children.Add(new TextBlock {Text=current==r.Default?"Game value":$"Game value {r.Default}",FontSize=11,Foreground=current==r.Default?(Brush)FindResource("Muted"):(Brush)FindResource("Accent"),Margin=new Thickness(0,3,0,0)});
+            cell.Children.Add(new TextBlock {Text=current==r.Default?"Game value":$"Game value {(r.Choices is null?r.Default.ToString():r.Describe(r.Default))}",FontSize=11,Foreground=current==r.Default?(Brush)FindResource("Muted"):(Brush)FindResource("Accent"),Margin=new Thickness(0,3,0,0)});
             wrap.Children.Add(cell);boxes.Add((r,box,current));
         }
         var error=new TextBlock {Foreground=new SolidColorBrush(Color.FromRgb(154,59,46)),FontSize=12,Margin=new Thickness(0,4,0,0),TextWrapping=TextWrapping.Wrap};
@@ -1060,7 +1062,9 @@ public partial class MainWindow : Window
             var edits=new List<FieldEdit>();
             foreach(var (r,box,current) in boxes)
             {
-                if(!int.TryParse(box.Text.Trim(),out int n) || n<r.Min || n>r.Max){error.Text=$"{r.Short}: enter a whole number from {r.Min} to {r.Max}.";box.Focus();return;}
+                int n;
+                if(box is ComboBox combo) n=combo.SelectedIndex+r.Min;
+                else if(!int.TryParse(((TextBox)box).Text.Trim(),out n) || n<r.Min || n>r.Max){error.Text=$"{r.Short}: enter a whole number from {r.Min} to {r.Max}.";box.Focus();return;}
                 if(n!=current) edits.Add(new(EditSession.Rules,r.Id,r.Key,n));
             }
             error.Text="";
@@ -1068,7 +1072,7 @@ public partial class MainWindow : Window
             try{if(session.Apply(edits)){RefreshDocument();Status.Text=$"{group} updated. Save the project to keep this change.";}}
             catch(EditException ex){error.Text=ex.Message;}
         }
-        foreach(var (_,box,_) in boxes) box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyGroup();e.Handled=true;}};
+        foreach(var (_,box,_) in boxes.Where(b=>b.Box is TextBox)) box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyGroup();e.Handled=true;}};
         var buttons=new StackPanel {Orientation=Orientation.Horizontal};
         var apply=new Button {Content="Apply",Style=(Style)FindResource("SmallButton")};apply.Click+=(_,_)=>ApplyGroup();
         buttons.Children.Add(apply);
@@ -1140,7 +1144,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
-            ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance) and the five bane skills (the attacker's hit rate, up to a highest chance). Who has a skill is set on the Characters and Classes pages."),
+            ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Pursuit (the attack speed lead it needs), Shieldfaire (its block bonus) and Paragon (its experience bonus). Who has a skill is set on the Characters and Classes pages."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),

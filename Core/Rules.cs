@@ -207,6 +207,9 @@ public static class GameRules
         ["Axebane"] = BaneText("an axe"),
         ["Arrowbane"] = BaneText("a bow"),
         ["Magicbane"] = BaneText("magic"),
+        ["Pursuit"] = "A unit with Pursuit attacks again when its attack speed beats the enemy's by at least the speed lead. The game's lead is 5. At 0, an equal attack speed is enough.",
+        ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus, and 10 more in some cases. The game's bonus is 18.",
+        ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
 
@@ -214,6 +217,17 @@ public static class GameRules
         $"When an enemy attacks the unit with {weapon}, the skill activates at a chance equal to the attacker's hit rate, but never above the highest chance. The game's highest chance is 33.";
 
     public const string SkillsSection = "Skills";
+
+    // Paragon adds amount x M >> (32 + shift): lui and ori build M, sra holds the shift. M = 0x66666667 with shift 1 is a fifth.
+    private static readonly uint[][] ParagonWords =
+    [
+        [0x3C020000u, 0x34420000u, 0x00021043u],
+        [0x3C026666u, 0x34426667u, 0x00021083u],
+        [0x3C026666u, 0x34426667u, 0x00021043u],
+        [0x3C024000u, 0x34420000u, 0x00021003u],
+        [0x3C025555u, 0x34425556u, 0x00021003u],
+        [0x3C026666u, 0x34426667u, 0x00021003u],
+    ];
 
     private static GameRule SkillBase(int id, string key, string skill, uint address, uint prefix, int normal) =>
         new(id, key, $"{skill} base chance", "", RuleKind.Limit, 0, 100, normal, null,
@@ -296,6 +310,17 @@ public static class GameRules
         Bane(44, "axebaneCap", "Axebane", 0x00227734, 0x00227748),
         Bane(45, "arrowbaneCap", "Arrowbane", 0x00227550, 0x00227564),
         Bane(46, "magicbaneCap", "Magicbane", 0x002277D4, 0x002277E8),
+        new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
+            [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+            { Group = "Pursuit", Short = "Speed lead", Section = SkillsSection },
+        new GameRule(48, "shieldfaireBonus", "Shieldfaire block bonus", "", RuleKind.Limit, 0, 100, 18, null,
+            [new RuleSite(0x00177E58, s => 0x26100000u | (uint)s, w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+            { Group = "Shieldfaire", Short = "Block bonus", Section = SkillsSection },
+        new GameRule(49, "paragonBonus", "Paragon experience bonus", "", RuleKind.Choice, 0, ParagonWords.Length - 1, 2, ["None", "10%", "20%", "25%", "33%", "40%"],
+            [new RuleSite(0x00173DC0, s => ParagonWords[s][0], w => null), new RuleSite(0x00173DC8, s => ParagonWords[s][1], w => null), new RuleSite(0x00173DDC, s => ParagonWords[s][2], w => null)],
+            confirmed: true, decode: words => Array.FindIndex(ParagonWords, p => p[0] == words[0] && p[1] == words[1] && p[2] == words[2]) is var i and >= 0 ? i : null)
+            { Group = "Paragon", Short = "Experience bonus", Section = SkillsSection },
         Limit(3, "hpLimit", "HP bonus limit", "The most HP a character can gain above the class base, through level ups and other gains.", 127, 50, 0x00174BD8, 0x001746A8),
         Limit(4, "strengthLimit", "Strength bonus limit", "The most Strength a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C34, 0x00174704),
         Limit(5, "agilityLimit", "Agility bonus limit", "The most Agility a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C4C, 0x0017471C),
