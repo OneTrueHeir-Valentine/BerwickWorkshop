@@ -680,7 +680,8 @@ foreach(var exportDisc in new[]{jp!,en!})
             s.Apply(new FieldEdit[]{new(EditSession.TerrainKinds,36,"flyersCannotStop",0),new(EditSession.TerrainKinds,51,"recovery",10),new(EditSession.TerrainKinds,0,"avoid",7),
                 new(EditSession.Rules,20,"expLevelGap0",-3),new(EditSession.Rules,36,"expHighest",60),new(EditSession.Rules,40,"iaidoBase",55),new(EditSession.Rules,44,"axebaneCap",70)});
             s.Apply(new FieldEdit[]{new(EditSession.Partners,0x54,"partner1Bond",400),new(EditSession.Partners,0x55,"partner2",0x58),new(EditSession.Partners,0x55,"partner2Bond",70),
-                new(EditSession.Bags,0x53,"bagItem2",0x1CD),new(EditSession.Bags,0x53,"bagItem2Uses",3)});
+                new(EditSession.Bags,0x53,"bagItem2",0x1CD),new(EditSession.Bags,0x53,"bagItem2Uses",3),
+                new(EditSession.Mercenaries,0x90,"mercenaryBase",2000),new(EditSession.Mercenaries,0x95,"mercenaryPerLevel",300)});
             Equal(11,disc.StablePriceBytes.Count);Equal(1000,s.Value(EditSession.StablePrices,0x205,"stablePrice"));
             s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000)});
             Throws<EditException>(()=>s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",0)}));
@@ -726,11 +727,13 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,back.BagBytes[0x53].Span.SequenceEqual(s.EditedBytes(EditSession.Bags,0x53)));
             Equal(0x1CD,reread.Value(EditSession.Bags,0x53,"bagItem2"));Equal(3,reread.Value(EditSession.Bags,0x53,"bagItem2Uses"));Equal(0x21,reread.Value(EditSession.Bags,0x53,"bagItem1"));
             Equal(true,back.BagBytes.Where(p=>p.Key!=0x53).All(p=>p.Value.Span.SequenceEqual(disc.BagBytes[p.Key].Span)));
+            Equal(2000,reread.Value(EditSession.Mercenaries,0x90,"mercenaryBase"));Equal(300,reread.Value(EditSession.Mercenaries,0x95,"mercenaryPerLevel"));
+            Equal(true,back.MercenaryBytes.Where(p=>p.Key is not (0x90 or 0x95)).All(p=>p.Value.Span.SequenceEqual(disc.MercenaryBytes[p.Key].Span)));
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(4+1+20+34+1+2+1+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4+1+20+34+1+2+1+2+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
@@ -851,6 +854,29 @@ foreach(var exportDisc in new[]{jp!,en!})
         Equal(true,jp!.PartnerBytes.Keys.Order().SequenceEqual(en!.PartnerBytes.Keys.Order()));
         Equal(true,jp.PartnerBytes.All(p=>p.Value.Span.SequenceEqual(en.PartnerBytes[p.Key].Span)));
         Equal(true,jp.BagBytes.All(p=>p.Value.Span.SequenceEqual(en.BagBytes[p.Key].Span)));
+    });
+    Test("Mercenary fees read from the program on both discs, and an edited program is still recognised",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(18,disc.MercenaryBytes.Count);
+            var s=new EditSession(disc);
+            Equal("200/150",$"{s.Value(EditSession.Mercenaries,0x90,"mercenaryBase")}/{s.Value(EditSession.Mercenaries,0x90,"mercenaryPerLevel")}");
+            Equal("1200/50",$"{s.Value(EditSession.Mercenaries,0x6F,"mercenaryBase")}/{s.Value(EditSession.Mercenaries,0x6F,"mercenaryPerLevel")}");
+            Equal("0/0",$"{s.Value(EditSession.Mercenaries,0x87,"mercenaryBase")}/{s.Value(EditSession.Mercenaries,0x87,"mercenaryPerLevel")}");
+            Equal(true,disc.MercenaryBytes.Keys.All(id=>disc.Characters.Any(c=>c.Id==id)));
+            Throws<EditException>(()=>s.Apply(EditSession.Mercenaries,0x90,new Dictionary<string,int>{["mercenaryBase"]=100000}));
+            s.Apply(EditSession.Mercenaries,0x90,new Dictionary<string,int>{["mercenaryBase"]=5000,["mercenaryPerLevel"]=0});
+            Equal(5000,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.Mercenaries,0x90,"mercenaryBase"));
+            var patches=Exporter.PatchesFor(s,disc);
+            Equal(true,patches.All(p=>p.Offset>=disc.ExecutableFile!.Offset && p.Offset<disc.ExecutableFile.Offset+disc.ExecutableFile.Length));
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
+            var edited=exe.ToArray();
+            foreach(var p in patches) p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
+            Equal(false,edited.AsSpan().SequenceEqual(exe));
+            Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
+            Equal(5000,BinaryPrimitives.ReadInt32LittleEndian(MercenaryData.Read(edited).Single(r=>r.Id==0x90).Bytes.AsSpan(8)));
+        }
     });
     Test("Randomized starting items keep their type, level limit and restricted items, and repeat with the same seed",()=>{
         foreach(var disc in new[]{jp!,en!})

@@ -444,6 +444,14 @@ public partial class MainWindow : Window
             }
             if(!any)Text("None");
         }
+        if(primary?.MercenaryBytes.ContainsKey(c.Id)==true)
+        {
+            Section("Mercenary fee");
+            int baseFee=CharacterValue(EditSession.Mercenaries,c.Id,"mercenaryBase"),perLevel=CharacterValue(EditSession.Mercenaries,c.Id,"mercenaryPerLevel");
+            Pair("Base fee",baseFee.ToString("N0"));Pair("Fee per level",perLevel.ToString("N0"));
+            if(baseFee==0 && perLevel==0)Text("The game picks a random fee.");
+            else Pair($"At level {c.Level}",MercenaryData.Fee(baseFee,perLevel,c.Level).ToString("N0"));
+        }
         AddChangeList(CharacterFields,ch=>ch.Id==c.Id && CharacterTables.Contains(ch.Table),()=>session!.Revert(CharacterTables.Where(t=>session.IsEdited(t,c.Id)).Select(t=>(t,c.Id)).ToArray()));
         CharacterComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This character's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
@@ -566,13 +574,17 @@ public partial class MainWindow : Window
         grid.Children.Add(new TextBlock {Text=label,Foreground=(Brush)FindResource("Muted"),FontSize=13,TextWrapping=TextWrapping.Wrap});
         var v=new TextBlock {Text=value,FontWeight=FontWeights.SemiBold,Margin=new Thickness(12,0,0,0)};Grid.SetColumn(v,1);grid.Children.Add(v);panel.Children.Add(grid);
     }
-    private static readonly string[] CharacterTables=[EditSession.Characters,EditSession.Growths,EditSession.Partners,EditSession.Bags];
+    private static readonly string[] CharacterTables=[EditSession.Characters,EditSession.Growths,EditSession.Partners,EditSession.Bags,EditSession.Mercenaries];
     private int CharacterValue(string table,int id,string key)
     {
         if(session is not null)return session.Value(table,id,key);
-        bool partners=table==EditSession.Partners;
-        var bytes=(partners?primary!.PartnerBytes:primary!.BagBytes)[id].Span;
-        return FieldCodec.Read(bytes,(partners?PartnerData.Fields:BagData.Fields).First(f=>f.Key==key));
+        var (records,fields)=table switch
+        {
+            EditSession.Partners=>(primary!.PartnerBytes,PartnerData.Fields),
+            EditSession.Mercenaries=>(primary!.MercenaryBytes,MercenaryData.Fields),
+            _=>(primary!.BagBytes,BagData.Fields),
+        };
+        return FieldCodec.Read(records[id].Span,fields.First(f=>f.Key==key));
     }
     private void Section(string title)=>CharacterFields.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
     private void Text(string text)=>CharacterFields.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
@@ -853,6 +865,7 @@ public partial class MainWindow : Window
             new("Starting items",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Starting items").ToList()),
             new("Bag contents",EditSession.Bags,session?.Disc.BagBytes.TryGetValue(row.Character.Id,out var bag)==true?BagData.EditableFor(BagData.Count(bag.Span)):[]),
             new("Partners",EditSession.Partners,session?.Disc.PartnerBytes.ContainsKey(row.Character.Id)==true?PartnerData.Editable:[]),
+            new("Mercenary fee",EditSession.Mercenaries,session?.Disc.MercenaryBytes.ContainsKey(row.Character.Id)==true?MercenaryData.Fields:[]),
         ],"Changing a character's class changes their base stats, movement and allowed weapons to the new class's. Weapon levels above the new class's caps stay as they are."));
     }
     private void BeginClassEdit(object sender,RoutedEventArgs e)
@@ -1318,14 +1331,14 @@ public partial class MainWindow : Window
         foreach(var (title,text) in new[]{
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
-            ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, and partners with their bond. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
+            ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents and partners. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),

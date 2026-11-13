@@ -491,6 +491,7 @@ public static class GameRules
                 for (int i = 0; i < rule.Sites.Count; i++)
                     BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan((int)rule.Sites[i].FileOffset), original[i]);
             }
+        MercenaryData.Restore(copy);
         return copy;
     }
 }

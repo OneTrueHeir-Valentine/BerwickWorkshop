@@ -94,6 +94,10 @@ public static class Mechanics
             MechanicStatus.Published, Wiki, [new("Weapon level requirement", Items), new("Character level", Characters)],
             "Not located in the game program yet."),
 
+        new("Prices", "Mercenary fee", "Base fee + level × fee per level (Volo 200 + 150 per level, Faramir 1,200 + 50 per level)",
+            "Eighteen characters can be hired as mercenaries. When both values are 0 the game picks a random fee instead (Saphira). In some cases the game charges half, or returns 70%.",
+            MechanicStatus.Located, "Program reading (fee table at 0x0042D450, fee 0x00170480)", [new("Mercenary fee", Characters)]),
+
         // Partners
         new("Partners", "Partner bonus", "For each partner within 2 spaces: hit + bond ÷ 10; critical + (total of those amounts) ÷ 5",
             "Sixteen characters have up to four partners, each with a bond value (Ward and Reese 40, Lynette and Reese 100). The partner has to be on the map and able to act. The game reloads each character's partners from this table whenever units are loaded, so edits also reach existing saves.",

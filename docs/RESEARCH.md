@@ -130,6 +130,11 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - Script variables 0x170 to 0x17F read partner slot state (enabled, ID, bond, flag bits 1 and 2); 0x170 to 0x173 toggle flag 0x10.
 - Command 0x14D (`0x00269C20`) weights 2000/1500/1200/1000/500 are a unit sort order, not fees.
 
+### Mercenary fees and script command names (2026-11-13)
+
+- Top archive 16 in DATA3 is a leftover developer memory dump (ELF core, `MWDump.Memory`). It holds the script command names in registration order: `PredefinedEmpty` is command 0, `PredefinedLiteral` 1, `PredefinedAssign` 4, and so on, matching the decoded format (0x1D7 is `GetItemPrice`, as traced earlier). The full list is kept with the research files, not in the product.
+- Mercenaries: command 0x1C0 `GUnitCalcMercenaryCost` calls `0x00170480`, which looks the unit up in an 18-row table at `0x0042D450` (24 bytes per row: character ID, flags, base fee u32 at +8, fee per level s16 at +12, then values at +14 and +16 and a hash word). Fee = base + (level & 0x3F) x per level; when that is 0 and unit byte +0x46 is set, that byte x 100 (Saphira has 0 and 0); halved when the script asks for it or a unit flag is set. `0x00171DD0` returns 70 % of the fee and `0x0017E360` the plain fee. Identical in both editions.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.
