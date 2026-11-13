@@ -209,8 +209,32 @@ public static class GameRules
         ["Magicbane"] = BaneText("magic"),
         ["Pursuit"] = "A unit with Pursuit attacks again when its attack speed beats the enemy's by at least the speed lead. The game's lead is 5. At 0, an equal attack speed is enough.",
         ["Parry"] = "A unit with the Parry skill parries at a chance of the unit's weapon level plus this bonus, halved: (weapon level + bonus) ÷ 2. The game's bonus is 10. Whether parrying happens at all is set by the Parry rule on the Rules page.",
-        ["Sunder"] = "When the unit attacks using Sunder, its critical chance rises by this bonus for that attack. The game's bonus is 25.",
-        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22.",
+        ["Sunder"] = "When the unit attacks using Sunder, its critical chance rises by this bonus for that attack. The game's bonus is 25. " + "In the game, Sunder can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Steal"] = "In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Evasion"] = "In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Mercy"] = "In the game, Mercy can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
@@ -220,6 +244,40 @@ public static class GameRules
         $"When an enemy attacks the unit with {weapon}, the skill activates at a chance equal to the attacker's hit rate, but never above the highest chance. The game's highest chance is 33.";
 
     public const string SkillsSection = "Skills";
+
+    /// <summary>An addiu v0,v1,N site: the equipment window's own copy of a skill bonus. Discs exported before this copy was known
+    /// keep the game's word here, so that word fits any setting.</summary>
+    private static RuleSite WindowCopy(uint address, int game, int min, int max) =>
+        new(address, s => 0x24620000u | (uint)(s & 0xFFFF),
+            w => (w & 0xFFFF0000u) != 0x24620000u ? null : (short)(w & 0xFFFF) is var v && v == game ? AnySetting : v >= min && v <= max ? v : null);
+
+    private static readonly string[] MoveChoices = ["Allowed", "Not allowed"];
+    private static readonly string[] WeaponMoveChoices = ["Allowed", "Not allowed", "Weapon decides"];
+
+    /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
+    private static GameRule MoveRule(int id, string key, string skill, int normal, string[] choices, uint[] addresses, uint[][] words) =>
+        new(id, key, $"{skill} after moving", "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
+            addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: true,
+            decode: found => Array.FindIndex(words, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
+        { Group = skill, Short = "After moving", Section = SkillsSection };
+
+    // The command menu tests action state bit 1 (the unit has moved) with an andi. Clearing the bit in the mask allows the command
+    // after a move; setting it blocks it.
+    private static GameRule MoveBlocked(int id, string key, string skill, uint address, uint word) =>
+        MoveRule(id, key, skill, 1, MoveChoices, [address], [[word & ~1u], [word]]);
+
+    private static GameRule MoveOpen(int id, string key, string skill, uint address, uint word) =>
+        MoveRule(id, key, skill, 0, MoveChoices, [address], [[word], [word | 1u]]);
+
+    // These commands check the action state mask first, then after a move ask whether the weapon allows it.
+    private static GameRule MoveWeapon(int id, string key, string skill, uint mask, params uint[] moved)
+    {
+        uint[] addresses = [mask, .. moved];
+        uint[] allowed = [0x30424282u, .. moved.Select(_ => 0x30420000u)];
+        uint[] blocked = [0x30424283u, .. moved.Select(_ => 0x30420001u)];
+        uint[] weapon = [0x30424282u, .. moved.Select(_ => 0x30420001u)];
+        return MoveRule(id, key, skill, 2, WeaponMoveChoices, addresses, [allowed, blocked, weapon]);
+    }
 
     /// <summary>An addiu v0,v0,N site holding a bonus.</summary>
     private static RuleSite AddV0(uint address, int min, int max) =>
@@ -329,9 +387,42 @@ public static class GameRules
             [new RuleSite(0x00177F50, s => 0x24430000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24430000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: true)
             { Group = "Parry", Short = "Bonus", Section = SkillsSection },
         new GameRule(53, "sunderCritical", "Sunder critical bonus", "", RuleKind.Limit, 0, 100, 25, null,
-            [AddV0(0x0022C0F4, 0, 100), AddV0(0x0022C100, 0, 100)], confirmed: true) { Group = "Sunder", Short = "Critical bonus", Section = SkillsSection },
+            [AddV0(0x0022C0F4, 0, 100), AddV0(0x0022C100, 0, 100), WindowCopy(0x00389CB0, 25, 0, 100)], confirmed: true) { Group = "Sunder", Short = "Critical bonus", Section = SkillsSection },
         new GameRule(54, "desperationHit", "Desperation hit bonus", "", RuleKind.Limit, 0, 100, 22, null,
-            [AddV0(0x0022C1A4, 0, 100)], confirmed: true) { Group = "Desperation", Short = "Hit bonus", Section = SkillsSection },
+            [AddV0(0x0022C1A4, 0, 100), WindowCopy(0x00389E70, 22, 0, 100)], confirmed: true) { Group = "Desperation", Short = "Hit bonus", Section = SkillsSection },
+        new GameRule(55, "aimHit", "Aim hit bonus", "", RuleKind.Limit, 0, 100, 33, null,
+            [AddV0(0x0022C0AC, 0, 100), AddV0(0x0022C0B8, 0, 100), WindowCopy(0x00389C88, 33, 0, 100)], confirmed: true) { Group = "Aim", Short = "Hit bonus", Section = SkillsSection },
+        new GameRule(56, "deadeyeHit", "Deadeye hit change", "", RuleKind.Limit, -100, 100, -15, null,
+            [AddV0(0x0022C0D4, -100, 100), WindowCopy(0x00389CD8, -15, -100, 100)], confirmed: true,
+            // -1 and -2 are real settings here, so the words are read directly.
+            decode: w => (w[0] & 0xFFFF0000u) == 0x24420000u && (w[1] & 0xFFFF0000u) == 0x24620000u && (short)(w[0] & 0xFFFF) is var v && v >= -100 && v <= 100
+                && ((short)(w[1] & 0xFFFF) == v || (short)(w[1] & 0xFFFF) == -15) ? v : null) { Group = "Deadeye", Short = "Hit change", Section = SkillsSection },
+        MoveBlocked(60, "aimAfterMoving", "Aim", 0x0038B740, 0x30420001u),
+        MoveBlocked(61, "deadeyeAfterMoving", "Deadeye", 0x0038BA18, 0x30420001u),
+        MoveBlocked(62, "sunderAfterMoving", "Sunder", 0x0038B9B4, 0x30420001u),
+        MoveWeapon(63, "desperationAfterMoving", "Desperation", 0x0038BDD0, 0x0038BDFC),
+        MoveBlocked(64, "pulverizeAfterMoving", "Pulverize", 0x0038B7F4, 0x30420001u),
+        MoveBlocked(65, "overwatchAfterMoving", "Overwatch", 0x0038B8C4, 0x30420001u),
+        MoveBlocked(66, "axeGuardAfterMoving", "Axe Guard", 0x0038B938, 0x30420001u),
+        MoveBlocked(67, "windsweepAfterMoving", "Windsweep", 0x0038BD44, 0x30420001u),
+        MoveBlocked(68, "battleCryAfterMoving", "Battle Cry", 0x0038C400, 0x30620001u),
+        MoveBlocked(69, "stealAfterMoving", "Steal", 0x0038C65C, 0x30420001u),
+        MoveBlocked(70, "provokeAfterMoving", "Provoke", 0x0038C1A8, 0x30624283u),
+        MoveBlocked(71, "evasionAfterMoving", "Evasion", 0x0038C280, 0x30624283u),
+        MoveBlocked(72, "silenceAfterMoving", "Silence", 0x0038C2E0, 0x30624283u),
+        MoveBlocked(73, "imbueAfterMoving", "Imbue", 0x0038C340, 0x30624283u),
+        MoveOpen(74, "doubleShotAfterMoving", "Double Shot", 0x0038BB98, 0x30424282u),
+        MoveOpen(75, "tripleShotAfterMoving", "Triple Shot", 0x0038BC58, 0x30424282u),
+        MoveOpen(76, "astraAfterMoving", "Astra", 0x0038BEB8, 0x30424282u),
+        MoveOpen(77, "focusChantAfterMoving", "Focus Chant", 0x0038BF78, 0x30424282u),
+        MoveOpen(78, "guardAfterMoving", "Guard", 0x0038C0C8, 0x30420002u),
+        MoveOpen(79, "searchAfterMoving", "Search", 0x0038C5B8, 0x30420282u),
+        MoveOpen(80, "returnAfterMoving", "Return", 0x0038C6A0, 0x30420282u),
+        MoveOpen(81, "convertAfterMoving", "Convert", 0x0038C6E0, 0x30420282u),
+        MoveWeapon(82, "throwAfterMoving", "Throw", 0x0038B630, 0x0038B660),
+        MoveWeapon(83, "mercyAfterMoving", "Mercy", 0x0038BAB0, 0x0038BADC),
+        MoveWeapon(84, "flourishAfterMoving", "Flourish", 0x0038C82C, 0x0038C870),
+        MoveWeapon(85, "deathmatchAfterMoving", "Deathmatch", 0x0038C97C, 0x0038C9C0, 0x0038CA00),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
