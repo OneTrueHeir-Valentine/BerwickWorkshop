@@ -347,6 +347,8 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
     Equal("Parry",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
+    var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
+    Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
     var guard=GameRules.ById(10);Equal(26,guard.Sites.Count);Equal(0x0022A640u,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[25].Address);
     Equal(0x24020001u,guard.Original[0]);Equal(0x10000003u,guard.Original[22]);Equal(0xAFA20130u,guard.Original[25]);
     Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[20].ToString("X8"))));

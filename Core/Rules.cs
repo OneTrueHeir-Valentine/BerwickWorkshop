@@ -99,7 +99,10 @@ public static class GameRules
             w => (w & 0xFFFF0000u) == prefix && (w & 0xFFFF) is var v && v >= min && v <= max ? (int)v : null);
     }
 
-    private const uint S1 = 17, S2 = 18;
+    private const uint S1 = 17, S2 = 18, T1 = 9;
+
+    private static GameRule Step(int id, string key, string name, string description, int normal, uint address, bool confirmed) =>
+        new(id, key, name, description, RuleKind.Limit, 0, 50, normal, null, [Immediate(address, T1, 0, 50)], confirmed);
 
     // Shield guard: the damage routine's block-success code (0x0022A640 to 0x0022A6A4) rewritten in fewer
     // instructions with the same behaviour, so that a failed block can add part of the shield's Might to
@@ -152,6 +155,12 @@ public static class GameRules
         new GameRule(10, "shieldGuard", "Shield guard on a failed block",
             "When a shield block roll fails against a physical attack, part of the shield's Might counts as Defense, rounded down. A successful block still takes off the full Might. A successful roll that an attack later cancels does not grant this bonus. Attacks that ignore Defense, including knives, also ignore this guard. Off is the game's own behaviour.",
             RuleKind.Choice, 0, 3, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might"], GuardSites(), confirmed: true),
+        Step(11, "shieldTraining", "Shield training speed",
+            "How much a shield level rises on each successful training roll, in tenths of a level (the game's 4 is 0.4 of a level). Shield training happens when a unit's block roll succeeds, or fails on a hit while the level is below 20. 0 stops shield levels from rising.",
+            4, 0x001716A4, confirmed: true),
+        Step(12, "weaponTraining", "Weapon training speed",
+            "How much a weapon level rises on each successful training roll after an attack, in tenths of a level (the game's 1 is 0.1 of a level). 0 stops weapon levels from rising in battle.",
+            1, 0x001716C4, confirmed: true),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formula. A fixed amount gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
             RuleKind.FixedAmount, 0, 100, 0, null,

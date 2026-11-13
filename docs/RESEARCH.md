@@ -73,6 +73,14 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Static review correction: guard applies after a failed block roll, not after a successful roll canceled later by a weapon effect. Knives follow the type-0 path to `0x0022A940`, which clears physical defense, including the guard bonus. Shield block Always does not override shield-bypassing attacks. The earlier promise of guard against knives was incorrect; v0.14.1 corrects the descriptions without changing the instructions.
 - Live tests (PCSX2, the user's test export, with parry forced off in memory): Leon (attack 15) against a Deserter (defense 2, Verian small shield, Might 4). Prototype at full Might: an unblocked hit did 9. Original code: a blocked hit did 9; unblocked hits normally do 13.
 
+### Weapon and shield training (2026-11-12)
+- `0x0017A900` raises a weapon level (unit, type 0 to 13, amount), capped by the class cap; types 11 to 13 are the small, medium and large shield. Weapon levels sit three per 32-bit word with a 2-bit check value in the top bits, which the game rewrites on every change.
+- `0x0022B2C0` grants battle training: mode 0 after an attack (step 1, `0x001716C4`), mode 1 for shields (step 4, `0x001716A4`), mode 2 (step 2) from another caller. Shield training is granted at `0x00228070` only when a block roll happened: block success, or a failed block on a hit.
+- Amount (`0x001716D0`): nothing with 0 growth; at level 20 and above a failed attempt gives nothing (`0x00171760`); one or two rolls (two below level 10) plus one on success; each passes when random < growth × 10 and random < 190 − 3 × level, adding one step. Capped at the class cap.
+- Vantage: a defender that kills its attacker first never gets a block roll, so it gains no shield training. A fix needs new code in the battle sequence.
+- Live tests: shield step 4 changed to 50 made a shield level jump after one block; weapon step 1 changed to 50 made a weapon level jump after one attack.
+- Tamper checks: a unit check (`0x00183540`, stats and weapon-level check bits) and a program checksum (`0x00125E60`) both set a marker (`0x00506E64`) that is copied into save data. Program rules trip the program check. No effect of the marker has been seen in play yet. Starting records on the disc carry no weapon check bits, so editing them is safe for the unit check.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.
