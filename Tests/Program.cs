@@ -679,6 +679,10 @@ foreach(var exportDisc in new[]{jp!,en!})
             s.Apply(new FieldEdit[]{new(EditSession.Terrain,5,"cost4",15),new(EditSession.Terrain,5,"cost15",10),new(EditSession.Classes,0x1E,"movementType",2)});
             s.Apply(new FieldEdit[]{new(EditSession.TerrainKinds,36,"flyersCannotStop",0),new(EditSession.TerrainKinds,51,"recovery",10),new(EditSession.TerrainKinds,0,"avoid",7),
                 new(EditSession.Rules,20,"expLevelGap0",-3),new(EditSession.Rules,36,"expHighest",60),new(EditSession.Rules,40,"iaidoBase",55),new(EditSession.Rules,44,"axebaneCap",70)});
+            Equal(11,disc.StablePriceBytes.Count);Equal(1000,s.Value(EditSession.StablePrices,0x205,"stablePrice"));
+            s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",1234),new(EditSession.StablePrices,0x20E,"stablePrice",30000)});
+            Throws<EditException>(()=>s.Apply(new FieldEdit[]{new(EditSession.StablePrices,0x205,"stablePrice",0)}));
+            Equal(1234,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.StablePrices,0x205,"stablePrice"));
             Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedMovementType(5).Costs[4]==15);
             var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
@@ -710,6 +714,8 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(1,GameRules.ById(1).Decode(back.RuleWords[1].Span));Equal(50,GameRules.ById(2).Decode(back.RuleWords[2].Span));Equal(12,GameRules.ById(4).Decode(back.RuleWords[4].Span));
             Equal(2,GameRules.ById(9).Decode(back.RuleWords[9].Span));Equal(2,GameRules.ById(10).Decode(back.RuleWords[10].Span));Equal(2,GameRules.ById(15).Decode(back.RuleWords[15].Span));
             Equal(false,back.ExecutableSha256==disc.ExecutableSha256);
+            Equal(1234,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x205].Span));Equal(30000,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x20E].Span));
+            Equal(2500,BinaryPrimitives.ReadInt32LittleEndian(back.StablePriceBytes[0x206].Span));
             using(var a=File.OpenRead(disc.Path))using(var b=File.OpenRead(dst))
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);

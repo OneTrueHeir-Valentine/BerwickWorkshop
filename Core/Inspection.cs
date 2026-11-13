@@ -50,6 +50,8 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     /// <summary>Instruction word at each game rule site, for rules whose current instruction is recognised.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> RuleWords { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IsoEntry? ExecutableFile { get; init; }
+    /// <summary>Stable price of each horse (4 bytes, little-endian), when the disc's stable event has the known layout.</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> StablePriceBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -175,8 +177,20 @@ public static class Inspector
         if (profile is not null)
             foreach(var rule in GameRules.All)
                 if(rule.Decode(GameRules.WordsAt(exe,rule)) is int setting) ruleWords[rule.Id]=rule.EncodeBytes(setting);
+        var stablePrices=new Dictionary<int,ReadOnlyMemory<byte>>();
+        if (profile is not null)
+        {
+            try
+            {
+                foreach(var (item,price) in StablePrices.Load(new GameArchives(iso)).Prices)
+                {
+                    var priceBytes=new byte[4];System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(priceBytes,price);stablePrices[item]=priceBytes;
+                }
+            }
+            catch (InvalidDataException) { stablePrices.Clear(); }
+        }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices };
     }
 }

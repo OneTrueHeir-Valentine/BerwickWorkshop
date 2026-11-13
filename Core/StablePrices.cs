@@ -14,6 +14,7 @@ public static class StablePrices
     public const int EventNumber = 602;
     public const string FileName = "e0000602.dat";
     public const int Minimum = 1, Maximum = 99999;
+    public static TableField Field { get; } = new("stablePrice", "Stable price", 0, 0, 32, Minimum, Maximum);
 
     /// <summary>Horse item and the offset of its price number in the decoded event.</summary>
     public static readonly (int Item, int Offset)[] Slots =

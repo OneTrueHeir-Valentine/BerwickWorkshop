@@ -142,6 +142,10 @@ public static class Mechanics
         new("Skills", "Shieldfaire and Paragon", "Shieldfaire: block chance + 18. Paragon: experience + 20%",
             "Both are plain bonuses on top of the normal formula.",
             MechanicStatus.Confirmed, "Program reading (0x00177E44, 0x00173DAC), checked in a running game", [new("Shieldfaire block bonus", SkillsPage, 48), new("Paragon experience bonus", SkillsPage, 49)]),
+        // Prices
+        new("Prices", "Stable prices", "Thin Horse 1,000, Plain 2,500, Spry 5,000, Tough 8,000, Strong 15,000, Ish's Stallion 15,000, Sinon Stallion 12,000, Liga Destrier 18,000, Liga Courser 20,000, Morach 24,000, Ish's Courser 10,000",
+            "The stable does not use a horse's base price. An event script returns the price, and the stable menu, the shopkeeper's line and the payment all use it.",
+            MechanicStatus.Confirmed, "Event script 602 (three copies on each disc), checked in a running game", [new("Stable price (horse items)", Items)]),
         // Experience
         new("Experience", "Experience from a defeat", "Enemy class experience value + level difference bonus (-40 at 8 or more levels below up to +15 at 7 or more above), +20% with the experience skill, then kept between 0 and 100",
             "Only defeating an enemy gives battle experience. The level difference bonus, the highest amount and the class experience values are all editable.",

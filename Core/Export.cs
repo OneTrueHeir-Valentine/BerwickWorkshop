@@ -38,8 +38,14 @@ public static class Exporter
         if (!string.Equals(session.Disc.Sha256, disc.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new EditException("This project belongs to a different disc image. Open its original disc before exporting.");
         var patches = new List<DiscPatch>();
+        var stable = new Dictionary<int, int>();
         foreach (var (table, id) in session.EditedRecords)
         {
+            if (table == EditSession.StablePrices)
+            {
+                stable[id] = session.Value(table, id, StablePrices.Field.Key);
+                continue;
+            }
             var original = session.Table(table).Records[id].Span;
             var edited = session.EditedBytes(table, id);
             if (table == EditSession.Rules)
@@ -70,6 +76,14 @@ public static class Exporter
                 foreach (var (start, length) in runs)
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
+        }
+        if (stable.Count > 0)
+        {
+            // Stable prices live in a compressed event script, stored three times; each copy is rewritten in place.
+            using var stream = new FileStream(disc.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var archives = new GameArchives(new IsoImage(stream));
+            var (_, decoded, copies) = StablePrices.Load(archives);
+            patches.AddRange(StablePrices.Patches(archives, copies, StablePrices.Write(decoded, stable)));
         }
         return patches.AsReadOnly();
     }

@@ -238,7 +238,18 @@ public partial class MainWindow : Window
             text.Inlines.Add(new System.Windows.Documents.Run(value) {FontWeight=FontWeights.SemiBold,Foreground=was.Length>0?(Brush)FindResource("Accent"):(Brush)FindResource("Ink")});
             Grid.SetColumn(text,1);grid.Children.Add(text);DetailFields.Children.Add(grid);
         }
-        if(session?.IsEdited(item.Id)==true)
+        if(primary?.StablePriceBytes.ContainsKey(item.Id)==true)
+        {
+            int stable=session?.Value(EditSession.StablePrices,item.Id,StablePrices.Field.Key)??System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(primary.StablePriceBytes[item.Id].Span);
+            bool stableEdited=session?.IsEdited(EditSession.StablePrices,item.Id)==true;
+            var grid=new Grid {Margin=new Thickness(0,0,0,10)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=GridLength.Auto});
+            grid.Children.Add(new TextBlock {Text="Stable price",Foreground=(Brush)FindResource("Muted"),FontSize=13,ToolTip="What the stable charges for this horse. It is separate from the base price."});
+            var text=new TextBlock {HorizontalAlignment=HorizontalAlignment.Right};
+            if(stableEdited) text.Inlines.Add(new System.Windows.Documents.Run($"was {session!.OriginalValue(EditSession.StablePrices,item.Id,StablePrices.Field.Key):N0}   ") {Foreground=(Brush)FindResource("Muted"),FontSize=11});
+            text.Inlines.Add(new System.Windows.Documents.Run(stable.ToString("N0")) {FontWeight=FontWeights.SemiBold,Foreground=stableEdited?(Brush)FindResource("Accent"):(Brush)FindResource("Ink")});
+            Grid.SetColumn(text,1);grid.Children.Add(text);DetailFields.Children.Add(grid);
+        }
+        if(session?.IsEdited(item.Id)==true || session?.IsEdited(EditSession.StablePrices,item.Id)==true)
         {
             var actions=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,4,0,0)};
             if(createdFrom is not null)
@@ -248,7 +259,7 @@ public partial class MainWindow : Window
                 actions.Children.Add(rename);
             }
             var revert=new Button {Content=createdFrom is null?"Restore original values":"Remove new item",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0)};
-            revert.Click+=(_,_)=>{if(loading is not null)return;session.Revert(item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
+            revert.Click+=(_,_)=>{if(loading is not null)return;if(session.IsEdited(item.Id))session.Revert(item.Id);if(session.IsEdited(EditSession.StablePrices,item.Id))session.Revert(EditSession.StablePrices,item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
             actions.Children.Add(revert);
             DetailFields.Children.Add(actions);
         }
@@ -751,6 +762,7 @@ public partial class MainWindow : Window
             new("Bonuses while equipped",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Bonuses").ToList()),
             new("Resistances",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Resistances").ToList()),
             new("Special effect",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Special effect").ToList()),
+            new("Stable",EditSession.StablePrices,session?.Disc.StablePriceBytes.ContainsKey(row.Item.Id)==true?[StablePrices.Field]:[]),
             new("Effects",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Effects").ToList()),
         ],null));
     }
@@ -803,7 +815,7 @@ public partial class MainWindow : Window
         if(target.Warning is { } warning)
             host.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(255,241,217)),BorderBrush=new SolidColorBrush(Color.FromRgb(223,204,158)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(4),Padding=new Thickness(10,8,10,8),Margin=new Thickness(0,0,0,10),
                 Child=new TextBlock {Text=warning,TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=new SolidColorBrush(Color.FromRgb(114,82,33))}});
-        foreach(var section in target.Sections)
+        foreach(var section in target.Sections.Where(s=>s.Fields.Count>0))
         {
             if(section.Title.Length>0) host.Children.Add(new TextBlock {Text=section.Title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,8)});
             if(section.Fields.Count>0 && section.Fields.All(f=>f.IsFlag))
@@ -1228,7 +1240,7 @@ public partial class MainWindow : Window
         content.Children.Add(new TextBlock {Text="Berwick Workshop",FontFamily=new FontFamily("Georgia"),FontSize=26,Margin=new Thickness(0,0,0,18)});
         foreach(var (title,text) in new[]{
             ("Opening a disc","Choose an uncompressed ISO of the Japanese retail release or the English v2.3 translation. Each disc is checked in full before its data is shown. Modified copies of those discs open too and are labeled as modified. Other images can be inspected, but their game data is not loaded."),
-            ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play."),
+            ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, and starting items with their durability or uses. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
@@ -1236,7 +1248,7 @@ public partial class MainWindow : Window
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills and the first five starting items. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
