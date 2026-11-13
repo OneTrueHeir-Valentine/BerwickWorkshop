@@ -120,7 +120,15 @@ Test("Item encoder writes are exact inverses of the decoder",()=>{
 Test("Item encoder fields agree with decoded record properties",()=>{
     var b=new byte[56];new Random(3).NextBytes(b);var r=ItemDecoder.Decode(1,"Dagger",b);
     var expected=new Dictionary<string,int>{["type"]=r.Type,["might"]=r.Might,["accuracy"]=r.Accuracy,["weight"]=r.Weight,["minRange"]=r.MinRange,["maxRange"]=r.MaxRange,["critical"]=r.Critical,["level"]=r.Level,["price"]=r.Price,["durability"]=r.Durability,["uses"]=r.Uses};
-    foreach(var f in ItemEncoder.Fields) Equal($"{f.Key}={expected[f.Key]}",$"{f.Key}={ItemEncoder.Read(b,f)}");
+    foreach(var f in ItemEncoder.Fields.Where(f=>f.Group.Length==0)) Equal($"{f.Key}={expected[f.Key]}",$"{f.Key}={ItemEncoder.Read(b,f)}");
+    var rec=new byte[56];
+    foreach(var f in ItemEncoder.Fields.Where(f=>f.Group.Length>0))
+        foreach(int v in new[]{f.Min,f.Max,0,f.Min/2})
+        {
+            Array.Clear(rec);ItemEncoder.Write(rec,f,v);Equal($"{f.Key}={v}",$"{f.Key}={ItemEncoder.Read(rec,f)}");
+            foreach(var g in ItemEncoder.Fields.Where(g=>g!=f && g.Group.Length>0)) Equal($"{g.Key}=0",$"{g.Key}={ItemEncoder.Read(rec,g)}");
+        }
+    Equal(33,ItemEncoder.Fields.Count(f=>f.Group=="Effects"));Equal(ItemEncoder.Fields.Count,ItemEncoder.Fields.Select(f=>f.Key).Distinct().Count());
 });
 Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Write(new byte[56],ItemEncoder.Field("might"),64));
@@ -409,12 +417,14 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(60,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(68,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
-    Equal(41,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));
+    Equal(49,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));
+    Equal(0x24040004u,GameRules.ById(90).Original[0]);Equal(0x24040001u,GameRules.ById(90).Encode(1)[0]);Throws<EditException>(()=>GameRules.ById(90).Encode(0));Equal<int?>(null,GameRules.ById(90).Decode(new[]{0x24040000u}));
+    var swim=GameRules.ById(93);Equal(26,swim.Sites.Count);Equal(0x10400019u,swim.Original[0]);Equal(0x0C05F7ECu,swim.Encode(1)[2]);Equal<int?>(1,swim.Decode(swim.Encode(1)));Equal("On foot only",swim.Describe(1));
     var sunder=GameRules.ById(53);Equal("24420019,24420019,24620019",string.Join(",",sunder.Original.Select(x=>x.ToString("X8"))));Equal("24420046,24420046,24620046",string.Join(",",sunder.Encode(70).Select(x=>x.ToString("X8"))));
     Equal<int?>(70,sunder.Decode(new[]{0x24420046u,0x24420046u,0x24620019u}));Equal<int?>(null,sunder.Decode(new[]{0x24420046u,0x24420046u,0x24620020u}));
     Equal("24420021,24420021,24620021",string.Join(",",GameRules.ById(55).Original.Select(x=>x.ToString("X8"))));Equal("2442FFF1,2462FFF1",string.Join(",",GameRules.ById(56).Original.Select(x=>x.ToString("X8"))));Equal("2442FFCE,2462FFCE",string.Join(",",GameRules.ById(56).Encode(-50).Select(x=>x.ToString("X8"))));Equal<int?>(-1,GameRules.ById(56).Decode(new[]{0x2442FFFFu,0x2462FFF1u}));Equal<int?>(null,GameRules.ById(56).Decode(new[]{0x2442FFFFu,0x2462FFFEu}));
@@ -710,6 +720,15 @@ foreach(var exportDisc in new[]{jp!,en!})
         Equal(true,chain.EditedBytes(a2).AsSpan().SequenceEqual(chain.EditedBytes(0x22)));
         var chainBack=EditSession.FromJson(disc,chain.ToJson());Equal(true,chainBack.EditedBytes(a2).AsSpan().SequenceEqual(chain.EditedBytes(a2)));
         var plain=new EditSession(disc);plain.Apply(1,new Dictionary<string,int>{["price"]=5});Equal(true,plain.ToJson().Contains("\"formatVersion\": 1"));
+    });
+    Test("Item bonuses, resistances and effects read as the items describe them",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            int V(int id,string key)=>ItemEncoder.Read(disc.ItemBytes[id].Span,ItemEncoder.Field(key));
+            Equal("5/2/-2/-10/10/12/30/-8",$"{V(429,"hitBonus")}/{V(442,"strengthBonus")}/{V(442,"agilityBonus")}/{V(446,"avoidBonus")}/{V(446,"hitBonus")}/{V(456,"criticalEvade")}/{V(456,"fireResist")}/{V(456,"windResist")}");
+            Equal("5/18/18/18/18/0/3/1",$"{V(340,"fireResist")}/{V(388,"fireResist")}/{V(388,"thunderResist")}/{V(388,"windResist")}/{V(388,"holyResist")}/{V(388,"darkResist")}/{V(349,"mindBonus")}/{V(432,"defenseBonus")}");
+            Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
+        }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
         foreach(var disc in new[]{jp!,en!})

@@ -213,6 +213,7 @@ public static class GameRules
         ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
         ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
@@ -220,20 +221,20 @@ public static class GameRules
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Steal"] = "In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Evasion"] = "In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Evasion"] = "In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move.",
-        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move.",
-        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move.",
-        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
+        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
+        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
+        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn.",
+        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn.",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Mercy"] = "In the game, Mercy can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
-        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
@@ -255,11 +256,25 @@ public static class GameRules
     private static readonly string[] WeaponMoveChoices = ["Allowed", "Not allowed", "Weapon decides"];
 
     /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
-    private static GameRule MoveRule(int id, string key, string skill, int normal, string[] choices, uint[] addresses, uint[][] words) =>
-        new(id, key, $"{skill} after moving", "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
+    private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words) =>
+        new(id, key, name, "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
             addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: true,
             decode: found => Array.FindIndex(words, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
-        { Group = skill, Short = "After moving", Section = SkillsSection };
+        { Group = group, Short = shortName, Section = SkillsSection };
+
+    private static GameRule MoveRule(int id, string key, string skill, int normal, string[] choices, uint[] addresses, uint[][] words) =>
+        WordSets(id, key, $"{skill} after moving", skill, "After moving", normal, choices, addresses, words);
+
+    // After a command is used, the game stores a wait in the unit's state (addiu a0,zero,N) and counts it down once per turn.
+    private static GameRule Wait(int id, string key, string skill, uint address, int normal) =>
+        new(id, key, $"{skill} wait", "", RuleKind.Limit, 1, 30, normal, null,
+            [new RuleSite(address, s => 0x24040000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = skill, Short = "Wait (turns)", Section = SkillsSection };
+
+    // Swimmer in the movement cost builder: the game copies plain-ground costs onto water for any unit with the skill.
+    // The on-foot form merges two stores that write the same byte and uses the room to skip mounted units (mount state from 0x0017DFB0).
+    private static readonly uint[] SwimmerGame = [0x10400019u, 0x0000802Du, 0x0C0603D4u, 0x0200202Du, 0x8C430014u, 0x30630100u, 0x10600002u, 0x0200182Du, 0x0000182Du, 0x02232021u, 0x90840004u, 0x240300FFu, 0x14830005u, 0x00000000u, 0x2404FFFFu, 0x02501821u, 0x10000003u, 0xA0640000u, 0x02501821u, 0xA0640000u, 0x26100001u, 0x2A030040u, 0x1460FFEBu, 0x00000000u, 0x10000011u, 0x00000000u];
+    private static readonly uint[] SwimmerOnFoot = [0x10400019u, 0x00000000u, 0x0C05F7ECu, 0x0200202Du, 0x24030001u, 0x10430014u, 0x0000802Du, 0x0C0603D4u, 0x0200202Du, 0x8C430014u, 0x30630100u, 0x10600002u, 0x0200182Du, 0x0000182Du, 0x02232021u, 0x90840004u, 0x02501821u, 0xA0640000u, 0x26100001u, 0x2A030040u, 0x1460FFF2u, 0x00000000u, 0x10000013u, 0x00000000u, 0x00000000u, 0x00000000u];
 
     // The command menu tests action state bit 1 (the unit has moved) with an andi. Clearing the bit in the mask allows the command
     // after a move; setting it blocks it.
@@ -423,6 +438,15 @@ public static class GameRules
         MoveWeapon(83, "mercyAfterMoving", "Mercy", 0x0038BAB0, 0x0038BADC),
         MoveWeapon(84, "flourishAfterMoving", "Flourish", 0x0038C82C, 0x0038C870),
         MoveWeapon(85, "deathmatchAfterMoving", "Deathmatch", 0x0038C97C, 0x0038C9C0, 0x0038CA00),
+        Wait(86, "astraWait", "Astra", 0x001C355C, 6),
+        Wait(87, "focusChantWait", "Focus Chant", 0x001C357C, 6),
+        Wait(88, "tripleShotWait", "Triple Shot", 0x001C359C, 4),
+        Wait(89, "doubleShotWait", "Double Shot", 0x001C35BC, 3),
+        Wait(90, "evasionWait", "Evasion", 0x001C35FC, 4),
+        Wait(91, "imbueWait", "Imbue", 0x001C361C, 3),
+        Wait(92, "flourishWait", "Flourish", 0x001C363C, 3),
+        WordSets(93, "swimmerMounted", "Swimmer while mounted", "Swimmer", "Works when", 0, ["Mounted or on foot", "On foot only"],
+            Enumerable.Range(0, SwimmerGame.Length).Select(i => 0x001BA950u + (uint)i * 4).ToArray(), [SwimmerGame, SwimmerOnFoot]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)

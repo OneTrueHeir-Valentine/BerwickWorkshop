@@ -67,7 +67,7 @@ Verified while building the Classes page (v0.3.0):
 
 ### M2 Projects and item editing (done in v0.4.0, except the changes panel)
 1. `.bwproj` format: JSON with `format`, `formatVersion` (1), `edition`, `editionSha256`, `appVersion`, and `changes` of `{table, id, name, field, original, value}`. Loading refuses a different edition, any change whose `original` no longer matches the disc, unknown fields, duplicates, and out-of-range values. Saves are atomic (temp file then rename).
-2. Editable item fields (`Core/Editing.cs`, `ItemEncoder.Fields`): might, accuracy, weight, minimum and maximum range, critical, level, base price, durability grade, durability pool and type (since v0.8.0). Limits are the bit widths; minimum range may not exceed maximum range. Effects are not editable yet.
+2. Editable item fields (`Core/Editing.cs`, `ItemEncoder.Fields`): might, accuracy, weight, minimum and maximum range, critical, level, base price, durability grade, durability pool and type (since v0.8.0). Limits are the bit widths; minimum range may not exceed maximum range. Since v0.25.0 also bonuses while equipped (strength, agility, defense, mind, hit, avoid, critical evade), five resistances and 33 effect flags named from the items that carry them; the rate effect (selector byte 27, value byte 26) and two unclear fields (byte 1 bits 3 to 6 on spears and lances, byte 17 bits 2 to 5 on a few swords) are not editable yet.
 3. Writer tested as the exact inverse of the decoder: for every field at its minimum, maximum and middle value on random records, only that field's bits change. Edits on both real discs change only the edited bits.
 4. Undo/redo (one step per Apply), unsaved marker in the title and project bar, prompts before closing or opening another disc or project. A change list panel is still to do.
 5. Writing both table copies to a disc is part of M3; the session already produces the full edited 56-byte record per item (`EditSession.EditedBytes`).
@@ -141,7 +141,7 @@ Design goal: evaluate a rule change before playing it. Results must say whether 
 |---|---|---|
 | Class edits also change enemies in that class | A player buff can strengthen many enemies | Critical: the editor warns, but should list enemy users once chapter data is mapped |
 | Learned-skill writes have unresolved corruption reports | May create invalid character states | Critical: stays locked |
-| Some items have more than one special effect | A single-effect editor would misrepresent them | High: effects are not editable yet; decode all effect slots before allowing it |
+| Some items have more than one special effect | A single-effect editor would misrepresent them | Effect flags editable (v0.25.0); the single rate effect slot is not editable yet |
 | Terrain avoid bonuses and terrain kind names not located | Movement tool must use published avoid values | Medium |
 | Class growth data unverified | Incomplete class progression editing | High |
 | New item slots lack verified map references | A free slot might be used by chapter data | High |

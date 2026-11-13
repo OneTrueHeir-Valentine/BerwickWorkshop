@@ -94,6 +94,18 @@ public static class FieldCodec
 
 public static class ItemEncoder
 {
+    // Effect flags (bytes 28 to 39), named from the items that carry them on the disc. Flags whose meaning is unclear,
+    // or that mark an item's category (horse, material), are not offered.
+    public static readonly (int Bit, string Name)[] Effects =
+    [
+        (2, "Strikes twice"), (3, "Strikes three times"), (4, "Strikes four times"), (10, "Ignores defense"), (12, "Ignores shields"),
+        (13, "Ignores armor"), (14, "Ignores horse defense"), (20, "No counterattack"), (21, "Not usable after moving"), (60, "Can be thrown"),
+        (27, "Drains HP"), (58, "Adds level to damage"), (56, "Cannot kill"), (84, "Cannot attack fliers"), (16, "Miracle"), (17, "Renewal"),
+        (45, "Grants Hide"), (46, "Grants Overwatch"), (47, "Grants Parry"), (81, "Grants Horse Lover"), (66, "Move +1"),
+        (19, "Uses instead of durability"), (34, "Unbreakable"), (86, "Restores uses"), (32, "Personal weapon"), (30, "Infantry only"), (1, "Women only"),
+        (29, "General only"), (26, "Gigas Knight only"), (69, "Paladin only"), (72, "Assassin only"), (79, "Black Rider only"), (80, "Apostle only"),
+    ];
+
     public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(new TableField[]
     {
         new("type", "Type", 0, 0, 5, 0, 24) { Choices = ItemDecoder.Types },
@@ -107,7 +119,20 @@ public static class ItemEncoder
         new("price", "Base price", 8, 0, 16, 0, 65535),
         new("durability", "Durability", 21, 4, 3, 0, 6) { Choices = ["S", "A", "B", "C", "D", "E", "F"] },
         new("uses", "Durability pool", 5, 7, 7, 0, 127),
-    });
+        new("strengthBonus", "Strength", 16, 5, 5, -16, 15) { Signed = true, Group = "Bonuses" },
+        new("agilityBonus", "Agility", 13, 3, 5, -16, 15) { Signed = true, Group = "Bonuses" },
+        new("defenseBonus", "Defense", 12, 0, 6, -32, 31) { Signed = true, Group = "Bonuses" },
+        new("mindBonus", "Mind", 16, 0, 5, -16, 15) { Signed = true, Group = "Bonuses" },
+        new("hitBonus", "Hit", 15, 0, 8, -128, 127) { Signed = true, Group = "Bonuses" },
+        new("avoidBonus", "Avoid", 14, 0, 8, -128, 127) { Signed = true, Group = "Bonuses" },
+        new("criticalEvade", "Critical evade", 21, 7, 8, -128, 127) { Signed = true, Group = "Bonuses" },
+        new("fireResist", "Fire", 17, 6, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        new("thunderResist", "Thunder", 18, 4, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        new("windResist", "Wind", 19, 2, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        new("holyResist", "Holy", 20, 6, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        new("darkResist", "Dark", 20, 0, 6, -32, 31) { Signed = true, Group = "Resistances" },
+    }.Concat(Effects.Select(e => new TableField($"effect{e.Bit}", e.Name, 28 + e.Bit / 8, e.Bit % 8, 1, 0, 1) { Group = "Effects" })).ToArray());
+
 
     public static TableField Field(string key) =>
         Fields.FirstOrDefault(f => f.Key == key) ?? throw new EditException($"Unknown item field \"{key}\".");
