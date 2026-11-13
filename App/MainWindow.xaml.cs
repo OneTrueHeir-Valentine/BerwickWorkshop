@@ -244,7 +244,7 @@ public partial class MainWindow : Window
                 actions.Children.Add(rename);
             }
             var revert=new Button {Content=createdFrom is null?"Restore original values":"Remove new item",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0)};
-            revert.Click+=(_,_)=>{session.Revert(item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
+            revert.Click+=(_,_)=>{if(loading is not null)return;session.Revert(item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
             actions.Children.Add(revert);
             DetailFields.Children.Add(actions);
         }
@@ -469,9 +469,12 @@ public partial class MainWindow : Window
         }
         try
         {
+            if (comparison is { } other && string.Equals(Path.GetFullPath(path),Path.GetFullPath(other.Path),StringComparison.OrdinalIgnoreCase))
+                throw new EditException("Choose a project file name. Open disc images are never overwritten.");
             session.Save(path,typeof(MainWindow).Assembly.GetName().Version?.ToString(3));
             UpdateProjectBar();Status.Text=$"Project saved. Your game files were not changed.";return true;
         }
+        catch(EditException ex){Notify(ex.Message);return false;}
         catch(Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Notify("The project could not be saved. Choose a folder you can write to.");return false;
@@ -497,10 +500,11 @@ public partial class MainWindow : Window
         if(loading is not null || primary?.Supported!=true || session is null || session.ChangeCount==0)return;
         if(editing is not null){Notify("Apply or cancel the changes you are editing before exporting.");return;}
         string folder=Path.GetDirectoryName(primary.Path)??Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var picker=new SaveFileDialog {Title="Export patched disc",Filter="ISO disc images (*.iso)|*.iso",DefaultExt=".iso",AddExtension=true,InitialDirectory=folder,
+        var picker=new SaveFileDialog {Title="Export patched disc",OverwritePrompt=false,Filter="ISO disc images (*.iso)|*.iso",DefaultExt=".iso",AddExtension=true,InitialDirectory=folder,
             FileName=$"{Path.GetFileNameWithoutExtension(primary.Path)} ({ProjectTitle}).iso"};
         if(picker.ShowDialog(this)!=true)return;
         string target=Path.GetFullPath(picker.FileName);
+        if(File.Exists(target)){Notify("Choose a new file name. Existing disc images are never overwritten.");return;}
         if(new[]{primary.Path,comparison?.Path}.Any(p=>p is not null && string.Equals(Path.GetFullPath(p),target,StringComparison.OrdinalIgnoreCase)))
         {Notify("Choose a new file name. Open disc images are never overwritten.");return;}
         int items=session.Changes.Select(c=>c.Id).Distinct().Count();
@@ -521,7 +525,8 @@ public partial class MainWindow : Window
         var disc=primary;var edits=session;
         try
         {
-            var result=await Task.Run(()=>Exporter.Export(disc.Path,disc.Sha256,target,Exporter.PatchesFor(edits,disc),progress,cancellation.Token));
+            var patches=Exporter.PatchesFor(edits,disc);
+            var result=await Task.Run(()=>Exporter.Export(disc.Path,disc.Sha256,target,patches,progress,cancellation.Token));
             if(closing)return;
             Status.Text="Disc exported. The original disc image was not changed.";
             Notify($"Exported {Path.GetFileName(result.Path)}. Load it in PCSX2 to play with your changes, or open it here to check it.");
@@ -941,7 +946,7 @@ public partial class MainWindow : Window
             {
                 var changed=new DockPanel {Margin=new Thickness(0,10,0,0)};
                 var restore=new Button {Content="Restore original",Style=(Style)FindResource("SmallButton")};
-                restore.Click+=(_,_)=>{session.Revert(EditSession.Rules,rule.Id);RefreshDocument();Status.Text=$"{rule.Name} restored. Save the project to keep this change.";};
+                restore.Click+=(_,_)=>{if(loading is not null)return;session.Revert(EditSession.Rules,rule.Id);RefreshDocument();Status.Text=$"{rule.Name} restored. Save the project to keep this change.";};
                 DockPanel.SetDock(restore,Dock.Right);changed.Children.Add(restore);
                 changed.Children.Add(new TextBlock {Text=$"Changed in this project: {rule.Describe(original)} → {rule.Describe(current)}",Foreground=(Brush)FindResource("Accent"),FontSize=13,VerticalAlignment=VerticalAlignment.Center});
                 card.Children.Add(changed);
@@ -965,7 +970,7 @@ public partial class MainWindow : Window
             AddPair(panel,label,field.IsFlag?DescribeValue(field,c.Value):$"{DescribeValue(field,c.Original)} → {DescribeValue(field,c.Value)}");
         }
         var button=new Button {Content="Restore original values",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
-        button.Click+=(_,_)=>{restore();RefreshDocument();Status.Text="Original values restored. Save the project to keep this change.";};
+        button.Click+=(_,_)=>{if(loading is not null)return;restore();RefreshDocument();Status.Text="Original values restored. Save the project to keep this change.";};
         panel.Children.Add(button);
     }
     private async void OnDrop(object sender,DragEventArgs e)

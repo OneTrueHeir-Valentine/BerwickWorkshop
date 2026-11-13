@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace Berwick.Core;
 
-public sealed record DiscPatch(long Offset, byte[] Bytes);
+public sealed record DiscPatch(long Offset, byte[] Bytes, byte[]? Expected = null);
 public sealed record ExportResult(string Path, long Size, string Sha256, int PatchCount, int ChangedBytes);
 
 public static class Exporter
@@ -33,6 +33,8 @@ public static class Exporter
     /// <summary>Byte patches for every edited record: only the bytes that differ, written to both copies of each table.</summary>
     public static IReadOnlyList<DiscPatch> PatchesFor(EditSession session, InspectionResult disc)
     {
+        if (!string.Equals(session.Disc.Sha256, disc.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new EditException("This project belongs to a different disc image. Open its original disc before exporting.");
         var patches = new List<DiscPatch>();
         foreach (var (table, id) in session.EditedRecords)
         {
@@ -48,7 +50,7 @@ public static class Exporter
                     if (edited.AsSpan(i * 4, 4).SequenceEqual(original.Slice(i * 4, 4))) continue;
                     long at = rule.Sites[i].FileOffset;
                     if (at < 0 || at + 4 > exe.Length) throw new InvalidDataException("The game program is incomplete.");
-                    patches.Add(new(exe.Offset + at, edited.AsSpan(i * 4, 4).ToArray()));
+                    patches.Add(new(exe.Offset + at, edited.AsSpan(i * 4, 4).ToArray(), original.Slice(i * 4, 4).ToArray()));
                 }
                 continue;
             }
@@ -63,7 +65,8 @@ public static class Exporter
             foreach (var (file, location) in RecordLocations(disc, table, id))
             {
                 if (location < 0 || location + edited.Length > file.Length) throw new InvalidDataException("The game data is incomplete.");
-                foreach (var (start, length) in runs) patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray()));
+                foreach (var (start, length) in runs)
+                    patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
         return patches.AsReadOnly();
@@ -75,6 +78,8 @@ public static class Exporter
         string source = Path.GetFullPath(sourcePath), destination = Path.GetFullPath(destinationPath);
         if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
             throw new EditException("Choose a new file name. The original disc image is never overwritten.");
+        if (File.Exists(destination))
+            throw new EditException("Choose a new file name. Existing disc images are never overwritten.");
         if (patches.Count == 0) throw new EditException("The project has no changes to export.");
 
         var ordered = patches.OrderBy(p => p.Offset).ToList();
@@ -82,6 +87,7 @@ public static class Exporter
         for (int i = 0; i < ordered.Count; i++)
         {
             var p = ordered[i];
+            if (p.Expected is { } expected && expected.Length != p.Bytes.Length) throw new EditException("A change has incomplete original data.");
             if (p.Offset < 0 || p.Bytes.Length == 0 || p.Offset + p.Bytes.Length > sourceLength) throw new EditException("A change falls outside the disc image.");
             if (i > 0 && ordered[i - 1].Offset + ordered[i - 1].Bytes.Length > p.Offset) throw new EditException("Two changes overlap.");
         }
@@ -91,16 +97,18 @@ public static class Exporter
         if (drive.IsReady && drive.AvailableFreeSpace < sourceLength + SpaceMargin)
             throw new EditException($"There is not enough free space on {drive.Name.TrimEnd('\\')}. Exporting needs about {(sourceLength + SpaceMargin) / (1024.0 * 1024 * 1024):0.0} GB.");
 
-        string partial = destination + ".partial";
+        string partial = destination + $".{Guid.NewGuid():N}.partial";
+        bool ownsPartial = false;
         int changed = 0;
         string outputHash;
         try
         {
             using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.SequentialScan))
-            using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
-            using (var sourceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
-            using (var exportHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
+            using (var output = new FileStream(partial, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, FileOptions.SequentialScan))
             {
+                ownsPartial = true;
+                using var sourceHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using var exportHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 var buffer = new byte[BufferSize];
                 long position = 0;
                 int next = 0;
@@ -117,6 +125,8 @@ public static class Exporter
                         long from = Math.Max(p.Offset, position), to = Math.Min(p.Offset + p.Bytes.Length, end);
                         for (long at = from; at < to; at++)
                         {
+                            if (p.Expected is { } expected && buffer[at - position] != expected[at - p.Offset])
+                                throw new EditException("The disc's data copies disagree at a value being changed. Export was stopped to preserve those differences.");
                             byte value = p.Bytes[at - p.Offset];
                             if (buffer[at - position] != value) changed++;
                             buffer[at - position] = value;
@@ -141,17 +151,20 @@ public static class Exporter
                 if (check.Length != sourceLength) throw new IOException("The exported disc has the wrong size.");
                 foreach (var p in ordered)
                 {
+                    cancellation.ThrowIfCancellationRequested();
                     var back = new byte[p.Bytes.Length];
                     check.Position = p.Offset;
                     check.ReadExactly(back);
                     if (!back.AsSpan().SequenceEqual(p.Bytes)) throw new IOException("The exported disc could not be verified.");
                 }
             }
-            File.Move(partial, destination, overwrite: true);
+            cancellation.ThrowIfCancellationRequested();
+            File.Move(partial, destination, overwrite: false);
         }
         catch
         {
-            try { File.Delete(partial); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            if (ownsPartial)
+                try { File.Delete(partial); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             throw;
         }
         return new(destination, sourceLength, outputHash, ordered.Count, changed);

@@ -128,6 +128,20 @@ Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Field("nonsense"));
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
+Test("Export refuses a differing packed byte in a table copy",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[0x01,0x21];
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[2],[1]),new DiscPatch(1,[2],[1])]));
+        Equal(false,File.Exists(dst));Equal(1,Directory.GetFiles(dir).Length);
+        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[2],[])]));
+    }
+    finally{Directory.Delete(dir,true);}
+});
 Test("Export copies the source and applies patches across buffer edges",()=>{
     string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
     try
@@ -136,6 +150,7 @@ Test("Export copies the source and applies patches across buffer edges",()=>{
         string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
         string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
         var patches=new[]{new DiscPatch(0,new byte[]{1,2,3}),new DiscPatch(4*1024*1024-10,Enumerable.Repeat((byte)0xAB,30).ToArray()),new DiscPatch(data.Length-5,new byte[]{9,9,9,9,9})};
+        patches=patches.Select(p=>p with {Expected=data.AsSpan((int)p.Offset,p.Bytes.Length).ToArray()}).ToArray();
         var expected=(byte[])data.Clone();foreach(var p in patches)p.Bytes.CopyTo(expected,p.Offset);
         int differing=expected.Zip(data).Count(z=>z.First!=z.Second);
         var result=Exporter.Export(src,sha,dst,patches);
@@ -144,6 +159,98 @@ Test("Export copies the source and applies patches across buffer edges",()=>{
         Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expected)).ToLowerInvariant(),result.Sha256);
         Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
         Equal(false,File.Exists(dst+".partial"));
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Export preserves an existing partial file",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[1,2,3,4], previous=[8,9,10];
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");
+        File.WriteAllBytes(src,data);File.WriteAllBytes(dst+".partial",previous);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
+        Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]);
+        Equal(true,File.Exists(dst+".partial"));
+        Equal(true,File.ReadAllBytes(dst+".partial").AsSpan().SequenceEqual(previous));
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Export preserves a source named like a partial file",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[1,2,3,4];
+        string dst=Path.Combine(dir,"out.iso"),src=dst+".partial";
+        File.WriteAllBytes(src,data);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
+        try{Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]);}catch(IOException){}
+        Equal(true,File.Exists(src));
+        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Export never replaces an existing destination",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[1,2,3,4], previous=[8,9,10];
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");
+        File.WriteAllBytes(src,data);File.WriteAllBytes(dst,previous);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
+        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]));
+        Equal(true,File.ReadAllBytes(dst).AsSpan().SequenceEqual(previous));
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Export cancellation during verification leaves no output",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[1,2,3,4];
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
+        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
+        using var cancel=new CancellationTokenSource();
+        var progress=new ImmediateProgress(p=>{if(p.Message=="Checking exported disc")cancel.Cancel();});
+        Throws<OperationCanceledException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])],progress,cancel.Token));
+        Equal(false,File.Exists(dst));Equal(1,Directory.GetFiles(dir).Length);
+    }
+    finally{Directory.Delete(dir,true);}
+});
+Test("Project files reject null entries with a readable error",()=>{
+    var disc=new InspectionResult("source.iso",4,"","","","hash","",Profiles.All[0],[],[],0);
+    string json=new EditSession(disc).ToJson();
+    foreach(string field in new[]{"changes","copies","names"})
+    {
+        var document=System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        document[field]=System.Text.Json.Nodes.JsonNode.Parse("[null]");
+        Throws<EditException>(()=>EditSession.FromJson(disc,document.ToJsonString()));
+    }
+});
+Test("Export patches refuse a different disc from the project",()=>{
+    var disc=new InspectionResult("source.iso",4,"","","","first","",Profiles.All[0],[],[],0);
+    var session=new EditSession(disc);
+    Throws<EditException>(()=>Exporter.PatchesFor(session,disc with {Sha256="second",Profile=Profiles.All[1]}));
+});
+Test("Project saves preserve discs and existing temporary files",()=>{
+    string dir=Path.Combine(Path.GetTempPath(),$"bw-save-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
+    try
+    {
+        byte[] data=[1,2,3,4], previous=[8,9,10];
+        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"project.bwproj");
+        File.WriteAllBytes(src,data);File.WriteAllBytes(dst+".tmp",previous);
+        var disc=new InspectionResult(src,data.Length,"","","","hash","",Profiles.All[0],[],[],0);
+        var session=new EditSession(disc);
+        Throws<EditException>(()=>session.Save(src));
+        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
+        session.Save(dst);
+        Equal(true,File.ReadAllBytes(dst+".tmp").AsSpan().SequenceEqual(previous));
+        Equal(0,EditSession.Load(disc,dst).ChangeCount);
+        session.Save(dst);
+        Equal(0,EditSession.Load(disc,dst).ChangeCount);
+        string disguised=Path.Combine(dir,"source.bwproj");File.WriteAllBytes(disguised,data);
+        Throws<EditException>(()=>new EditSession(disc with {Path=disguised}).Save(disguised));
+        Equal(true,File.ReadAllBytes(disguised).AsSpan().SequenceEqual(data));
     }
     finally{Directory.Delete(dir,true);}
 });
@@ -160,7 +267,7 @@ Test("Export refuses unsafe requests and leaves no partial file",()=>{
         Throws<EditException>(()=>Exporter.Export(src,sha,dst,new[]{new DiscPatch(10,new byte[4]),new DiscPatch(12,new byte[4])}));
         Throws<EditException>(()=>Exporter.Export(src,sha,dst,new[]{new DiscPatch(data.Length-1,new byte[2])}));
         Throws<EditException>(()=>Exporter.Export(src,new string('0',64),dst,one));
-        Equal(false,File.Exists(dst));Equal(false,File.Exists(dst+".partial"));
+          Equal(false,File.Exists(dst));Equal(false,File.Exists(dst+".partial"));
         using var cancel=new CancellationTokenSource();cancel.Cancel();
         Throws<OperationCanceledException>(()=>Exporter.Export(src,sha,dst,one,null,cancel.Token));
         Equal(false,File.Exists(dst));Equal(false,File.Exists(dst+".partial"));
@@ -408,8 +515,9 @@ if(args.Length>=2)
         try{s.Save(path,"0.4.0");Equal(false,s.IsDirty);Equal(3,EditSession.Load(disc,path).ChangeCount);}
         finally{File.Delete(path);}
     });
-    Test("Real export: edited English disc opens as modified with exactly the project's values",()=>{
-        var disc=en!;
+foreach(var exportDisc in new[]{jp!,en!})
+    Test($"Real export: edited {exportDisc.Edition} opens with exactly the project's values",()=>{
+        var disc=exportDisc;
         var drive=new DriveInfo(Path.GetPathRoot(Path.GetTempPath())!);
         if(drive.AvailableFreeSpace<disc.Size*2){Console.WriteLine("  skipped: not enough free space");return;}
         var s=new EditSession(disc);
@@ -431,7 +539,7 @@ if(args.Length>=2)
             var result=Exporter.Export(disc.Path,disc.Sha256,dst,patches);
             Console.WriteLine($"  exported {result.Size:N0} bytes, {result.ChangedBytes} bytes changed");
             var back=Inspector.Inspect(dst);
-            Equal(true,back.IsModified);Equal("Modified English v2.3",back.Edition);Equal(result.Sha256,back.Sha256);
+            Equal(true,back.IsModified);Equal($"Modified {disc.Edition}",back.Edition);Equal(result.Sha256,back.Sha256);
             Equal(0,back.DifferentTableRecords);
             Equal(0,ItemComparison.Compare(s.EditedItems(),back.Items).Count);
             Equal(0,RecordComparison.Compare(s.EditedCharacters(),back.Characters).Count);
@@ -548,4 +656,9 @@ static byte[] Fixture()
     U32(b,p+80,24);b[p+156]=34;U32(b,p+158,20);U32(b,p+166,2048);b[p+181]=2;b[p+188]=1;
     p=20*2048;var name=Encoding.ASCII.GetBytes("SYSTEM.CNF;1");b[p]=(byte)(33+name.Length+1);U32(b,p+2,21);U32(b,p+10,3);b[p+32]=(byte)name.Length;name.CopyTo(b,p+33);
     Encoding.ASCII.GetBytes("abc").CopyTo(b,21*2048);return b;
+}
+
+sealed class ImmediateProgress(Action<InspectionProgress> report) : IProgress<InspectionProgress>
+{
+    public void Report(InspectionProgress value) => report(value);
 }

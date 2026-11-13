@@ -42,7 +42,7 @@ public static class Mechanics
             MechanicStatus.Published, Wiki, [new("Mind bonus", Characters), new("Class Mind", Classes)],
             "Resistance fields on items are not decoded yet."),
         new("Damage", "Damage dealt", "Attack − defense − block reduction (never below 0), plus magic attack − magic defense for weapons that deal both",
-            "The block reduction is the shield's Might on a successful block. A weapon guard skill or a fixed 10 from another skill can take its place; only one applies. Some attacks ignore defense completely, such as certain weapons against armored units.",
+            "The block reduction is the shield's Might on a successful block. A weapon guard skill or a fixed 10 from another skill can take its place; only one applies. Knives and some weapon effects ignore Defense completely, and certain weapons ignore it against armored units.",
             MechanicStatus.Located, "Program reading (damage routine at 0x0022A2D0)", []),
 
         // Hit and avoid
@@ -71,7 +71,7 @@ public static class Mechanics
             "This works like weapon accuracy, using the shield's own accuracy and the unit's level with that shield size. A shield only counts when it is not broken and the class can use that size.",
             MechanicStatus.Located, "Program reading (0x00177C70)", [new("Shield accuracy", Items), new("Shield levels", Characters), new("Shield sizes", Classes)]),
         new("Shields", "Shield block", "Rolled when a hit would do damage: a random 0 to 99 below the block chance blocks, and the shield's Might comes off the hit",
-            "Knives and a few weapon effects slip past shields. The Shield block rule can make blocks always or never succeed, and Shield guard can give part of the Might on a failed block.",
+            "Knives and a few weapon effects slip past shields even when the Shield block rule is Always. Shield guard adds part of the Might to Defense on a failed block roll, but not when a successful roll is later canceled. Attacks that ignore Defense, including knives, ignore this bonus too.",
             MechanicStatus.Confirmed, "Program reading, checked in a running game", [new("Shield block rule", Rules, 9), new("Shield guard rule", Rules, 10)]),
         new("Shields", "Parry", "With the Parry skill: a chance based on weapon level cancels the hit completely",
             "Parry uses the unit's weapon, not its shield. A parry can wear out the weapon.",

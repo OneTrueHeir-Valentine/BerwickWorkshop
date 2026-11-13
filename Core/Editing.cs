@@ -497,9 +497,30 @@ public sealed class EditSession
 
     public void Save(string path, string? appVersion = null)
     {
-        string temp = path + ".tmp";
-        File.WriteAllText(temp, ToJson(appVersion));
-        File.Move(temp, path, overwrite: true);
+        path = Path.GetFullPath(path);
+        if (string.Equals(path, Path.GetFullPath(disc.Path), StringComparison.OrdinalIgnoreCase))
+            throw new EditException("Choose a project file name. The original disc image is never overwritten.");
+        if (!Path.GetExtension(path).Equals(".bwproj", StringComparison.OrdinalIgnoreCase))
+            throw new EditException("Save the project with a .bwproj extension. Disc images are created with Export disc.");
+        string temp = path + $".{Guid.NewGuid():N}.tmp";
+        bool ownsTemp = false;
+        try
+        {
+            using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                ownsTemp = true;
+                using var writer = new StreamWriter(file, leaveOpen: true);
+                writer.Write(ToJson(appVersion));
+                writer.Flush();
+                file.Flush(true);
+            }
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            if (ownsTemp)
+                try { File.Delete(temp); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
         FilePath = path;
         savedPosition = position;
     }
@@ -525,6 +546,7 @@ public sealed class EditSession
         var session = new EditSession(disc);
         foreach (var copy in file.Copies ?? [])
         {
+            if (copy is null) throw new EditException("This project contains an empty item copy.");
             var table = session.Table(copy.Table ?? "");
             if (copy.Table != Items) throw new EditException("This project contains changes this version cannot open.");
             if (!table.Records.ContainsKey(copy.Id) || !table.Records.ContainsKey(copy.From)) throw new EditException($"This project creates an item from a slot that is not on this disc.");
@@ -533,6 +555,7 @@ public sealed class EditSession
         }
         foreach (var name in file.Names ?? [])
         {
+            if (name is null) throw new EditException("This project contains an empty name entry.");
             var table = session.Table(name.Table ?? "");
             if (!table.Records.ContainsKey(name.Id)) throw new EditException($"This project names {table.Noun} 0x{name.Id:X3}, which is not on this disc.");
             if (string.IsNullOrWhiteSpace(name.Name) || name.Name.Trim().Length > 40) throw new EditException("This project contains a name that is empty or too long.");
@@ -541,6 +564,7 @@ public sealed class EditSession
         var seen = new HashSet<(string, int, string)>();
         foreach (var change in file.Changes)
         {
+            if (change is null) throw new EditException("This project contains an empty change.");
             var table = session.Table(change.Table ?? "");
             if (!table.Records.ContainsKey(change.Id)) throw new EditException($"This project changes {table.Noun} 0x{change.Id:X3}, which is not on this disc.");
             var field = table.Field(change.Field);

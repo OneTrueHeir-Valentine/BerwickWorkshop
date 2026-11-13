@@ -49,12 +49,12 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Experience gain confirmed: replacing the instruction at `0x00224580` so the gained amount is 100 made a unit level up after one fight.
 - Both changes were temporary (emulator memory only) and were reverted.
 
-### Stat caps (static map plus one live test, 2026-11-12)
+### Stat caps (static map plus two live tests, 2026-11-12)
 - The attribute add routine at `0x00174A90` uses a 15-entry jump table at `0x004A4060` (same in both editions). The unit record in memory has the disc starting-record layout without its 4-byte tag, and the cases map to: HP bonus (cap 50), Strength, Agility, Defense and Mind bonuses (cap 15 each), Luck (cap 20), level (cap 30), and experience (cap 199, 100 at level 29, 0 at level 30). Five indexes are not identified.
 - Live units in memory (English v2.3, first chapter): a starting copy from `0x01E13C8C` (stride 0x234) and the current army from `0x01E17F9C`; all decoded fields match the game.
 - Live test 1: with all six stat caps in this routine set to 0, a level up still raised Strength.
 - The add-and-store routine `0x00174550` (table `0x004A4020`, writers in `0x004A3FE0`) holds a second copy of the same limits and is the one level ups call. Live test 2: with both copies at 0, a level up raised nothing. Both copies together are the stat limits; offered as rules in v0.11.0.
-- Next leads: two sibling 15-entry tables at `0x004A3FE0` and `0x004A4020` with a routine at `0x00174550` that writes the stat bytes (likely get and set attribute), and the level-up code after `0x002245A0`.
+- Next lead: the level-up code after `0x002245A0`; level and experience caps still need their own tests. The second limit routine and its tables are already mapped above.
 
 ### Movement (2026-11-12, confirmed in a running game)
 - Movement type is an 8-bit field in the class record starting at byte 6 bit 1 (the program loads the halfword at offset 6 and keeps bits 1 to 8). Values: 0 cavalry, 1 horseman (light cavalry), 2 flying, 3 knight, 4 armor, 5 infantry, 6 thief, 7 civilian, 8 special (ballistician), 9 snow, 10 war priest, 11 fighter (light infantry), 12 priest, 13 unused by any class. Original classes use 0 to 12.
@@ -70,6 +70,7 @@ Live confirmation (PCSX2 2.9.78, English v2.3, first battle, memory read and wri
 - Damage routine `0x0022A2D0`: damage = attack - defense - reduction (never below 0), plus a magic part for weapons that deal both; a critical hit adds a random 10 to 20. The reduction is the shield's Might on a successful block, a weapon guard skill, or a fixed 10 from another skill (only one applies).
 - Shield block roll: branch at `0x0022A638`, tried only when the hit would do damage, the defender has a usable shield and no other guard applied. Knives (item type 0) and two weapon effects cancel the block afterwards. A reduction above 0 triggers the block animation and durability use, so a passive bonus must go into defense instead.
 - Shield guard prototype: `0x0022A640` to `0x0022A6A4` rewritten in fewer instructions with the same success behaviour; a failed block (physical attacks) adds Might >> n to defense. The forecast uses the same routine with fixed rolls, so it shows the guard.
+- Static review correction: guard applies after a failed block roll, not after a successful roll canceled later by a weapon effect. Knives follow the type-0 path to `0x0022A940`, which clears physical defense, including the guard bonus. Shield block Always does not override shield-bypassing attacks. The earlier promise of guard against knives was incorrect; v0.14.1 corrects the descriptions without changing the instructions.
 - Live tests (PCSX2, the user's test export, with parry forced off in memory): Leon (attack 15) against a Deserter (defense 2, Verian small shield, Might 4). Prototype at full Might: an unblocked hit did 9. Original code: a blocked hit did 9; unblocked hits normally do 13.
 
 ### Editors
