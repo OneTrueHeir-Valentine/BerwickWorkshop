@@ -1243,8 +1243,28 @@ public partial class MainWindow : Window
         if(primary is null || !primary.Supported)return;
         SkillsList.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
-                Text="How often skills activate, what command skills add, and whether a command can be chosen after moving. Each card shows the game's own formula and the numbers in it you can change. Chances and bonuses apply to every unit with the skill, enemies included; After moving changes the command menu of your own units. Cards are in alphabetical order. Which characters and classes have a skill is set on the Characters and Classes pages. Each skill here was seen working in a running game before being offered."}});
-        foreach(var group in GameRules.All.Where(r=>r.Confirmed && r.Section==GameRules.SkillsSection).Select(r=>r.Group).Distinct().Order(StringComparer.OrdinalIgnoreCase)) BuildRuleGroup(group,SkillsList);
+                Text="Every skill in the game: what it does, how it works, and which starting characters and classes have it. Where the game's numbers can be changed, the card shows them with the game's value; chances and bonuses apply to every unit with the skill, enemies included, and After moving changes the command menu of your own units. Each changeable number was seen working in a running game before being offered. The line under each name says how its explanation is known. Which characters and classes have a skill is set on the Characters and Classes pages."}});
+        var search=new TextBox {Padding=new Thickness(8,6,8,6),Text=skillSearch,ToolTip="Show only skills whose name or description contains this text"};
+        System.Windows.Automation.AutomationProperties.SetName(search,"Search skills");
+        var hint=new TextBlock {Text="Search by name or description",IsHitTestVisible=false,Foreground=new SolidColorBrush(Color.FromRgb(0x89,0x92,0x86)),VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(11,0,0,0)};
+        var searchBox=new Grid {Margin=new Thickness(0,0,0,14)};searchBox.Children.Add(search);searchBox.Children.Add(hint);
+        SkillsList.Children.Add(searchBox);
+        int firstCard=SkillsList.Children.Count;
+        var ruleGroups=GameRules.All.Where(r=>r.Confirmed && r.Section==GameRules.SkillsSection).Select(r=>r.Group).ToHashSet();
+        var skillTexts=new List<string>();
+        foreach(var name in SkillCatalog.All.Select(s=>s.Name).Concat(ruleGroups).Distinct().Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var info=SkillCatalog.Find(name);
+            BuildRuleGroup(name,SkillsList,info);
+            skillTexts.Add($"{name} {info?.Summary} {info?.Details} {(GameRules.GroupDescriptions.TryGetValue(name,out var d)?d:"")}");
+        }
+        void FilterSkills()
+        {
+            skillSearch=search.Text.Trim();hint.Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
+            for(int i=0;i<skillTexts.Count;i++)
+                SkillsList.Children[firstCard+i].Visibility=skillSearch.Length==0 || skillTexts[i].Contains(skillSearch,StringComparison.OrdinalIgnoreCase)?Visibility.Visible:Visibility.Collapsed;
+        }
+        search.TextChanged+=(_,_)=>FilterSkills();FilterSkills();
         var intro=new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
                 Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Each rule here was checked in a running game before being offered."}};
@@ -1347,12 +1367,24 @@ public partial class MainWindow : Window
             }
         }
     }
-    private void BuildRuleGroup(string group,Panel target)
+    private string skillSearch="";
+    private void BuildRuleGroup(string group,Panel target,SkillInfo? info=null)
     {
         var rules=GameRules.All.Where(r=>r.Confirmed && r.Group==group).ToList();
         var card=new StackPanel();
         target.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card});
         card.Children.Add(new TextBlock {Text=group,FontSize=17,FontWeight=FontWeights.SemiBold});
+        if(info is not null)
+        {
+            card.Children.Add(new TextBlock {Text=$"{info.Kind} · {info.Source}",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=11,Margin=new Thickness(0,3,0,8)});
+            card.Children.Add(new TextBlock {Text=info.Summary,TextWrapping=TextWrapping.Wrap,FontSize=14,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,4)});
+            if(info.Details.Length>0) card.Children.Add(new TextBlock {Text=info.Details,TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,Margin=new Thickness(0,0,0,6)});
+            var people=(session?.EditedCharacters()??primary?.Characters??[]).Where(c=>c.Skills.Contains(group)).Select(c=>c.Name).ToList();
+            var kinds=(session?.EditedClasses()??primary?.Classes??[]).Where(k=>k.Skills.Contains(group)).Select(k=>k.Name).ToList();
+            string who=(people.Count>0?$"Starting characters: {string.Join(", ",people)}. ":"")+(kinds.Count>0?$"Classes: {string.Join(", ",kinds.Take(12))}{(kinds.Count>12?$" and {kinds.Count-12} more":"")}.":"");
+            if(who.Length>0) card.Children.Add(new TextBlock {Text=who,TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,0,0,6)});
+            if(rules.Count==0)return;
+        }
         card.Children.Add(new TextBlock {Text=GameRules.GroupDescriptions.TryGetValue(group,out var d)?d:"",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
         if(session is null || rules.Any(r=>!session.IsRuleAvailable(r.Id)))
         {
@@ -1466,7 +1498,7 @@ public partial class MainWindow : Window
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here. Its list of pieces still shows the original prices, because those numbers are part of the list's own text, which cannot be edited yet."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
-            ("Skills","The Skills page changes how often skills activate: Iaido and Knock Away (half the weapon level plus a base chance), the five bane skills (the attacker's hit rate, up to a highest chance), Parry (its chance bonus), Pursuit (the attack speed lead it needs), Aim, Deadeye, Sunder and Desperation (their bonuses), Shieldfaire (its block bonus) and Paragon (its experience bonus). Each command skill can also be allowed or not allowed after moving, command waits can be shortened or lengthened, the steal limit can be removed, and Swimmer can be limited to units on foot. Who has a skill is set on the Characters and Classes pages."),
+            ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted and the steal limit."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

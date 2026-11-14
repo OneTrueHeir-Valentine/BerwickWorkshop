@@ -14,6 +14,20 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+Test("Every skill has an explanation in plain text",()=>{
+    var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
+    Equal(names.Count,SkillCatalog.All.Count);
+    Equal(true,names.All(n=>SkillCatalog.Find(n) is not null));
+    Equal(SkillCatalog.All.Count,SkillCatalog.All.Select(s=>s.Name).Distinct().Count());
+    foreach(var s in SkillCatalog.All)
+    {
+        string text=s.Summary+s.Details+s.Source+s.Kind;
+        Equal(false,text.Contains('—')||text.Contains('–'));
+        Equal(true,s.Summary.Length>0 && s.Source.Length>0 && s.Kind.Length>0);
+    }
+    // Every skill with changeable numbers on the Skills page has an explanation too.
+    Equal(true,GameRules.All.Where(r=>r.Section==GameRules.SkillsSection).Select(r=>r.Group).Distinct().All(g=>SkillCatalog.Find(g) is not null));
+});
 Test("ISO reads named files and ignores version suffix", () => {
     using var iso = new IsoImage(new MemoryStream(Fixture()));
     Equal("abc", Encoding.ASCII.GetString(iso.ReadFile("SYSTEM.CNF", 1024)));
