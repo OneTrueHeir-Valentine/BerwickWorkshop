@@ -293,6 +293,18 @@ public static class GameRules
         { Group = HitCriticalGroup, Short = part };
     }
 
+    // A multiplication by a constant: the game's own instructions for its value, or "addiu temp,zero,N" then a mult into the result,
+    // with any remaining sites emptied.
+    private static GameRule Multiplier(int id, string key, string skill, string part, int normal, uint[] sites, uint[] original, int temp, uint mult)
+    {
+        uint[] Words(int n) => n == normal ? original : [0x24000000u | (uint)temp << 16 | (uint)n, mult, .. Enumerable.Repeat(0u, sites.Length - 2)];
+        return new GameRule(id, key, $"{skill} {part.ToLowerInvariant()}", "", RuleKind.Limit, 0, 200, normal, null,
+            sites.Select((a, i) => new RuleSite(a, n => Words(n)[i], w => null)).ToArray(), confirmed: false,
+            decode: found => found.SequenceEqual(original) ? normal
+                : found[1] == mult && (found[0] & 0xFFFF0000u) == (0x24000000u | (uint)temp << 16) && (found[0] & 0xFFFF) <= 200 && found.Skip(2).All(w => w == 0) ? (int)(found[0] & 0xFFFF) : null)
+        { Group = skill, Short = part, Section = SkillsSection };
+    }
+
     private static GameRule Hidden(GameRule rule) =>
         new(rule.Id, rule.Key, rule.Name, rule.Description, rule.Kind, rule.Min, rule.Max, rule.Default, rule.Choices, rule.Sites, false,
             words => rule.Decode(words)) { Group = rule.Group, Short = rule.Short, Section = "" };
@@ -516,6 +528,25 @@ public static class GameRules
         new GameRule(109, "knifeRandom", "How knives add it", "", RuleKind.Choice, 0, 1, 0, ["A random part of it", "All of it"],
             [new RuleSite(0x00227110, s => s == 0 ? 0x0C04E9D0u : 0u, w => w == 0x0C04E9D0u ? 0 : w == 0 ? 1 : null)], confirmed: false)
         { Group = DamageGroup, Short = "How much of it" },
+        // Bonuses from allies' skills: the battle hooks multiply the number of allies in range by a constant (shifts and adds),
+        // rewritten as addiu + the R5900 three-operand mult so any amount can be used.
+        Multiplier(110, "commanderHit", "Commander", "Hit for each ally with it", 10, [0x001B7FEC, 0x001B7FF4, 0x001B7FFC], [0x00021880u, 0x00621021u, 0x00021040u], 3, 0x00431018u),
+        Multiplier(111, "safeZoneHit", "Safe Zone", "Hit for each ally with it", 15, [0x001B8008, 0x001B8010], [0x00021900u, 0x00621023u], 3, 0x00431018u),
+        Multiplier(112, "safeZoneAvoid", "Safe Zone", "Avoid for each ally with it", 15, [0x001B7F18, 0x001B7F1C], [0x00022100u, 0x00822023u], 4, 0x00442018u),
+        Multiplier(113, "charismaHit", "Charisma", "Hit for each ally with it", 3, [0x001B8020, 0x001B8028], [0x00021840u, 0x00621021u], 3, 0x00431018u),
+        Multiplier(114, "supporterHit", "Supporter", "Hit", 20, [0x001B8038, 0x001B8040, 0x001B8048], [0x00021880u, 0x00621021u, 0x00021080u], 3, 0x00431018u),
+        // Supporter's critical bonus is a single shift, so it takes powers of two.
+        new GameRule(115, "supporterCritical", "Supporter critical bonus", "", RuleKind.Choice, 0, 5, 3, ["0", "1", "2", "4", "8", "16"],
+            [new RuleSite(0x001B7A20, s => s == 0 ? 0x0000102Du : 0x00021000u | (uint)(s - 1) << 6,
+                w => w == 0x0000102Du ? 0 : (w & ~0x7C0u) == 0x00021000u && (w >> 6 & 31) <= 4 ? (int)(w >> 6 & 31) + 1 : null)], confirmed: false)
+        { Group = "Supporter", Short = "Critical", Section = SkillsSection },
+        Multiplier(116, "commanderIIAvoid", "Commander II", "Avoid for each ally with it", 5, [0x001B7EFC, 0x001B7F04], [0x00021880u, 0x00621021u], 3, 0x00431018u),
+        Multiplier(117, "protectorDefense", "Protector", "Defense for each ally with it", 5, [0x001B8188, 0x001B8190], [0x00021880u, 0x00621021u], 3, 0x00431018u),
+        Multiplier(118, "resistorResistance", "Resistor", "Resistance for each ally with it", 5, [0x001B80E0, 0x001B80E8], [0x00021880u, 0x00621021u], 3, 0x00431018u),
+        Multiplier(119, "battleCryHit", "Battle Cry", "Hit for each use", 10, [0x001B8068, 0x001B806C, 0x001B8070], [0x00031080u, 0x00431021u, 0x00021040u], 2, 0x00621018u),
+        new GameRule(120, "evasionAvoid", "Evasion avoid bonus", "", RuleKind.Limit, 0, 200, 50, null,
+            [new RuleSite(0x001B7F44, n => 0x26310000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26310000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Evasion", Short = "Avoid", Section = SkillsSection },
         Hidden(WordSets(106, "criticalSkillLevel", "Critical skill bonus", HitCriticalGroup, "Critical skill adds", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]])),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
