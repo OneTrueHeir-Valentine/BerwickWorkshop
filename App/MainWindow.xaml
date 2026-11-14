@@ -17,6 +17,7 @@
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
      <Button x:Name="EventsNav" Content="Eve_nts" Style="{StaticResource NavButton}" Click="ShowEvents" IsEnabled="False"/>
+     <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
      <Button x:Name="MechanicsNav" Content="_Mechanics" Style="{StaticResource NavButton}" Click="ShowMechanics"/>
      <Button x:Name="DiscNav" Content="_Disc details" Style="{StaticResource NavButton}" Click="ShowDisc"/>
     </StackPanel>
@@ -25,7 +26,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.41.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.42.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -314,6 +315,44 @@
     </Grid>
     <ScrollViewer x:Name="MechanicsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="MechanicsList" Margin="0,0,8,0" MaxWidth="860" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="SkillsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SkillsList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>
+    <Grid x:Name="LivePage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,12">
+      <TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="Change the game while it runs in PCSX2: the units on the current map, their class, level, HP, bonuses, weapon levels, skills and items, and this project's rules. Changes last until you undo them or load a save; nothing on the disc or in your saves is changed. Berwick Workshop connects only to PCSX2 on this computer, through PINE, and only after you choose Connect. Turn PINE on in PCSX2 (Settings, Advanced) and keep the default slot 28011."/>
+     </Border>
+     <DockPanel Grid.Row="1" Margin="0,0,0,12" LastChildFill="True">
+      <Button x:Name="LiveConnectButton" DockPanel.Dock="Left" Content="Connect" Style="{StaticResource SmallButton}" Click="LiveConnect" Margin="0,0,8,0"/>
+      <Button x:Name="LiveRefreshButton" DockPanel.Dock="Left" Content="Refresh units" Style="{StaticResource SmallButton}" Click="LiveRefresh" Margin="0,0,8,0" IsEnabled="False"/>
+      <Button x:Name="LiveRulesButton" DockPanel.Dock="Left" Content="Try this project's rules" Style="{StaticResource SmallButton}" Click="LiveTryRules" Margin="0,0,8,0" IsEnabled="False" ToolTip="Write every rule changed in this project into the running game"/>
+      <Button x:Name="LiveUndoButton" DockPanel.Dock="Left" Content="Undo all changes" Style="{StaticResource SmallButton}" Click="LiveUndo" Margin="0,0,12,0" IsEnabled="False" ToolTip="Put back everything Berwick Workshop changed in the running game"/>
+      <TextBlock x:Name="LiveStatus" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Text="Not connected."/>
+     </DockPanel>
+     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="340"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <Grid>
+        <DataGrid x:Name="LiveGrid" SelectionChanged="LiveUnitSelected" AutomationProperties.Name="Units on the map">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="Side" Binding="{Binding Side}" Width="90" MinWidth="80"/>
+          <DataGridTextColumn Header="Unit" Binding="{Binding Unit.Name}" Width="*" MinWidth="120"/>
+          <DataGridTextColumn Header="Class" Binding="{Binding ClassName}" Width="1.3*" MinWidth="140"/>
+          <DataGridTextColumn Header="Level" Binding="{Binding Unit.Level}" Width="56" MinWidth="56"/>
+          <DataGridTextColumn Header="HP" Binding="{Binding Unit.Hp}" Width="50" MinWidth="50"/>
+          <DataGridTextColumn Header="Position" Binding="{Binding Position}" Width="76" MinWidth="70"/>
+         </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock x:Name="NoLiveUnits" Text="Connect to see the units on the current map." HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Muted}" IsHitTestVisible="False"/>
+       </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
+        <TextBlock Text="UNIT IN THE GAME" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+        <TextBlock x:Name="LiveUnitName" Text="Select a unit" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
+        <StackPanel x:Name="LiveEditor" Margin="0,8,0,0"/>
+       </StackPanel></ScrollViewer>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="3" x:Name="LiveCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
     <ScrollViewer x:Name="RulesPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="RulesList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="DiscPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
      <StackPanel>

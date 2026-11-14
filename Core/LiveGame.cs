@@ -1,0 +1,233 @@
+using System.Buffers.Binary;
+using System.Net.Sockets;
+using System.Text;
+
+namespace Berwick.Core;
+
+/// <summary>A unit on the current map in the running game: where its record is in memory, and what it is.</summary>
+public sealed record LiveUnit(uint Address, int NameId, string Name, int Army, int X, int Y, int Level, int ClassId, int Hp);
+
+/// <summary>An item slot of a unit in the running game.</summary>
+public sealed record LiveItem(int Slot, int ItemId, int Uses);
+
+/// <summary>
+/// Reads and changes the running game in PCSX2 through PINE, a connection PCSX2 offers on this computer only
+/// (127.0.0.1). Every word this class changes is remembered so all changes can be undone; nothing on the disc or in saves changes.
+/// Unit records in memory have the disc's starting-record layout without its 4-byte tag, so the character fields apply
+/// with their offsets shifted by 4.
+/// </summary>
+public sealed class LiveGame : IDisposable
+{
+    public const int DefaultPort = 28011;
+    private const byte Read32 = 2, Read64 = 3, Write32 = 6, MsgId = 12, MsgStatus = 15;
+    private const uint PoolStart = 0x01D00000, PoolEnd = 0x02000000, RecordLength = 0xB0, ItemList = 0x7C;
+    private const int Tag = 4, ChunkLength = 0x1000;
+    private readonly TcpClient client;
+    private readonly NetworkStream stream;
+    private readonly Dictionary<uint, uint> originals = [];
+
+    private LiveGame(TcpClient client) { this.client = client; stream = client.GetStream(); }
+
+    /// <summary>Connects to PCSX2 on this computer. Throws IOException when PCSX2 is not running or PINE is off.</summary>
+    public static LiveGame Connect(int port = DefaultPort)
+    {
+        var client = new TcpClient { ReceiveTimeout = 3000, SendTimeout = 3000, NoDelay = true };
+        try { client.Connect("127.0.0.1", port); }
+        catch (SocketException) { client.Dispose(); throw new IOException("PCSX2 did not answer. Start the game in PCSX2 and turn on PINE in its settings."); }
+        return new LiveGame(client);
+    }
+
+    public void Dispose() { stream.Dispose(); client.Dispose(); }
+
+    public int ChangedWords => originals.Count;
+
+    private byte[] Call(byte[] payload)
+    {
+        var message = new byte[payload.Length + 4];
+        BinaryPrimitives.WriteInt32LittleEndian(message, message.Length);
+        payload.CopyTo(message, 4);
+        try
+        {
+            stream.Write(message);
+            var head = ReadExactly(4);
+            var body = ReadExactly(BinaryPrimitives.ReadInt32LittleEndian(head) - 4);
+            if (body.Length == 0 || body[0] != 0) throw new IOException("PCSX2 refused the request.");
+            return body[1..];
+        }
+        catch (SocketException) { throw new IOException("The connection to PCSX2 was lost."); }
+    }
+
+    private byte[] ReadExactly(int length)
+    {
+        var buffer = new byte[length];
+        int done = 0;
+        while (done < length)
+        {
+            int n = stream.Read(buffer, done, length - done);
+            if (n == 0) throw new IOException("The connection to PCSX2 was lost.");
+            done += n;
+        }
+        return buffer;
+    }
+
+    private string ReadString(byte op)
+    {
+        var data = Call([op]);
+        int length = BinaryPrimitives.ReadInt32LittleEndian(data);
+        return Encoding.UTF8.GetString(data, 4, Math.Max(0, Math.Min(length, data.Length - 4))).TrimEnd('\0');
+    }
+
+    /// <summary>The serial of the game PCSX2 is running, such as SLPS-25497.</summary>
+    public string GameId() => ReadString(MsgId);
+
+    /// <summary>True while the game is running (not paused or shut down).</summary>
+    public bool Running() => BinaryPrimitives.ReadInt32LittleEndian(Call([MsgStatus])) == 0;
+
+    /// <summary>Reads memory in batches of 64-bit reads.</summary>
+    public byte[] ReadRange(uint address, int length)
+    {
+        var result = new byte[length];
+        for (int at = 0; at < length; at += ChunkLength)
+        {
+            int n = Math.Min(ChunkLength, length - at) & ~7;
+            var payload = new byte[n / 8 * 5];
+            for (int i = 0; i < n / 8; i++)
+            {
+                payload[i * 5] = Read64;
+                BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(i * 5 + 1), (uint)(address + at + i * 8));
+            }
+            Call(payload).AsSpan(0, n).CopyTo(result.AsSpan(at));
+        }
+        return result;
+    }
+
+    public uint ReadWord(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Call([Read32, .. BitConverter.GetBytes(address)]));
+
+    /// <summary>Writes one word, remembering the word that was there first so it can be put back.</summary>
+    public void WriteWord(uint address, uint value)
+    {
+        if (address % 4 != 0) throw new ArgumentException("Words are written at multiples of 4.");
+        if (!originals.ContainsKey(address)) originals[address] = ReadWord(address);
+        var payload = new byte[9];
+        payload[0] = Write32;
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(1), address);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(5), value);
+        Call(payload);
+    }
+
+    /// <summary>Puts back every word changed through this connection.</summary>
+    public void UndoAll()
+    {
+        foreach (var (address, value) in originals.ToList())
+        {
+            var payload = new byte[9];
+            payload[0] = Write32;
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(1), address);
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(5), value);
+            Call(payload);
+        }
+        originals.Clear();
+    }
+
+    // Words where the Japanese and English programs differ; the game never changes them while it runs.
+    private static readonly uint[] EditionChecks =
+    [
+        0x0041BE54, 0x0041C0C4, 0x004568B4, 0x004595FC, 0x00459870, 0x004AB07C, 0x004AB820, 0x004ABB6C, 0x004ABE4C, 0x004AC9A0, 0x004ACC10, 0x004ACE84,
+        0x004AD0F8, 0x004AD6F0, 0x004AD960, 0x004ADBD4, 0x004ADE48, 0x004AE0BC, 0x004AE330, 0x004AF744, 0x004B04C8, 0x004B24F4, 0x004B28A8, 0x004B4250,
+    ];
+
+    /// <summary>Whether the running program is the one on the opened disc, judged by words where the two editions differ.</summary>
+    public bool MatchesProgram(ReadOnlySpan<byte> executable)
+    {
+        foreach (uint address in EditionChecks)
+        {
+            long at = address - GameRules.ProgramToFile;
+            if (at < 0 || at + 4 > executable.Length) return false;
+            if (ReadWord(address) != BinaryPrimitives.ReadUInt32LittleEndian(executable[(int)at..])) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Units on the current map: records in the unit pool whose battle data gives an army (0 is the player's) and a position.</summary>
+    public IReadOnlyList<LiveUnit> Units(IReadOnlyDictionary<int, string> names)
+    {
+        var pool = ReadRange(PoolStart, (int)(PoolEnd - PoolStart));
+        uint U32(uint a) => BinaryPrimitives.ReadUInt32LittleEndian(pool.AsSpan((int)(a - PoolStart)));
+        var units = new List<LiveUnit>();
+        for (uint a = PoolStart; a < PoolEnd - 0x100; a += 4)
+        {
+            int o = (int)(a - PoolStart);
+            int id = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 8)), id2 = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 10));
+            if (id != id2 || id is <= 0 or >= 1600) continue;
+            uint battle = U32(a + 0xA8);
+            if (battle < PoolStart || battle >= PoolEnd - 12) continue;
+            uint army = U32(battle), x = U32(battle + 4), y = U32(battle + 8);
+            if (army > 3 || x > 64 || y > 64) continue;
+            int level = pool[o + 0x10] & 0x3F;
+            if (level is < 1 or > 63) continue;
+            int hp = (BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 0x10)) & 0x1FFF) >> 6;
+            units.Add(new(a, id, names.TryGetValue(id, out var n) && n.Length > 0 ? n : $"Unit {id}", (int)army, (int)x, (int)y, level, pool[o + 0xF], hp));
+        }
+        // The game keeps short-lived copies of a unit (for a forecast, for example); the first record of each unit at a position is the live one.
+        return units.GroupBy(u => (u.NameId, u.Army, u.X, u.Y)).Select(g => g.First()).OrderBy(u => u.Army).ThenBy(u => u.Address).ToList();
+    }
+
+    /// <summary>A unit's record in the starting-record layout (with 4 empty bytes where the tag would be), for the character fields.</summary>
+    public byte[] ReadRecord(LiveUnit unit)
+    {
+        var record = new byte[CharacterDecoder.RecordLength];
+        ReadRange(unit.Address, (int)RecordLength).CopyTo(record, Tag);
+        return record;
+    }
+
+    /// <summary>Writes the parts of a record that differ from what the game holds now (only within the unit's own data).</summary>
+    public int WriteRecord(LiveUnit unit, byte[] edited)
+    {
+        var current = ReadRecord(unit);
+        int words = 0;
+        for (int i = Tag; i < Tag + RecordLength; i += 4)
+        {
+            if (edited.AsSpan(i, 4).SequenceEqual(current.AsSpan(i, 4))) continue;
+            WriteWord(unit.Address + (uint)(i - Tag), BinaryPrimitives.ReadUInt32LittleEndian(edited.AsSpan(i)));
+            words++;
+        }
+        return words;
+    }
+
+    public IReadOnlyList<LiveItem> Items(LiveUnit unit)
+    {
+        uint list = ReadWord(unit.Address + ItemList);
+        if (list < 0x00100000 || list >= PoolEnd) return [];
+        var data = ReadRange(list, 72);
+        var items = new List<LiveItem>();
+        for (int slot = 0; slot < 8; slot++)
+        {
+            uint w = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(4 + slot * 8));
+            items.Add(new(slot, (int)(w & 0x3FF), (int)(w >> 20 & 0xFF)));
+        }
+        return items;
+    }
+
+    /// <summary>Puts an item (0 for none) with its uses in a slot.</summary>
+    public void SetItem(LiveUnit unit, int slot, int itemId, int uses)
+    {
+        if (slot is < 0 or > 7) throw new ArgumentOutOfRangeException(nameof(slot));
+        uint list = ReadWord(unit.Address + ItemList);
+        if (list < 0x00100000 || list >= PoolEnd) throw new IOException("This unit's items could not be found.");
+        uint at = list + 4 + (uint)slot * 8;
+        uint w = ReadWord(at);
+        w = (w & ~0x3FFu & ~0x0FF00000u) | ((uint)itemId & 0x3FF) | ((uint)Math.Clamp(uses, 0, 255) << 20);
+        WriteWord(at, w);
+    }
+
+    /// <summary>Writes a rule's instructions for a setting, after checking that each site holds an instruction the rule knows.</summary>
+    public bool WriteRule(GameRule rule, int setting)
+    {
+        var current = rule.Sites.Select(s => ReadWord(s.Address)).ToArray();
+        if (rule.Decode(current) is null) return false;
+        var words = rule.Encode(setting);
+        for (int i = 0; i < words.Length; i++)
+            if (current[i] != words[i]) WriteWord(rule.Sites[i].Address, words[i]);
+        return true;
+    }
+}

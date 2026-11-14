@@ -517,6 +517,71 @@ Test("Terrain costs show tenths and the impassable mark, and parse back",()=>{
     Equal(TerrainData.Terrains,TerrainData.Fields.Count);Equal(TerrainData.Terrains,TerrainData.TerrainNames.Length);Equal(TerrainData.Types,TerrainData.TypeNames.Length);
     var row=new byte[TerrainData.RowLength];row[0]=2;row[4+50]=70;var m=TerrainData.Decode(2,row);Equal("Flying/Flying/7",$"{m.Name}/{m.MountText}/{m.Cost(50)}");
 });
+Test("Live game: units, record and item edits, rules and undo over a stand-in for PCSX2",()=>{
+    var memory=new byte[0x02000000];
+    void Put(uint a,uint v)=>BinaryPrimitives.WriteUInt32LittleEndian(memory.AsSpan((int)a),v);
+    uint Get(uint a)=>BinaryPrimitives.ReadUInt32LittleEndian(memory.AsSpan((int)a));
+    const uint unit=0x01D00100,battle=0x01D10000,list=0x01D20000;
+    BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)unit+8),5);BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)unit+10),5);
+    memory[unit+0xF]=0x20;BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)unit+0x10),(ushort)(7|30<<6));
+    Put(unit+0xA8,battle);Put(battle,0);Put(battle+4,3);Put(battle+8,4);
+    Put(unit+0x7C,list);Put(list,1);Put(list+4,0x22u|40u<<20);
+    var program=new byte[0x004B4300-(int)GameRules.ProgramToFile];new Random(3).NextBytes(program);
+    program.AsSpan(0x0041BE00-(int)GameRules.ProgramToFile).CopyTo(memory.AsSpan(0x0041BE00,program.Length-(0x0041BE00-(int)GameRules.ProgramToFile)));
+    var rule=GameRules.ById(117);
+    var original=rule.Original;for(int i=0;i<original.Length;i++)Put(rule.Sites[i].Address,original[i]);
+    var listener=new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback,0);listener.Start();
+    int port=((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+    var server=new Thread(()=>{
+        using var client=listener.AcceptTcpClient();using var stream=client.GetStream();
+        var head=new byte[4];
+        while(true)
+        {
+            int got=0;while(got<4){int n=stream.Read(head,got,4-got);if(n==0)return;got+=n;}
+            var body=new byte[BinaryPrimitives.ReadInt32LittleEndian(head)-4];got=0;while(got<body.Length)got+=stream.Read(body,got,body.Length-got);
+            var reply=new List<byte>{0};
+            for(int at=0;at<body.Length;)
+            {
+                byte op=body[at];uint a=at+5<=body.Length?BinaryPrimitives.ReadUInt32LittleEndian(body.AsSpan(at+1)):0;
+                switch(op)
+                {
+                    case 2:reply.AddRange(memory.AsSpan((int)a,4).ToArray());at+=5;break;
+                    case 3:reply.AddRange(memory.AsSpan((int)a,8).ToArray());at+=5;break;
+                    case 6:Put(a,BinaryPrimitives.ReadUInt32LittleEndian(body.AsSpan(at+5)));at+=9;break;
+                    case 12:{var id=Encoding.ASCII.GetBytes("SLPS-25497\0");reply.AddRange(BitConverter.GetBytes(id.Length));reply.AddRange(id);at+=1;break;}
+                    case 15:reply.AddRange(BitConverter.GetBytes(0));at+=1;break;
+                    default:throw new Exception($"op {op}");
+                }
+            }
+            stream.Write(BitConverter.GetBytes(reply.Count+4));stream.Write(reply.ToArray());
+        }
+    }){IsBackground=true};
+    server.Start();
+    using(var game=LiveGame.Connect(port))
+    {
+        Equal("SLPS-25497",game.GameId());Equal(true,game.Running());
+        Equal(true,game.MatchesProgram(program));
+        var units=game.Units(new Dictionary<int,string>{[5]="Ward"});
+        Equal(1,units.Count);var ward=units[0];
+        Equal("Ward 0 3,4 7 30 32",$"{ward.Name} {ward.Army} {ward.X},{ward.Y} {ward.Level} {ward.Hp} {ward.ClassId}");
+        var record=game.ReadRecord(ward);var level=CharacterFields.Record.First(f=>f.Key=="level");
+        Equal(7,FieldCodec.Read(record,level));Equal(0x20,(int)record[4+0xF]);
+        FieldCodec.Write(record,level,9);Equal(1,game.WriteRecord(ward,record));
+        ward=game.Units(new Dictionary<int,string>{[5]="Ward"})[0];Equal("9 30",$"{ward.Level} {ward.Hp}");
+        Equal(new LiveItem(0,0x22,40),game.Items(ward)[0]);
+        game.SetItem(ward,0,0x30,12);Equal(new LiveItem(0,0x30,12),game.Items(ward)[0]);
+        int setting=rule.Default==rule.Min?rule.Max:rule.Min;
+        Equal(true,game.WriteRule(rule,setting));Equal(setting,rule.Decode(rule.Sites.Select(x=>Get(x.Address)).ToArray()));
+        Equal(true,game.ChangedWords>=3);
+        game.UndoAll();Equal(0,game.ChangedWords);
+        Equal(7,memory[unit+0x10]&0x3F);Equal(0x22u|40u<<20,Get(list+4));Equal(rule.Default,rule.Decode(rule.Sites.Select(x=>Get(x.Address)).ToArray()));
+        // A rule is left alone where the running program has other code, and a different program is noticed.
+        Put(rule.Sites[0].Address,0xFFFFFFFF);Equal(false,game.WriteRule(rule,setting));Equal(0xFFFFFFFFu,Get(rule.Sites[0].Address));Equal(0,game.ChangedWords);
+        Put(0x0041BE54,Get(0x0041BE54)^1);Equal(false,game.MatchesProgram(program));
+    }
+    listener.Stop();
+    Throws<IOException>(()=>LiveGame.Connect(port));
+});
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length>=2)
 {

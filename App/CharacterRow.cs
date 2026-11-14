@@ -24,6 +24,12 @@ public sealed record FurnitureRow(int Id, string Name, int Price, int Original)
     public string EditedText => Edited ? "Edited" : "";
 }
 
+public sealed record LiveUnitRow(LiveUnit Unit, string ClassName)
+{
+    public string Side => Unit.Army switch { 0 => "Yours", 1 => "Enemy", 2 => "Ally", _ => "Other" };
+    public string Position => $"{Unit.X}, {Unit.Y}";
+}
+
 public sealed record ClassRow(ClassRecord Class, IReadOnlyList<ItemDifference> Differences, bool HasComparison, IReadOnlyList<string> StartingCharacters)
 {
     public string Comparison => HasComparison ? Differences.Count == 0 ? "Same" : "Different" : "";

@@ -2,9 +2,9 @@
 
 An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation.
 
-Edit items, character stats and growths, starting equipment, personal and class skills, class stats, movement types and terrain costs. Game rules cover Parry, shield block, shield guard, battle experience and stat limits. Save changes as a `.bwproj` project, compare discs, and export a separate patched ISO for PCSX2.
+Edit items, character stats and growths, starting equipment, personal and class skills, class stats, movement types and terrain costs. Game rules cover Parry, shield block, shield guard, battle experience and stat limits. Save changes as a `.bwproj` project, compare discs, and export a separate patched ISO for PCSX2. A Live game page can also change units and try rules in a game running in PCSX2 on the same computer, through its PINE connection, when you choose Connect.
 
-New items reuse existing slots; custom names currently appear only in the project. Learned skills, class growths, supports and in-game text are not editable. Game rules affect enemies as well as player units. Shield guard applies only after a failed block roll; attacks that ignore Defense also ignore guard.
+New items reuse existing slots; custom names currently appear only in the project. Learned skills, class growths and in-game text are not editable. Game rules affect enemies as well as player units. Shield guard applies only after a failed block roll; attacks that ignore Defense also ignore guard.
 
 ## Layout
 
