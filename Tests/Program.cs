@@ -413,7 +413,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("96",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("96,106",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -472,7 +472,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(77,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(81,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
@@ -937,6 +937,14 @@ foreach(var exportDisc in new[]{jp!,en!})
             var edited=exe.ToArray();foreach(var p in patches)p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
             Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
             Equal(false,GameRules.ById(96).Confirmed);Equal(true,GameRules.ById(95).Confirmed);
+            var h=new EditSession(disc);
+            Equal("0/0/50/0",string.Join("/",new[]{103,104,105,106}.Select(id=>h.Value(EditSession.Rules,id,GameRules.ById(id).Key))));
+            h.Apply(new FieldEdit[]{new(EditSession.Rules,103,"hitAdds",5),new(EditSession.Rules,104,"criticalAdds",1),new(EditSession.Rules,105,"criticalThreshold",5)});
+            var hp2=Exporter.PatchesFor(h,disc);
+            uint W(uint address)=>BitConverter.ToUInt32(hp2.Single(p=>p.Offset==disc.ExecutableFile!.Offset+address-GameRules.ProgramToFile).Bytes);
+            Equal(0x0C000000u|(0x001808B0u>>2),W(0x00179A08));Equal(0x0C000000u|(0x0017A230u>>2),W(0x00179420));Equal(0x28410006u,W(0x0017A200));Equal(0x2442FFFBu,W(0x0017A210));
+            h.Apply(new FieldEdit[]{new(EditSession.Rules,103,"hitAdds",6)});
+            Equal(0x0000102Du,BitConverter.ToUInt32(Exporter.PatchesFor(h,disc).Single(p=>p.Offset==disc.ExecutableFile!.Offset+0x00179A08-GameRules.ProgramToFile).Bytes));
         }
     });
     Test("Randomized starting items keep their type, level limit and restricted items, and repeat with the same seed",()=>{
