@@ -247,6 +247,8 @@ public static class GameRules
         ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5.",
         ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5.",
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5.",
+        ["Celerity"] = "A unit with Celerity adds this many hexes to its move. The game adds 1.",
+        ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move. The game takes 1.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is level 10 or lower. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -554,6 +556,13 @@ public static class GameRules
         new GameRule(120, "evasionAvoid", "Evasion avoid bonus", "", RuleKind.Limit, 0, 200, 50, null,
             [new RuleSite(0x001B7F44, n => 0x26310000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26310000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: false)
         { Group = "Evasion", Short = "Avoid", Section = SkillsSection },
+        // Move is counted in tenths: Slow Start II takes 10 off (addiu s0,s0,-10 at 0x0017E6A0), Celerity adds 10 (0x0017E768).
+        new GameRule(121, "celerityMove", "Celerity move bonus", "", RuleKind.Limit, 0, 3, 1, null,
+            [new RuleSite(0x0017E768, n => 0x26100000u | (uint)(n * 10), w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 30 ? (int)(w & 0xFFFF) / 10 : null)], confirmed: false)
+        { Group = "Celerity", Short = "Move bonus", Section = SkillsSection },
+        new GameRule(122, "slowStartMove", "Slow Start II move penalty", "", RuleKind.Limit, 0, 3, 1, null,
+            [new RuleSite(0x0017E6A0, n => 0x26100000u | (uint)(-n * 10 & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26100000u && -(short)(w & 0xFFFF) is var v && v % 10 == 0 && v is >= 0 and <= 30 ? v / 10 : null)], confirmed: false)
+        { Group = "Slow Start II", Short = "Move penalty", Section = SkillsSection },
         Hidden(WordSets(106, "criticalSkillLevel", "Critical skill bonus", HitCriticalGroup, "Critical skill adds", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]])),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
