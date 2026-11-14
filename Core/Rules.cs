@@ -238,6 +238,7 @@ public static class GameRules
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses; magic defense is shown as Mag in the equipment window. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
+        [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and the Critical skill adds the unit's level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -276,6 +277,22 @@ public static class GameRules
             sites.Select(a => new RuleSite(a, s => Jal(StatFunctions[s]), w => Array.FindIndex(StatFunctions, f => Jal(f) == w) is var k and >= 0 ? k : null)).ToArray(), confirmed,
             decode: found => found.Distinct().Count() == 1 && Array.FindIndex(StatFunctions, f => Jal(f) == found[0]) is var k and >= 0 ? k : null)
         { Group = BattleStatsGroup, Short = part };
+
+    public const string HitCriticalGroup = "Hit and critical";
+    private const uint WeaponLevel = 0x0017A230u, WeaponLevelAbove = 0x0017A1F0u;
+
+    // A call that adds a value to hit or critical: the game's own helpers, any stat function, or a zero (daddu v0,zero,zero).
+    private static GameRule AddedValue(int id, string key, string part, uint site, (string Name, uint Word)[] own, int normal, bool confirmed)
+    {
+        var options = own.Concat(StatNames.Select((n, i) => (n, Jal(StatFunctions[i])))).Append(("Nothing", 0x0000102Du)).ToArray();
+        return new GameRule(id, key, part, "", RuleKind.Choice, 0, options.Length - 1, normal, options.Select(o => o.Item1).ToArray(),
+            [new RuleSite(site, s => options[s].Item2, w => Array.FindIndex(options, o => o.Item2 == w) is var k and >= 0 ? k : null)], confirmed)
+        { Group = HitCriticalGroup, Short = part };
+    }
+
+    private static GameRule Hidden(GameRule rule) =>
+        new(rule.Id, rule.Key, rule.Name, rule.Description, rule.Kind, rule.Min, rule.Max, rule.Default, rule.Choices, rule.Sites, false,
+            words => rule.Decode(words)) { Group = rule.Group, Short = rule.Short, Section = "" };
 
     private static GameRule MoveRule(int id, string key, string skill, int normal, string[] choices, uint[] addresses, uint[][] words) =>
         WordSets(id, key, $"{skill} after moving", skill, "After moving", normal, choices, addresses, words);
@@ -476,6 +493,17 @@ public static class GameRules
             decode: found => found.Distinct().Count() == 1 && (found[0] & ~0x7C0u) == 0x00021803u && (found[0] >> 6 & 31) <= 3 ? (int)(found[0] >> 6 & 31) : null)
         { Group = BattleStatsGroup, Short = "Share that offsets weight" },
         StatChoice(102, "healingStat", "Healing", 3, 0x0017B530, 0x0017B4FC),
+        // Hit adds the weapon level through a call at 0x00179A08; critical adds the weapon level above a threshold through 0x00179420.
+        // Either call can be pointed at a stat function instead, or replaced by a zero.
+        AddedValue(103, "hitAdds", "Hit adds", 0x00179A08, [("Weapon level", Jal(WeaponLevel))], 0, false),
+        AddedValue(104, "criticalAdds", "Critical adds", 0x00179420, [("Weapon level above the threshold", Jal(WeaponLevelAbove)), ("Weapon level", Jal(WeaponLevel))], 0, false),
+        new GameRule(105, "criticalThreshold", "Weapon level that critical counts above", "", RuleKind.Limit, 0, 100, 50, null,
+            [new RuleSite(0x0017A200, n => 0x28410000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 101 ? (int)(w & 0xFFFF) - 1 : null),
+             new RuleSite(0x0017A210, n => 0x24420000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x24420000u && (-(short)(w & 0xFFFF)) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = HitCriticalGroup, Short = "Critical counts weapon level above" },
+        // The Critical skill adds the unit's level (addu at 0x00179488, then an empty slot); a shift first scales it.
+        Hidden(WordSets(106, "criticalSkillLevel", "Critical skill bonus", HitCriticalGroup, "Critical skill adds", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
+            [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]])),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
