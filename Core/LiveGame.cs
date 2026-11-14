@@ -13,6 +13,8 @@ public sealed record LiveItem(int Slot, int ItemId, int Uses);
 /// <summary>
 /// Reads and changes the running game in PCSX2 through PINE, a connection PCSX2 offers on this computer only
 /// (127.0.0.1). Every word this class changes is remembered so all changes can be undone; nothing on the disc or in saves changes.
+/// Undo puts a word back only while it still holds the value written here, and finds item slots again through the unit,
+/// because the game moves item lists and reuses memory as it plays.
 /// Unit records in memory have the disc's starting-record layout without its 4-byte tag, so the character fields apply
 /// with their offsets shifted by 4.
 /// </summary>
@@ -24,7 +26,8 @@ public sealed class LiveGame : IDisposable
     private const int Tag = 4, ChunkLength = 0x1000;
     private readonly TcpClient client;
     private readonly NetworkStream stream;
-    private readonly Dictionary<uint, uint> originals = [];
+    private readonly Dictionary<uint, (uint Original, uint Written)> originals = [];
+    private readonly Dictionary<(uint Unit, int Slot), (uint Original, uint Written)> itemEdits = [];
 
     private LiveGame(TcpClient client) { this.client = client; stream = client.GetStream(); }
 
@@ -39,7 +42,10 @@ public sealed class LiveGame : IDisposable
 
     public void Dispose() { stream.Dispose(); client.Dispose(); }
 
-    public int ChangedWords => originals.Count;
+    public int ChangedWords => originals.Count + itemEdits.Count;
+
+    /// <summary>The words changed through this connection, with the value each held first.</summary>
+    public IReadOnlyDictionary<uint, uint> Originals => originals.ToDictionary(k => k.Key, k => k.Value.Original);
 
     private byte[] Call(byte[] payload)
     {
@@ -106,11 +112,8 @@ public sealed class LiveGame : IDisposable
 
     public uint ReadWord(uint address) => BinaryPrimitives.ReadUInt32LittleEndian(Call([Read32, .. BitConverter.GetBytes(address)]));
 
-    /// <summary>Writes one word, remembering the word that was there first so it can be put back.</summary>
-    public void WriteWord(uint address, uint value)
+    private void Store(uint address, uint value)
     {
-        if (address % 4 != 0) throw new ArgumentException("Words are written at multiples of 4.");
-        if (!originals.ContainsKey(address)) originals[address] = ReadWord(address);
         var payload = new byte[9];
         payload[0] = Write32;
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(1), address);
@@ -118,18 +121,36 @@ public sealed class LiveGame : IDisposable
         Call(payload);
     }
 
-    /// <summary>Puts back every word changed through this connection.</summary>
-    public void UndoAll()
+    /// <summary>Writes one word, remembering the word that was there first so it can be put back.</summary>
+    public void WriteWord(uint address, uint value)
     {
-        foreach (var (address, value) in originals.ToList())
+        if (address % 4 != 0) throw new ArgumentException("Words are written at multiples of 4.");
+        uint original = originals.TryGetValue(address, out var known) ? known.Original : ReadWord(address);
+        Store(address, value);
+        originals[address] = (original, value);
+    }
+
+    /// <summary>
+    /// Puts back what was changed through this connection. A word the game has changed since is left as it is, and so is an
+    /// item slot whose contents changed; returns how many changes were left that way.
+    /// </summary>
+    public int UndoAll()
+    {
+        int left = 0;
+        foreach (var (address, (original, written)) in originals.ToList())
         {
-            var payload = new byte[9];
-            payload[0] = Write32;
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(1), address);
-            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(5), value);
-            Call(payload);
+            if (ReadWord(address) == written) Store(address, original); else left++;
+        }
+        foreach (var ((unit, slot), (original, written)) in itemEdits.ToList())
+        {
+            uint list = ReadWord(unit + ItemList);
+            if (list < 0x00100000 || list >= PoolEnd) { left++; continue; }
+            uint at = list + 4 + (uint)slot * 8;
+            if (ReadWord(at) == written) Store(at, original); else left++;
         }
         originals.Clear();
+        itemEdits.Clear();
+        return left;
     }
 
     // Words where the Japanese and English programs differ; the game never changes them while it runs.
@@ -218,9 +239,11 @@ public sealed class LiveGame : IDisposable
         uint list = ReadWord(unit.Address + ItemList);
         if (list < 0x00100000 || list >= PoolEnd) throw new IOException("This unit's items could not be found.");
         uint at = list + 4 + (uint)slot * 8;
-        uint w = ReadWord(at);
-        w = (w & ~0x3FFu & ~0x0FF00000u) | ((uint)itemId & 0x3FF) | ((uint)Math.Clamp(uses, 0, 255) << 20);
-        WriteWord(at, w);
+        uint current = ReadWord(at);
+        uint w = (current & ~0x3FFu & ~0x0FF00000u) | ((uint)itemId & 0x3FF) | ((uint)Math.Clamp(uses, 0, 255) << 20);
+        uint original = itemEdits.TryGetValue((unit.Address, slot), out var known) && known.Written == current ? known.Original : current;
+        Store(at, w);
+        itemEdits[(unit.Address, slot)] = (original, w);
     }
 
     /// <summary>Writes a rule's instructions for a setting, after checking that each site holds an instruction the rule knows.</summary>

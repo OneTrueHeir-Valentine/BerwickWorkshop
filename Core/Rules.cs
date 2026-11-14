@@ -222,7 +222,12 @@ public static class GameRules
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit for each use to the unit's next fight; the game gives 10.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
-        ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
+        ["One-Two"] = "After use, One-Two can be chosen again this many of the unit's turns later. The game's wait is 6.",
+        ["Camouflage"] = "A unit with Camouflage multiplies the avoid it gets from terrain. The game uses one and a half times.",
+        ["Armsthrift"] = "Every use of a weapon has a chance to cost no durability. Armsthrift adds this much to that chance; the game adds 20.",
+        ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3.",
+        ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
@@ -269,9 +274,9 @@ public static class GameRules
     private static readonly string[] WeaponMoveChoices = ["Allowed", "Not allowed", "Weapon decides"];
 
     /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
-    private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words) =>
+    private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words, bool confirmed = true) =>
         new(id, key, name, "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
-            addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: true,
+            addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: confirmed,
             decode: found => Array.FindIndex(words, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
         { Group = group, Short = shortName, Section = SkillsSection };
 
@@ -319,9 +324,9 @@ public static class GameRules
         WordSets(id, key, $"{skill} after moving", skill, "After moving", normal, choices, addresses, words);
 
     // After a command is used, the game stores a wait in the unit's state (addiu a0,zero,N) and counts it down once per turn.
-    private static GameRule Wait(int id, string key, string skill, uint address, int normal) =>
+    private static GameRule Wait(int id, string key, string skill, uint address, int normal, bool confirmed = true) =>
         new(id, key, $"{skill} wait", "", RuleKind.Limit, 1, 30, normal, null,
-            [new RuleSite(address, s => 0x24040000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+            [new RuleSite(address, s => 0x24040000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: confirmed)
         { Group = skill, Short = "Wait (turns)", Section = SkillsSection };
 
     // Swimmer in the movement cost builder: the game copies plain-ground costs onto water for any unit with the skill.
@@ -560,6 +565,38 @@ public static class GameRules
         new GameRule(122, "slowStartMove", "Slow Start II move penalty", "", RuleKind.Limit, 0, 3, 1, null,
             [new RuleSite(0x0017E6A0, n => 0x26100000u | (uint)(-n * 10 & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26100000u && -(short)(w & 0xFFFF) is var v && v % 10 == 0 && v is >= 0 and <= 30 ? v / 10 : null)], confirmed: true)
         { Group = "Slow Start II", Short = "Move penalty", Section = SkillsSection },
+        // Camouflage multiplies terrain avoid by 3 and halves it (rounded toward zero) in the forecast hooks (0x001B7B74, 0x001B7DAC,
+        // one per difficulty) and in battle (0x0022C040); terrain avoid is always even, so every choice is exact.
+        WordSets(123, "camouflageAvoid", "Camouflage terrain avoid", "Camouflage", "Terrain avoid", 1,
+            ["No bonus", "One and a half times", "Twice", "Two and a half times"],
+            [0x001B7B74u, 0x001B7B78u, 0x001B7DACu, 0x001B7DB0u, 0x0022C040u, 0x0022C044u],
+            [[0x00101040u, 0u, 0x00101040u, 0u, 0x00031840u, 0u],
+             [0x00101040u, 0x00501021u, 0x00101040u, 0x00501021u, 0x00031040u, 0x00431821u],
+             [0x00101080u, 0u, 0x00101080u, 0u, 0x00031880u, 0u],
+             [0x00101080u, 0x00501021u, 0x00101080u, 0x00501021u, 0x00031080u, 0x00431821u]]),
+        // Armsthrift adds 20 to the chance that a weapon use costs no durability (addiu s0,s0,20 at 0x0016D2D4).
+        new GameRule(124, "armsthriftChance", "Armsthrift chance", "", RuleKind.Limit, 0, 100, 20, null,
+            [new RuleSite(0x0016D2D4, n => 0x26100000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = "Armsthrift", Short = "Chance to save a use (%)", Section = SkillsSection },
+        // Watchful: hidden units are uncovered within 3 hexes instead of 1 (0x001BDF3C), and the map view is refreshed over 3 hexes (0x001ACF48).
+        new GameRule(125, "watchfulRange", "Watchful range", "", RuleKind.Limit, 1, 10, 3, null,
+            [new RuleSite(0x001BDF3C, n => 0x24100000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24100000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x001ACF48, n => 0x241E0000u | (uint)n, w => (w & 0xFFFF0000u) == 0x241E0000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Watchful", Short = "Range (hexes)", Section = SkillsSection },
+        // One-Two sets status 4 (unit state +0x5C bit 4); choosing it stores a wait of 5 (0x001C35DC), and after the fight the
+        // battle code sets the same counter to 6 (0x0022D524), which is the one that counts.
+        new GameRule(126, "oneTwoWait", "One-Two wait", "", RuleKind.Limit, 1, 30, 6, null,
+            [new RuleSite(0x0022D524, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x001C35DC, n => 0x24040000u | (uint)(n - 1), w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) <= 29 ? (int)(w & 0xFFFF) + 1 : null)], confirmed: true)
+        { Group = "One-Two", Short = "Wait (turns)", Section = SkillsSection },
+        Wait(127, "silenceWait", "Silence", 0x001C365C, 9, confirmed: false),
+        // Despoil: the defeated enemy's level times 4 (sll v1,v1,2 at 0x003F98BC) plus a random 0 to 50 (0x003F98AC).
+        new GameRule(128, "despoilPerLevel", "Despoil gold per enemy level", "", RuleKind.Choice, 0, 5, 2, ["1", "2", "4", "8", "16", "32"],
+            [new RuleSite(0x003F98BC, n => 0x00031800u | (uint)n << 6, w => (w & ~0x7C0u) == 0x00031800u && (w >> 6 & 31) <= 5 ? (int)(w >> 6 & 31) : null)], confirmed: true)
+        { Group = "Despoil", Short = "Gold per enemy level", Section = SkillsSection },
+        new GameRule(129, "despoilRandom", "Despoil random gold", "", RuleKind.Limit, 0, 999, 50, null,
+            [new RuleSite(0x003F98AC, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) <= 999 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = "Despoil", Short = "Random extra gold, up to", Section = SkillsSection },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
