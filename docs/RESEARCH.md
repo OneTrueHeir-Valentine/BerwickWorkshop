@@ -161,6 +161,21 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 ### Item slots (from the discs)
 - 156 catalogue entries are unused placeholders, in runs inside each weapon category (for example 0x017 to 0x01F among knives). Their records hold template data; 19 are byte-identical to a real item. None are starting items. Shops, chests and drops have not been mapped, so a placeholder could still be referenced by chapter data.
 
+## More skills read from the program
+- Fortune `0x00174DC0`: has Fortune (or an item with effect 0x2C) unless unit state +0x5C has bit 27 or 31; the battle code at `0x0022C66C` then clears the real critical chance (+184) and +196 of the attacker's side. The forecast value (+180) is left.
+- Camouflage: terrain avoid times 3, halved, in the forecast hooks `0x001B7B74` and `0x001B7DAC` and in battle `0x0022C040`. Checked live: Ward on plain 11 avoid at 2.5 times, 8 without.
+- Hunter `0x0022BF88`: bow, crossbow or ballista (`0x0016E4A0`, weapon types 8 to 10) against a defender on terrain class 4 or 5 sets the defender's terrain avoid to 0.
+- Hateful `0x002F2F7C`: when attacked, status 15 (Provoked) for 10 aimed at the attacker, the same call as the Provoke command (`0x002F23E4`). Status n: unit state +0x5C bit n, counter byte +0x60 + n, set by `0x001B7400`.
+- Acrobat `0x001BA89C`: every enterable terrain costs what terrain 0 costs, except terrain 63 and terrains with attribute flag 0x80 (buildings and kind 29). Swimmer does the same for flag 0x100 (water).
+- Celerity skips the class list at gp-31600 (gp 0x4BC2F0), which holds exactly the 36 mounted classes.
+- Armsthrift `0x0016D2D4`: adds 20 to the chance that a weapon use costs no durability. Checked live at 100.
+- Slow Start: the move left at the start of a move (unit state +0x3C) is Move minus 10 tenths minus what is spent, at twelve places in `0x002F33B0` to `0x00300680`; the Move stat itself is unchanged.
+- Watchful: hidden units are uncovered within 3 hexes instead of 1 (`0x001BDF3C`), and the map view is refreshed over 3 hexes (`0x001ACF48`). Obfuscate `0x001C4B50` hides stats until unit state +0x58 bit 17 is set.
+- Despoil `0x003F97EC`: after a kill, the side gains enemy level times 4 (`0x003F98BC`) plus random 0 to 50 (`0x003F98AC`) through `0x001B94D0` (gold at army +68, capped at 999,999). Checked live: +160 for a level 5 enemy at 32 per level and no random part.
+- Cavalry moves with the horse when horses change hands (`0x001E4B90`), and `0x00172AE0` gives the horse type from the mounted class list.
+- One-Two sets status 4; choosing it stores a wait of 5 (`0x001C35DC`), and after the fight `0x0022D524` sets the counter to 6, which is the one that counts. Checked live at 1.
+- Live writes: the game moves item lists after fights, so a live tool must find item slots again through the unit (+0x7C) before putting them back.
+
 ## Gaps
 - No public decompilation, symbol map or disassembly notes for `SLPS_254.97` were found.
 - No English-edition addresses were published anywhere, but the code locations above are identical in the English executable.
