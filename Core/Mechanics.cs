@@ -96,7 +96,7 @@ public static class Mechanics
             MechanicStatus.Confirmed, "Program reading (fee table at 0x0042D450, fee 0x00170480), checked in a running game", [new("Mercenary fee", Characters)]),
 
         new("Prices", "Furniture prices", "Art: \"Hope\" 14,500, Bird Statue 17,000, Big Rug 19,000, Art: \"Revival\" 22,000, Sword Mount 23,000, Porcelain Vase 25,000, Deer Mount 26,000, Coat of Arms 27,500, Coffers 30,000, Luxury Bed 32,000, Treasure Chest 36,000, Maiden Statue 42,000, Tapestry 45,000",
-            "The furniture shop asks an event script for each piece's price, the same way the stable does for horses. The shop charges the price set here. Its list of pieces still shows the original prices, because those numbers are part of the list's own text, which cannot be edited yet.",
+            "The furniture shop asks an event script for each piece's price, the same way the stable does for horses. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices.",
             MechanicStatus.Confirmed, "Event script 727 (stored in several copies on each disc), checked in a running game", [new("Furniture prices", Furniture)]),
 
         // Partners

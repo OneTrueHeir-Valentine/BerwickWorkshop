@@ -124,14 +124,17 @@ public sealed class ScriptPrices(int eventNumber, string key, string label, stri
 
     /// <summary>Byte patches for several edited events at once. Events that share an archive are written into it together,
     /// so the archive is rewritten once and the patches never overlap.</summary>
-    public static IReadOnlyList<DiscPatch> Combined(GameArchives archives, IReadOnlyList<(ScriptPrices Table, IReadOnlyList<StableCopy> Copies, byte[] Edited)> events)
+    public static IReadOnlyList<DiscPatch> Combined(GameArchives archives, IReadOnlyList<(ScriptPrices Table, IReadOnlyList<StableCopy> Copies, byte[] Edited)> events,
+        IReadOnlyList<(int Top, Func<byte[], byte[]> Edit)>? other = null)
     {
         var patches = new List<DiscPatch>();
-        foreach (var group in events.SelectMany(e => e.Copies.Select(c => (e.Table, Copy: c, e.Edited))).GroupBy(x => x.Copy.Top).OrderBy(g => g.Key))
+        var edits = events.SelectMany(e => e.Copies.Select(c => (c.Top, Edit: (Func<byte[], byte[]>)(top => e.Table.Replace(top, c, e.Edited)))))
+            .Concat(other ?? []);
+        foreach (var group in edits.GroupBy(x => x.Top).OrderBy(g => g.Key))
         {
             var original = archives.Top(group.Key);
             var updated = original;
-            foreach (var (table, copy, edited) in group) updated = table.Replace(updated, copy, edited);
+            foreach (var (_, edit) in group) updated = edit(updated);
             if (updated.Length != original.Length) throw new InvalidDataException("An archive changed size.");
             long at = archives.TopOffset(group.Key);
             for (int i = 0; i < updated.Length; i++)
@@ -143,6 +146,28 @@ public sealed class ScriptPrices(int eventNumber, string key, string label, stri
             }
         }
         return patches;
+    }
+}
+
+/// <summary>The names in a top-level archive's file table, or none when it is not an archive.</summary>
+internal static class TopNames
+{
+    public static List<string> Read(GameArchives archives, int index)
+    {
+        var found = new List<string>();
+        var header = archives.TopRange(index, 0, 16);
+        if (!Tarc.IsArchive(header)) return found;
+        int count = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
+        int names = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(8));
+        if (count <= 0 || count > 20000 || names <= 0) return found;
+        var list = archives.TopRange(index, names, count * 40);
+        for (int p = 0, k = 0; k < count && p < list.Length; k++)
+        {
+            int end = Array.IndexOf(list, (byte)0, p);
+            if (end < 0) break;
+            found.Add(Encoding.ASCII.GetString(list, p, end - p)); p = end + 1;
+        }
+        return found;
     }
 }
 
@@ -181,4 +206,101 @@ public static class FurniturePrices
         [1] = "Sword Mount", [2] = "Big Rug", [3] = "Porcelain Vase", [4] = "Deer Mount", [5] = "Coat of Arms", [7] = "Coffers", [8] = "Tapestry",
         [9] = "Bird Statue", [10] = "Art: \"Revival\"", [11] = "Maiden Statue", [12] = "Treasure Chest", [13] = "Art: \"Hope\"", [14] = "Luxury Bed",
     };
+}
+
+/// <summary>
+/// The furniture shop's list of pieces. Its lines are fixed menu texts 91 to 103 in smenui.ar, one per piece in order of price,
+/// with the price written into the text as 16-bit glyph numbers, so the list does not ask event 727. The English translation
+/// puts the price first ("14500 - Art: Hope"); the Japanese release puts it last, right-aligned after spaces.
+/// </summary>
+public static class FurnitureList
+{
+    public const string ArchiveName = "smenui.ar";
+    public const int FirstText = 91, Digits = 5;
+    private sealed record Layout(int[] DigitGlyphs, int Space, bool PriceFirst);
+    // Glyph numbers of the digits 0 to 9 and of a space, in the menu font of each edition.
+    private static readonly Layout[] Layouts =
+    [
+        new([62, 53, 54, 55, 56, 57, 58, 59, 60, 61], 4, true),
+        new([47, 1, 7, 12, 17, 22, 27, 32, 37, 42], 0, false),
+    ];
+
+    /// <summary>The top-level archives that hold smenui.ar.</summary>
+    public static IReadOnlyList<int> Locate(GameArchives archives) =>
+        Enumerable.Range(0, archives.Count).Where(i => TopNames.Read(archives, i).Contains(ArchiveName)).ToList();
+
+    private static ArchiveEntry Entry(byte[] archive, string name) =>
+        Tarc.Parse(archive).Single(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+    private static int[] Glyphs(byte[] text) =>
+        Enumerable.Range(0, text.Length / 2).Select(i => (int)BinaryPrimitives.ReadUInt16LittleEndian(text.AsSpan(i * 2))).ToArray();
+
+    private static int? Price(int[] glyphs, Layout layout)
+    {
+        int start = layout.PriceFirst ? 0 : glyphs.Length - Digits;
+        if (start < 0 || glyphs.Length < Digits) return null;
+        int value = 0; bool digits = false;
+        for (int i = start; i < start + Digits; i++)
+        {
+            int d = Array.IndexOf(layout.DigitGlyphs, glyphs[i]);
+            if (d >= 0) { value = value * 10 + d; digits = true; }
+            else if (glyphs[i] != layout.Space || digits) return null;
+        }
+        return digits ? value : null;
+    }
+
+    /// <summary>
+    /// smenui.ar with each piece's line showing its new price, or null when the lines are not the original list (such as on a
+    /// disc changed by another tool). Pieces are matched to lines by their original prices, which are all different.
+    /// </summary>
+    public static byte[]? Write(byte[] smenui, IReadOnlyDictionary<int, int> original, IReadOnlyDictionary<int, int> prices)
+    {
+        var order = original.OrderBy(p => p.Value).ToList();
+        if (order.Select(p => p.Value).Distinct().Count() != order.Count) return null;
+        string[] names = order.Select((_, k) => (FirstText + k).ToString()).ToArray();
+        int[][] lines;
+        try { lines = names.Select(n => Glyphs(Tarc.Extract(smenui, Entry(smenui, n)))).ToArray(); }
+        catch (Exception e) when (e is InvalidOperationException or InvalidDataException) { return null; }
+        var layout = Layouts.FirstOrDefault(l => lines.Select((g, k) => Price(g, l) == order[k].Value).All(ok => ok));
+        if (layout is null) return null;
+        var updated = smenui;
+        for (int k = 0; k < order.Count; k++)
+        {
+            int price = prices.TryGetValue(order[k].Key, out var p) ? p : order[k].Value;
+            if (price == order[k].Value) continue;
+            if (price < ScriptPrices.Minimum || price > ScriptPrices.Maximum) throw new EditException($"Furniture prices must be between {ScriptPrices.Minimum} and {ScriptPrices.Maximum}.");
+            var glyphs = lines[k].ToArray();
+            int start = layout.PriceFirst ? 0 : glyphs.Length - Digits;
+            string text = price.ToString().PadLeft(Digits);
+            for (int i = 0; i < Digits; i++) glyphs[start + i] = text[i] == ' ' ? layout.Space : layout.DigitGlyphs[text[i] - '0'];
+            var bytes = new byte[glyphs.Length * 2];
+            for (int i = 0; i < glyphs.Length; i++) BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * 2), (ushort)glyphs[i]);
+            updated = ArchiveEditing.Replace(updated, names[k], bytes);
+        }
+        return updated;
+    }
+
+    /// <summary>The price each line of the list shows, by piece, or null when the lines are not the original list.</summary>
+    public static IReadOnlyDictionary<int, int>? Read(byte[] smenui, IReadOnlyDictionary<int, int> original)
+    {
+        var order = original.OrderBy(p => p.Value).ToList();
+        int[][] lines;
+        try { lines = order.Select((_, k) => Glyphs(Tarc.Extract(smenui, Entry(smenui, (FirstText + k).ToString())))).ToArray(); }
+        catch (Exception e) when (e is InvalidOperationException or InvalidDataException) { return null; }
+        foreach (var layout in Layouts)
+        {
+            var shown = lines.Select(g => Price(g, layout)).ToArray();
+            if (shown.All(v => v is not null)) return order.Select((p, k) => (p.Key, shown[k]!.Value)).ToDictionary(x => x.Key, x => x.Value);
+        }
+        return null;
+    }
+
+    /// <summary>An edit for every top-level archive holding smenui.ar that writes the new prices into the list.</summary>
+    public static IReadOnlyList<(int Top, Func<byte[], byte[]> Edit)> Edits(GameArchives archives, IReadOnlyDictionary<int, int> original, IReadOnlyDictionary<int, int> prices) =>
+        Locate(archives).Select(top => (top, (Func<byte[], byte[]>)(data =>
+        {
+            var archive = Tarc.Extract(data, Entry(data, ArchiveName));
+            var written = Write(archive, original, prices);
+            return written is null ? data : ArchiveEditing.Replace(data, ArchiveName, written);
+        }))).ToList();
 }

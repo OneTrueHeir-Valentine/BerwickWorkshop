@@ -116,13 +116,16 @@ public static class Exporter
             using var stream = new FileStream(disc.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var archives = new GameArchives(new IsoImage(stream));
             var events = new List<(ScriptPrices, IReadOnlyList<StableCopy>, byte[])>();
+            var other = new List<(int Top, Func<byte[], byte[]> Edit)>();
             foreach (var (table, prices) in new[] { (StablePrices.Table, stable), (FurniturePrices.Table, furniture) })
             {
                 if (prices.Count == 0) continue;
-                var (_, decoded, copies) = table.Load(archives);
+                var (original, decoded, copies) = table.Load(archives);
                 events.Add((table, copies, table.Write(decoded, prices)));
+                // The furniture shop's list writes each price into its own text, so the list is changed too.
+                if (table == FurniturePrices.Table) other.AddRange(FurnitureList.Edits(archives, original, prices));
             }
-            patches.AddRange(ScriptPrices.Combined(archives, events));
+            patches.AddRange(ScriptPrices.Combined(archives, events, other));
         }
         return patches.AsReadOnly();
     }

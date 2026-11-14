@@ -1092,7 +1092,17 @@ foreach(var exportDisc in new[]{jp!,en!})
             var stableEdited=StablePrices.Write(stableDecoded,new Dictionary<int,int>{[0x205]=1234});
             var furnitureEdited=FurniturePrices.Table.Write(furnitureDecoded,new Dictionary<int,int>{[13]=99,[8]=60000});
             Throws<EditException>(()=>FurniturePrices.Table.Write(furnitureDecoded,new Dictionary<int,int>{[6]=500}));
-            var patches=ScriptPrices.Combined(archives,[(StablePrices.Table,stableCopies,stableEdited),(FurniturePrices.Table,furnitureCopies,furnitureEdited)]);
+            var originalPrices=FurniturePrices.Table.Read(furnitureDecoded);
+            var listTops=FurnitureList.Locate(archives);
+            Equal(true,listTops.Count>=1);
+            foreach(int top in listTops)
+            {
+                var data=archives.Top(top);
+                var list=Tarc.Extract(data,Tarc.Parse(data).Single(e=>e.Name==FurnitureList.ArchiveName));
+                Equal(true,FurnitureList.Read(list,originalPrices)!.All(p=>originalPrices[p.Key]==p.Value));
+            }
+            var patches=ScriptPrices.Combined(archives,[(StablePrices.Table,stableCopies,stableEdited),(FurniturePrices.Table,furnitureCopies,furnitureEdited)],
+                FurnitureList.Edits(archives,originalPrices,new Dictionary<int,int>{[13]=99,[8]=60000}));
             var ordered=patches.OrderBy(p=>p.Offset).ToList();
             for(int i=1;i<ordered.Count;i++) Equal(true,ordered[i].Offset>=ordered[i-1].Offset+ordered[i-1].Bytes.Length);
             foreach(int top in stableCopies.Select(c=>c.Top).Concat(furnitureCopies.Select(c=>c.Top)).Distinct())
@@ -1101,6 +1111,12 @@ foreach(var exportDisc in new[]{jp!,en!})
                 foreach(var p in patches.Where(p=>p.Offset>=start && p.Offset<start+bytes.Length)) p.Bytes.CopyTo(bytes,(int)(p.Offset-start));
                 foreach(var copy in stableCopies.Where(c=>c.Top==top)) Equal(true,StablePrices.Extract(bytes,copy).AsSpan().SequenceEqual(stableEdited));
                 foreach(var copy in furnitureCopies.Where(c=>c.Top==top)) Equal(true,FurniturePrices.Table.Extract(bytes,copy).AsSpan().SequenceEqual(furnitureEdited));
+                if(listTops.Contains(top))
+                {
+                    var list=Tarc.Extract(bytes,Tarc.Parse(bytes).Single(e=>e.Name==FurnitureList.ArchiveName));
+                    var shown=FurnitureList.Read(list,originalPrices)!;
+                    Equal(99,shown[13]);Equal(60000,shown[8]);Equal(originalPrices[1],shown[1]);
+                }
             }
             var s=new EditSession(disc);
             s.Apply(EditSession.FurniturePrices,13,new Dictionary<string,int>{["furniturePrice"]=99});
