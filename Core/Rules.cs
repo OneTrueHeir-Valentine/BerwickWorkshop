@@ -219,9 +219,9 @@ public static class GameRules
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit for each use to the unit's next fight; the game gives 10.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Evasion"] = "In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
+        ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
@@ -240,6 +240,13 @@ public static class GameRules
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses; magic defense is shown as Mag in the equipment window. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
         [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and a unit with the Critical skill also adds its level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
         [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage in the game; it can be set to deal 1 instead. A critical hit then adds its bonus damage on top. Knives leave Strength out of attack and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit.",
+        ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10.",
+        ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each.",
+        ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3.",
+        ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within 3 hexes. The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16.",
+        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5.",
+        ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5.",
+        ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is level 10 or lower. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -295,11 +302,11 @@ public static class GameRules
 
     // A multiplication by a constant: the game's own instructions for its value, or "addiu temp,zero,N" then a mult into the result,
     // with any remaining sites emptied.
-    private static GameRule Multiplier(int id, string key, string skill, string part, int normal, uint[] sites, uint[] original, int temp, uint mult)
+    private static GameRule Multiplier(int id, string key, string skill, string part, int normal, uint[] sites, uint[] original, int temp, uint mult, bool confirmed = false)
     {
         uint[] Words(int n) => n == normal ? original : [0x24000000u | (uint)temp << 16 | (uint)n, mult, .. Enumerable.Repeat(0u, sites.Length - 2)];
         return new GameRule(id, key, $"{skill} {part.ToLowerInvariant()}", "", RuleKind.Limit, 0, 200, normal, null,
-            sites.Select((a, i) => new RuleSite(a, n => Words(n)[i], w => null)).ToArray(), confirmed: false,
+            sites.Select((a, i) => new RuleSite(a, n => Words(n)[i], w => null)).ToArray(), confirmed,
             decode: found => found.SequenceEqual(original) ? normal
                 : found[1] == mult && (found[0] & 0xFFFF0000u) == (0x24000000u | (uint)temp << 16) && (found[0] & 0xFFFF) <= 200 && found.Skip(2).All(w => w == 0) ? (int)(found[0] & 0xFFFF) : null)
         { Group = skill, Short = part, Section = SkillsSection };
@@ -530,7 +537,7 @@ public static class GameRules
         { Group = DamageGroup, Short = "How much of it" },
         // Bonuses from allies' skills: the battle hooks multiply the number of allies in range by a constant (shifts and adds),
         // rewritten as addiu + the R5900 three-operand mult so any amount can be used.
-        Multiplier(110, "commanderHit", "Commander", "Hit for each ally with it", 10, [0x001B7FEC, 0x001B7FF4, 0x001B7FFC], [0x00021880u, 0x00621021u, 0x00021040u], 3, 0x00431018u),
+        Multiplier(110, "commanderHit", "Commander", "Hit for each ally with it", 10, [0x001B7FEC, 0x001B7FF4, 0x001B7FFC], [0x00021880u, 0x00621021u, 0x00021040u], 3, 0x00431018u, true),
         Multiplier(111, "safeZoneHit", "Safe Zone", "Hit for each ally with it", 15, [0x001B8008, 0x001B8010], [0x00021900u, 0x00621023u], 3, 0x00431018u),
         Multiplier(112, "safeZoneAvoid", "Safe Zone", "Avoid for each ally with it", 15, [0x001B7F18, 0x001B7F1C], [0x00022100u, 0x00822023u], 4, 0x00442018u),
         Multiplier(113, "charismaHit", "Charisma", "Hit for each ally with it", 3, [0x001B8020, 0x001B8028], [0x00021840u, 0x00621021u], 3, 0x00431018u),
