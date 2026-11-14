@@ -237,6 +237,7 @@ public static class GameRules
         ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
+        [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone), magic attack is the stat plus spell Might, physical defense and magic defense are the stat plus their bonuses, and attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength, Mind, Defense, Mind, Agility and Strength, and half the carrying stat offsets weight. Healing is the stat plus the staff's power.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -261,6 +262,19 @@ public static class GameRules
             addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: true,
             decode: found => Array.FindIndex(words, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
         { Group = group, Short = shortName, Section = SkillsSection };
+
+    public const string BattleStatsGroup = "Battle stats";
+    public static readonly string[] StatNames = ["Strength", "Agility", "Defense", "Mind", "Max HP"];
+    // The game's stat functions that add equipment and skill bonuses; all take the unit (and a flag the call already sets).
+    private static readonly uint[] StatFunctions = [0x001800B0u, 0x0017E8B0u, 0x0017F0C0u, 0x0017F8B0u, 0x001808B0u];
+    private static uint Jal(uint target) => 0x0C000000u | (target >> 2);
+
+    // A formula reads its stat by calling one of these functions; the choice is which one it calls.
+    private static GameRule StatChoice(int id, string key, string part, int normal, params uint[] sites) =>
+        new(id, key, $"{part} stat", "", RuleKind.Choice, 0, StatNames.Length - 1, normal, StatNames,
+            sites.Select(a => new RuleSite(a, s => Jal(StatFunctions[s]), w => Array.FindIndex(StatFunctions, f => Jal(f) == w) is var k and >= 0 ? k : null)).ToArray(), confirmed: false,
+            decode: found => found.Distinct().Count() == 1 && Array.FindIndex(StatFunctions, f => Jal(f) == found[0]) is var k and >= 0 ? k : null)
+        { Group = BattleStatsGroup, Short = part };
 
     private static GameRule MoveRule(int id, string key, string skill, int normal, string[] choices, uint[] addresses, uint[][] words) =>
         WordSets(id, key, $"{skill} after moving", skill, "After moving", normal, choices, addresses, words);
@@ -449,6 +463,18 @@ public static class GameRules
             Enumerable.Range(0, SwimmerGame.Length).Select(i => 0x001BA950u + (uint)i * 4).ToArray(), [SwimmerGame, SwimmerOnFoot]),
         // Each steal lowers the shared count with addiu v1,v1,-1; adding 0 keeps it.
         WordSets(94, "stealLimit", "Steal limit", "Steal", "Steals per map", 0, ["Limited", "No limit"], [0x001DF1BCu], [[0x246300FFu], [0x24630000u]]),
+        StatChoice(95, "physicalAttackStat", "Physical attack", 0, 0x0017C00C),
+        StatChoice(96, "magicAttackStat", "Magic attack", 3, 0x0017BFA4),
+        StatChoice(97, "physicalDefenseStat", "Physical defense", 2, 0x0017B9F8, 0x0017BB48),
+        StatChoice(98, "magicDefenseStat", "Magic defense", 3, 0x0017B6C0),
+        StatChoice(99, "attackSpeedStat", "Attack speed", 1, 0x0017C514),
+        StatChoice(100, "weightStat", "Carries weight", 0, 0x0017C4E0),
+        // Attack speed loses weapon and shield weight minus a share of the carrying stat: sra v1,v0,N (both rounding paths).
+        new GameRule(101, "weightShare", "Share of the carrying stat that offsets weight", "", RuleKind.Choice, 0, 3, 1, ["All of it", "Half", "A quarter", "An eighth"],
+            new[] { 0x0017C4ECu, 0x0017C4F4u }.Select(a => new RuleSite(a, n => 0x00021803u | (uint)n << 6, w => (w & ~0x7C0u) == 0x00021803u && (w >> 6 & 31) <= 3 ? (int)(w >> 6 & 31) : null)).ToArray(), confirmed: false,
+            decode: found => found.Distinct().Count() == 1 && (found[0] & ~0x7C0u) == 0x00021803u && (found[0] >> 6 & 31) <= 3 ? (int)(found[0] >> 6 & 31) : null)
+        { Group = BattleStatsGroup, Short = "Share that offsets weight" },
+        StatChoice(102, "healingStat", "Healing", 3, 0x0017B530, 0x0017B4FC),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
             [new RuleSite(0x00225488, s => 0x28420000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x002254E8, s => 0x28630000u | (uint)s, w => (w & 0xFFFF0000u) == 0x28630000u && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) : null)], confirmed: true)
