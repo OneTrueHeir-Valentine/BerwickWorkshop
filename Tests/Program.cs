@@ -413,7 +413,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal(true,GameRules.All.All(r=>r.Confirmed));
+    Equal("Parry",parry.Name);Equal("96",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -472,7 +472,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(69,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(77,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
@@ -917,6 +917,26 @@ foreach(var exportDisc in new[]{jp!,en!})
         {
             var names=ArmyData.LoadNames(new GameArchives(new IsoImage(stream)));
             Equal(1566,names.Count);Equal(true,names.All(n=>ArmyData.Names[n.Key]==n.Value));
+        }
+    });
+    Test("Battle stat choices: game code on both discs, each choice writes the matching stat call, and the program is still recognised",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            foreach(int id in new[]{95,96,97,98,99,100,101,102}) Equal(true,disc.RuleWords.ContainsKey(id));
+            var s=new EditSession(disc);
+            Equal("0/3/2/3/1/0/1/3",string.Join("/",new[]{95,96,97,98,99,100,101,102}.Select(id=>s.Value(EditSession.Rules,id,GameRules.ById(id).Key))));
+            s.Apply(new FieldEdit[]{new(EditSession.Rules,95,"physicalAttackStat",4),new(EditSession.Rules,97,"physicalDefenseStat",4),new(EditSession.Rules,100,"weightStat",4),new(EditSession.Rules,101,"weightShare",3)});
+            var patches=Exporter.PatchesFor(s,disc);
+            uint Word(long fileOffset)=>BitConverter.ToUInt32(patches.Single(p=>p.Offset==disc.ExecutableFile!.Offset+fileOffset).Bytes);
+            uint hp=0x0C000000u|(0x001808B0u>>2);
+            Equal(hp,Word(0x0017C00C-GameRules.ProgramToFile));Equal(hp,Word(0x0017B9F8-GameRules.ProgramToFile));Equal(hp,Word(0x0017BB48-GameRules.ProgramToFile));Equal(hp,Word(0x0017C4E0-GameRules.ProgramToFile));
+            Equal(0x000218C3u,Word(0x0017C4EC-GameRules.ProgramToFile));Equal(0x000218C3u,Word(0x0017C4F4-GameRules.ProgramToFile));
+            Equal(6,patches.Count);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
+            var edited=exe.ToArray();foreach(var p in patches)p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
+            Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
+            Equal(false,GameRules.ById(96).Confirmed);Equal(true,GameRules.ById(95).Confirmed);
         }
     });
     Test("Randomized starting items keep their type, level limit and restricted items, and repeat with the same seed",()=>{
