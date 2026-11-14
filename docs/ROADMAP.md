@@ -24,7 +24,7 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | FEBuilder: UPS export | Export patched ISO copy and an xdelta patch against the clean disc | M3 | ISO export done (v0.5.0); xdelta patch not yet |
 | ReWeaver: export to emulator folder, backups | Export into a chosen folder, keep previous exports in a backups folder | M3 | planned |
 | ReWeaver: first-time setup | Setup: locate ISOs, PCSX2 folder, memory cards, export folder | M3 | planned |
-| FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT) | M5 | research (`extract_berwick_tarc_file_v2.py`) |
+| FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT); needed for the furniture shop list, whose prices are part of the menu text | M5 | research (`extract_berwick_tarc_file_v2.py`) |
 | FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M8+ | research |
 | FEBuilder: map editor, event editor | Chapter maps, unit placement, events (armies and bosses editable since v0.32.0: class, level, bonuses, skills, items, drops) | M8+ | event script viewer done (v0.28.0, Events page: archives, decompression and the script format decoded); script compression and same-size archive writing done, first use stable prices (v0.29.0); general script editing and maps not yet |
 | FEBuilder: emulator RAM link | PCSX2 PINE live viewer (read-only first), launch PCSX2 with export | M8+ | research (`pine_*.py`) |
