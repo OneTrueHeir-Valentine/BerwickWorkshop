@@ -239,7 +239,7 @@ public static class GameRules
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses. Mag on the status screen is the Mind stat itself, not magic defense. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
         [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and a unit with the Critical skill also adds its level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
-        [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage in the game; it can be set to deal 1 instead. A critical hit then adds its bonus damage on top. Knives leave Strength out of attack and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit.",
+        [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage in the game; it can be set to deal 1 instead. A critical hit then adds its bonus damage on top. Knives leave the attack stat out and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit. Which stat knives add, and whether they add a random part of it or all of it, can be changed; knives also ignore the target's Defense.",
         ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10.",
         ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each.",
         ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3.",
@@ -247,8 +247,8 @@ public static class GameRules
         ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5.",
         ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5.",
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5.",
-        ["Celerity"] = "A unit with Celerity adds this many hexes to its move. The game adds 1.",
-        ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move. The game takes 1.",
+        ["Celerity"] = "A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
+        ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is level 10 or lower. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
@@ -529,10 +529,10 @@ public static class GameRules
         { Group = DamageGroup, Short = "When attack does not beat defense" },
         // Knives leave the stat out of attack and add a random amount from 0 up to it in battle (stat at 0x00227100, roll at 0x00227110).
         new GameRule(108, "knifeStat", "Stat knives add", "", RuleKind.Choice, 0, StatNames.Length - 1, 0, StatNames,
-            [new RuleSite(0x00227100, s => Jal(PlainStatFunctions[s]), w => Array.FindIndex(PlainStatFunctions, f => Jal(f) == w) is var k and >= 0 ? k : null)], confirmed: false)
+            [new RuleSite(0x00227100, s => Jal(PlainStatFunctions[s]), w => Array.FindIndex(PlainStatFunctions, f => Jal(f) == w) is var k and >= 0 ? k : null)], confirmed: true)
         { Group = DamageGroup, Short = "Knives add" },
         new GameRule(109, "knifeRandom", "How knives add it", "", RuleKind.Choice, 0, 1, 0, ["A random part of it", "All of it"],
-            [new RuleSite(0x00227110, s => s == 0 ? 0x0C04E9D0u : 0u, w => w == 0x0C04E9D0u ? 0 : w == 0 ? 1 : null)], confirmed: false)
+            [new RuleSite(0x00227110, s => s == 0 ? 0x0C04E9D0u : 0u, w => w == 0x0C04E9D0u ? 0 : w == 0 ? 1 : null)], confirmed: true)
         { Group = DamageGroup, Short = "How much of it" },
         // Bonuses from allies' skills: the battle hooks multiply the number of allies in range by a constant (shifts and adds),
         // rewritten as addiu + the R5900 three-operand mult so any amount can be used.
@@ -549,16 +549,16 @@ public static class GameRules
         Multiplier(116, "commanderIIAvoid", "Commander II", "Avoid for each ally with it", 5, [0x001B7EFC, 0x001B7F04], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
         Multiplier(117, "protectorDefense", "Protector", "Defense for each ally with it", 5, [0x001B8188, 0x001B8190], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
         Multiplier(118, "resistorResistance", "Resistor", "Resistance for each ally with it", 5, [0x001B80E0, 0x001B80E8], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
-        Multiplier(119, "battleCryHit", "Battle Cry", "Hit for each use", 10, [0x001B8068, 0x001B806C, 0x001B8070], [0x00031080u, 0x00431021u, 0x00021040u], 2, 0x00621018u),
+        Multiplier(119, "battleCryHit", "Battle Cry", "Hit for each use", 10, [0x001B8068, 0x001B806C, 0x001B8070], [0x00031080u, 0x00431021u, 0x00021040u], 2, 0x00621018u, true),
         new GameRule(120, "evasionAvoid", "Evasion avoid bonus", "", RuleKind.Limit, 0, 200, 50, null,
-            [new RuleSite(0x001B7F44, n => 0x26310000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26310000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+            [new RuleSite(0x001B7F44, n => 0x26310000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26310000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Evasion", Short = "Avoid", Section = SkillsSection },
         // Move is counted in tenths: Slow Start II takes 10 off (addiu s0,s0,-10 at 0x0017E6A0), Celerity adds 10 (0x0017E768).
         new GameRule(121, "celerityMove", "Celerity move bonus", "", RuleKind.Limit, 0, 3, 1, null,
-            [new RuleSite(0x0017E768, n => 0x26100000u | (uint)(n * 10), w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 30 ? (int)(w & 0xFFFF) / 10 : null)], confirmed: false)
+            [new RuleSite(0x0017E768, n => 0x26100000u | (uint)(n * 10), w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 30 ? (int)(w & 0xFFFF) / 10 : null)], confirmed: true)
         { Group = "Celerity", Short = "Move bonus", Section = SkillsSection },
         new GameRule(122, "slowStartMove", "Slow Start II move penalty", "", RuleKind.Limit, 0, 3, 1, null,
-            [new RuleSite(0x0017E6A0, n => 0x26100000u | (uint)(-n * 10 & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26100000u && -(short)(w & 0xFFFF) is var v && v % 10 == 0 && v is >= 0 and <= 30 ? v / 10 : null)], confirmed: false)
+            [new RuleSite(0x0017E6A0, n => 0x26100000u | (uint)(-n * 10 & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26100000u && -(short)(w & 0xFFFF) is var v && v % 10 == 0 && v is >= 0 and <= 30 ? v / 10 : null)], confirmed: true)
         { Group = "Slow Start II", Short = "Move penalty", Section = SkillsSection },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),

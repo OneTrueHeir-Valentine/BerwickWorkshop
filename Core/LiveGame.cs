@@ -54,7 +54,10 @@ public sealed class LiveGame : IDisposable
             if (body.Length == 0 || body[0] != 0) throw new IOException("PCSX2 refused the request.");
             return body[1..];
         }
-        catch (SocketException) { throw new IOException("The connection to PCSX2 was lost."); }
+        catch (Exception e) when (e is SocketException || e is IOException { InnerException: SocketException })
+        {
+            throw new IOException("PCSX2 stopped answering. PCSX2 takes one connection at a time, so close any other tool connected to it, then connect again.");
+        }
     }
 
     private byte[] ReadExactly(int length)
