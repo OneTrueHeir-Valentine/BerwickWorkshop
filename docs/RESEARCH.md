@@ -174,6 +174,7 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - Despoil `0x003F97EC`: after a kill, the side gains enemy level times 4 (`0x003F98BC`) plus random 0 to 50 (`0x003F98AC`) through `0x001B94D0` (gold at army +68, capped at 999,999). Checked live: +160 for a level 5 enemy at 32 per level and no random part.
 - Cavalry moves with the horse when horses change hands (`0x001E4B90`), and `0x00172AE0` gives the horse type from the mounted class list.
 - One-Two sets status 4; choosing it stores a wait of 5 (`0x001C35DC`), and after the fight `0x0022D524` sets the counter to 6, which is the one that counts. Checked live at 1.
+- Checked live by lending the skills: Prepared (Elbert, Longsword held, countered an archer 2 hexes away with a Pilum carried third; its check was not found by the mask scan), Versatile (a Cleric healed and kept Aura first), Hurry (8 hexes with Move 7), Swap Horse, and Canto moving on after an attack. Locktouch needs a map with a door or chest.
 - Live writes: the game moves item lists after fights, so a live tool must find item slots again through the unit (+0x7C) before putting them back.
 
 ## Gaps
