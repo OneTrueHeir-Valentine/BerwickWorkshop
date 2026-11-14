@@ -239,6 +239,7 @@ public static class GameRules
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses; magic defense is shown as Mag in the equipment window. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
         [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and a unit with the Critical skill also adds its level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
+        [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage; the game can also make it deal 1 instead. A critical hit then adds its bonus damage. Knives leave the stat out of attack and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit; the stat and whether all of it is added can be changed.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount. The game adds 20%.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -278,7 +279,9 @@ public static class GameRules
             decode: found => found.Distinct().Count() == 1 && Array.FindIndex(StatFunctions, f => Jal(f) == found[0]) is var k and >= 0 ? k : null)
         { Group = BattleStatsGroup, Short = part };
 
-    public const string HitCriticalGroup = "Hit and critical";
+    public const string HitCriticalGroup = "Hit and critical", DamageGroup = "Damage";
+    // The same stats without the flag argument, as the knife code calls them.
+    private static readonly uint[] PlainStatFunctions = [0x001808A0u, 0x0017F0A0u, 0x0017F0B0u, 0x001800A0u, 0x001808B0u];
     private const uint WeaponLevel = 0x0017A230u, WeaponLevelAbove = 0x0017A1F0u;
 
     // A call that adds a value to hit or critical: the game's own helpers, any stat function, or a zero (daddu v0,zero,zero).
@@ -502,6 +505,17 @@ public static class GameRules
              new RuleSite(0x0017A210, n => 0x24420000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x24420000u && (-(short)(w & 0xFFFF)) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: true)
         { Group = HitCriticalGroup, Short = "Critical counts weapon level above" },
         // The Critical skill adds the unit's level (addu at 0x00179488, then an empty slot); a shift first scales it.
+        // Damage below 1 becomes 0 (daddu s5,zero,zero at 0x0022AEC4); 1 makes every hit that lands deal at least 1.
+        new GameRule(107, "minimumDamage", "Damage when attack does not get past defense", "", RuleKind.Choice, 0, 1, 0, ["No damage", "1 damage"],
+            [new RuleSite(0x0022AEC4, s => s == 0 ? 0x0000A82Du : 0x24150001u, w => w == 0x0000A82Du ? 0 : w == 0x24150001u ? 1 : null)], confirmed: false)
+        { Group = DamageGroup, Short = "When attack does not beat defense" },
+        // Knives leave the stat out of attack and add a random amount from 0 up to it in battle (stat at 0x00227100, roll at 0x00227110).
+        new GameRule(108, "knifeStat", "Stat knives add", "", RuleKind.Choice, 0, StatNames.Length - 1, 0, StatNames,
+            [new RuleSite(0x00227100, s => Jal(PlainStatFunctions[s]), w => Array.FindIndex(PlainStatFunctions, f => Jal(f) == w) is var k and >= 0 ? k : null)], confirmed: false)
+        { Group = DamageGroup, Short = "Knives add" },
+        new GameRule(109, "knifeRandom", "How knives add it", "", RuleKind.Choice, 0, 1, 0, ["A random part of it", "All of it"],
+            [new RuleSite(0x00227110, s => s == 0 ? 0x0C04E9D0u : 0u, w => w == 0x0C04E9D0u ? 0 : w == 0 ? 1 : null)], confirmed: false)
+        { Group = DamageGroup, Short = "How much of it" },
         Hidden(WordSets(106, "criticalSkillLevel", "Critical skill bonus", HitCriticalGroup, "Critical skill adds", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]])),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
