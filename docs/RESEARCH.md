@@ -175,6 +175,7 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - Cavalry moves with the horse when horses change hands (`0x001E4B90`), and `0x00172AE0` gives the horse type from the mounted class list.
 - One-Two sets status 4; choosing it stores a wait of 5 (`0x001C35DC`), and after the fight `0x0022D524` sets the counter to 6, which is the one that counts. Checked live at 1.
 - Checked live by lending the skills: Prepared (Elbert, Longsword held, countered an archer 2 hexes away with a Pilum carried third; its check was not found by the mask scan), Versatile (a Cleric healed and kept Aura first), Hurry (8 hexes with Move 7), Swap Horse, and Canto moving on after an attack. Locktouch needs a map with a door or chest.
+- Silence: the only store of its wait (9, unit state +0x85) is `0x001C365C`, but with that word set to 1 through PINE the game still stored 9: PCSX2 kept running its compiled copy of `0x001C34A0`. One-Two worked live because its counting wait is set in other code (`0x0022D524`). Live code changes can need a save state load to take effect; exported discs are not affected.
 - Live writes: the game moves item lists after fights, so a live tool must find item slots again through the unit (+0x7C) before putting them back.
 
 ## Gaps
