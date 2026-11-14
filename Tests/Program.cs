@@ -427,7 +427,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("96,108,109,111,112,113,114,115,116,117,118,119,120,121,122,106",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("108,109,119,120,121,122",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -491,7 +491,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
-    Equal(63,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
+    Equal(64,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
     Equal(0x24040004u,GameRules.ById(90).Original[0]);Equal(0x24040001u,GameRules.ById(90).Encode(1)[0]);Throws<EditException>(()=>GameRules.ById(90).Encode(0));Equal<int?>(null,GameRules.ById(90).Decode(new[]{0x24040000u}));
     var swim=GameRules.ById(93);Equal(26,swim.Sites.Count);Equal(0x10400019u,swim.Original[0]);Equal(0x0C05F7ECu,swim.Encode(1)[2]);Equal<int?>(1,swim.Decode(swim.Encode(1)));Equal("On foot only",swim.Describe(1));
     var sunder=GameRules.ById(53);Equal("24420019,24420019,24620019",string.Join(",",sunder.Original.Select(x=>x.ToString("X8"))));Equal("24420046,24420046,24620046",string.Join(",",sunder.Encode(70).Select(x=>x.ToString("X8"))));
@@ -950,7 +950,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
             var edited=exe.ToArray();foreach(var p in patches)p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
             Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
-            Equal(false,GameRules.ById(96).Confirmed);Equal(true,GameRules.ById(95).Confirmed);
+            Equal(true,GameRules.ById(96).Confirmed);Equal(true,GameRules.ById(95).Confirmed);
             var h=new EditSession(disc);
             Equal("0/0/50/0",string.Join("/",new[]{103,104,105,106}.Select(id=>h.Value(EditSession.Rules,id,GameRules.ById(id).Key))));
             h.Apply(new FieldEdit[]{new(EditSession.Rules,103,"hitAdds",5),new(EditSession.Rules,104,"criticalAdds",1),new(EditSession.Rules,105,"criticalThreshold",5)});

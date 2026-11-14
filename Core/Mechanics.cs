@@ -38,7 +38,7 @@ public static class Mechanics
             "A shield helps only on a successful block, so damage taken by a shielded unit swings between two values from hit to hit. The Shield guard rule can make part of the Might count on failed blocks too.",
             MechanicStatus.Confirmed, "Program reading, checked in a running game",
             [new("Shield Might", Items), new("Defense bonus", Characters), new("Class Defense", Classes), new("Shield block rule", Rules, 9), new("Shield guard rule", Rules, 10)]),
-        new("Damage", "Magic defense", "Mind + elemental resistance bonus", "Shields do not help against magic. The equipment window shows it as Mag. The stat it uses can be changed on the Rules page.",
+        new("Damage", "Magic defense", "Mind + elemental resistance bonus", "Shields do not help against magic. Mag on the status screen is the Mind stat, not magic defense; magic defense shows as Def in a forecast against a magic attack. The stat it uses can be changed on the Rules page.",
             MechanicStatus.Confirmed, "Program reading (0x0017B690), checked in a running game", [new("Mind bonus", Characters), new("Class Mind", Classes)]),
         new("Damage", "Damage dealt", "Attack − defense − block reduction (never below 0), plus magic attack − magic defense for weapons that deal both",
             "The block reduction is the shield's Might on a successful block. Axe Guard (the weapon's Might, at a chance of weapon level + 25) or the Shieldaxe (10, at a 33% chance) can take its place; only one applies. Knives and some weapon effects ignore Defense completely, and certain weapons ignore it against armored units. Whether a hit that does not get past defense deals 0 or 1 can be changed on the Rules page.",
