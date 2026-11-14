@@ -147,6 +147,12 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - Event 727 returns the price for furniture numbers 1 to 5 and 7 to 14 (number records at 0xA0 + 88 per piece, each after the comparison with the piece number). Piece n is event item n + 1 (names in `sysfont.ar` `evitem002` onward; checked against the shop list in a running game): Sword Mount 23,000, Big Rug 19,000, Porcelain Vase 25,000, Deer Mount 26,000, Coat of Arms 27,500, Coffers 30,000, Tapestry 45,000, Bird Statue 17,000, Art "Revival" 22,000, Maiden Statue 42,000, Treasure Chest 36,000, Art "Hope" 14,500, Luxury Bed 32,000. The purchase (event 729) charges this price; the shop list (event 730) shows fixed menu texts 91 onward with the original prices written into them. Identical in both editions.
 - Event 727 shares archives with event 602 (ev_all.ar), so edits to both are written into each archive together (`ScriptPrices.Combined`).
 
+### Stat getters (2026-11-13, static, for editable formulas)
+
+- `0x00180BF0(unit, n)` returns a base stat (class base + the unit's bonus, halved under a status flag): 1 HP (capped at 100), 3 Strength, 4 Agility, 6 Defense, 7 Mind, 8 Move x 10, 9 a class value at byte 7, 10 level x 5, 12 level, 13 and 14 experience fields. Each caller passes n as a constant, so the stat a formula reads is one immediate.
+- Wrappers that add equipment and skill bonuses: `0x001800B0` (Strength, called with flag 1 by the attack routine `0x0017BEE0` for physical attacks), `0x0017F8B0` (Mind, used for magic attacks), `0x0017E8B0` (Agility), `0x0017F0B0`/`0x0017F0C0` (Defense), `0x001808B0`/`0x00180A70` (HP). Thin wrappers: `0x001808A0` (Strength), `0x001800A0` (Mind), `0x0017F0A0` (Agility). The status screen `0x0018F610` reads all of them.
+- Plan: per formula, offer the stat as a choice by changing which wrapper the formula calls (jal target) or the getter index, then check each in a running game.
+
 ### Editors
 - [MinN-11 Berwick Saga editor and randomizer](https://github.com/MinN-11/berwick-saga-editor-randomizer) and its [FEUniverse thread](https://feuniverse.us/t/berwick-saga-berwick-saga-editor-randomizer-early-beta/11256): source of our table offsets and names (MIT). Corrections we found: Japanese second item table offset, class base stat labels rotated by one.
 - KT Berwick Saga Data3 Editor v1.0.1 (2012): the author's site `geocities.jp/kt_0t3wqu6irw/` has Wayback snapshots from 2008 to 2015. Pages only, not downloads, should be read next to learn which tables KT mapped.
