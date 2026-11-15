@@ -581,7 +581,7 @@ public static class GameRules
         // Watchful: hidden units are uncovered within 3 hexes instead of 1 (0x001BDF3C), and the map view is refreshed over 3 hexes (0x001ACF48).
         new GameRule(125, "watchfulRange", "Watchful range", "", RuleKind.Limit, 1, 10, 3, null,
             [new RuleSite(0x001BDF3C, n => 0x24100000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24100000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null),
-             new RuleSite(0x001ACF48, n => 0x241E0000u | (uint)n, w => (w & 0xFFFF0000u) == 0x241E0000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+             new RuleSite(0x001ACF48, n => 0x241E0000u | (uint)n, w => (w & 0xFFFF0000u) == 0x241E0000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Watchful", Short = "Range (hexes)", Section = SkillsSection },
         // One-Two sets status 4 (unit state +0x5C bit 4); choosing it stores a wait of 5 (0x001C35DC), and after the fight the
         // battle code sets the same counter to 6 (0x0022D524), which is the one that counts.
@@ -589,7 +589,12 @@ public static class GameRules
             [new RuleSite(0x0022D524, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null),
              new RuleSite(0x001C35DC, n => 0x24040000u | (uint)(n - 1), w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) <= 29 ? (int)(w & 0xFFFF) + 1 : null)], confirmed: true)
         { Group = "One-Two", Short = "Wait (turns)", Section = SkillsSection },
-        Wait(127, "silenceWait", "Silence", 0x001C365C, 9, confirmed: false),
+        // Silence: choosing it stores a wait of 9 in unit state +0x85 (0x001C365C), and after the command runs the game sets the
+        // same counter to 10 (0x001DF674, status 1 of the second set at +0x80), which is the one that counts, as with One-Two.
+        new GameRule(127, "silenceWait", "Silence wait", "", RuleKind.Limit, 1, 30, 10, null,
+            [new RuleSite(0x001DF674, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x001C365C, n => 0x24040000u | (uint)(n - 1), w => (w & 0xFFFF0000u) == 0x24040000u && (w & 0xFFFF) <= 29 ? (int)(w & 0xFFFF) + 1 : null)], confirmed: true)
+        { Group = "Silence", Short = "Wait (turns)", Section = SkillsSection },
         // Despoil: the defeated enemy's level times 4 (sll v1,v1,2 at 0x003F98BC) plus a random 0 to 50 (0x003F98AC).
         new GameRule(128, "despoilPerLevel", "Despoil gold per enemy level", "", RuleKind.Choice, 0, 5, 2, ["1", "2", "4", "8", "16", "32"],
             [new RuleSite(0x003F98BC, n => 0x00031800u | (uint)n << 6, w => (w & ~0x7C0u) == 0x00031800u && (w >> 6 & 31) <= 5 ? (int)(w >> 6 & 31) : null)], confirmed: true)

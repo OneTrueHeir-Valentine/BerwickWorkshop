@@ -137,7 +137,7 @@ public static class Mechanics
         new("Skills", "Commands after moving", "Aim, Deadeye, Sunder, Pulverize, Evasion and others only before moving; Astra, Double Shot, Guard and others before or after; Throw, Mercy, Desperation and others after moving unless the weapon rules it out",
             "Each command skill has its own check in the command menu, so each can be changed on its own.",
             MechanicStatus.Confirmed, "Program reading (command menu 0x0038B400 to 0x0038CB00), checked in a running game", [new("Aim after moving", SkillsPage, 60)]),
-        new("Skills", "Command waits", "After use: Astra, Focus Chant and One-Two wait 6 turns, Triple Shot and Evasion 4, Double Shot, Imbue and Flourish 3",
+        new("Skills", "Command waits", "After use: Astra, Focus Chant and One-Two wait 6 turns, Silence 10, Triple Shot and Evasion 4, Double Shot, Imbue and Flourish 3",
             "The wait counts down once per turn of the unit; the command returns when it reaches zero.",
             MechanicStatus.Confirmed, "Program reading (0x001C34A0, countdown 0x001B6F10), checked in a running game", [new("Evasion wait", SkillsPage, 90)]),
         new("Skills", "Steal count", "3 steals per map (2 with Mug II), shared by Steal, Robbery and Mug II",
