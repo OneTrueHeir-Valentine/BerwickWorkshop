@@ -27,7 +27,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.53.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.54.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -318,7 +318,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250"/></Grid.ColumnDefinitions>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Each battle's map as the game paints it, with the terrain of every hex, where every unit stands when the battle opens, where you can place your own units, and the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize. Hover over a hex to see its position, terrain and the unit on it. This page is for reading."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Each battle's map as the game paints it, with the terrain of every hex, where every unit stands when the battle opens, which units arrive later and on which turn, where you can place your own units, and the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize. Hover over a hex to see its position, terrain and the unit on it. This page is for reading."/>
      </Border>
      <ListBox Grid.Row="1" x:Name="MapList" SelectionChanged="MapSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battles"/>
      <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
@@ -327,6 +327,7 @@
         <CheckBox x:Name="MapArtBox" Content="Map art" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="The map as it is painted in the game"/>
         <CheckBox x:Name="MapTerrainBox" Content="Terrain colors" IsChecked="False" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Color each hex by its terrain"/>
         <CheckBox x:Name="MapUnitsBox" Content="Units" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Show where units stand when the battle starts"/>
+        <CheckBox x:Name="MapArrivalsBox" Content="Arrivals" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Show where units arrive later, and on which turn"/>
         <TextBlock Text="Size" VerticalAlignment="Center" FontSize="12" Margin="0,0,8,0"/>
         <ComboBox x:Name="MapSizeBox" Width="90" SelectedIndex="1" SelectionChanged="MapViewChanged" AutomationProperties.Name="Map size">
          <ComboBoxItem Content="Small"/><ComboBoxItem Content="Medium"/><ComboBoxItem Content="Large"/>

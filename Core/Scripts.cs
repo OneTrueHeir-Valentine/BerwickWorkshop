@@ -234,6 +234,12 @@ public static class ScriptText
     }
 }
 
+/// <summary>
+/// A unit a battle's events bring in later: the unit of army file udNNN (Army) whose script number is Script, on a team, arriving
+/// at X, Y from FromX, FromY (off the map when outside it), on the given turn when the script says so, from map event Event.
+/// </summary>
+public sealed record Reinforcement(int Army, int Script, int Team, int X, int Y, int FromX, int FromY, int? Turn, int Event);
+
 /// <summary>An army file (udNNN) placed when a battle opens, on a team, at a placement group of the map.</summary>
 public sealed record ArmyPlacement(int Army, int Team, int Group);
 
@@ -405,6 +411,61 @@ public sealed class EventLibrary
                     result.Add(new ArmyPlacement(int.Parse(m.Groups[1].Value), team, group));
         }
         return result;
+    }
+
+    // Later arrivals: AppearUnit(id, "udNNN", team, from x, from y, to x, to y, flag) brings the unit whose script number
+    // (record offset 0x0C) is id in from the first hex to the second; AppearUnitOld(id, "udNNN", team, x, y, flag) places it.
+    // The turn is read from the script: a value set from GetCurrentTurn or GameGetTurn compared with == around the call.
+    private const int AppearUnitOld = 0x32A, AppearUnit = 0x32B, EqualTo = 0x0F;
+
+    /// <summary>
+    /// Units a battle's events bring in after it opens, with the hex they arrive at and, where the script compares the turn
+    /// with a number, the turn.
+    /// </summary>
+    public IReadOnlyList<Reinforcement> Reinforcements(int battle)
+    {
+        var result = new List<Reinforcement>();
+        var turnCommands = (CommandNames ?? []).Select((name, i) => (name, i)).Where(c => c.name is "GetCurrentTurn" or "GameGetTurn").Select(c => c.i).ToHashSet();
+        foreach (var record in MapEvents().Where(r => r.Battle == battle && r.Type != OpeningEvent).Select(r => r.Event).Distinct().Order())
+            CollectArrivals(record, record, null, turnCommands, result, [], 0);
+        return result.DistinctBy(r => (r.Army, r.Script, r.Team, r.X, r.Y, r.Turn)).ToList();
+    }
+
+    private void CollectArrivals(int number, int source, int? turn, HashSet<int> turnCommands, List<Reinforcement> result, HashSet<int> visiting, int depth)
+    {
+        if (depth > 3 || !visiting.Add(number) || !topOf.ContainsKey(number)) return;
+        IReadOnlyList<ScriptNode> nodes;
+        try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { visiting.Remove(number); return; }
+        var turnValues = new HashSet<int>();
+        void Walk(IEnumerable<ScriptNode> list, int? currentTurn)
+        {
+            foreach (var n in list)
+            {
+                if (n.Command == ScriptParser.Assign && n.Variable is int v && n.Args.Count == 1 && n.Args[0] is [{ } call] && turnCommands.Contains(call.Command)) turnValues.Add(v);
+                if (n.Command == ScriptParser.If && n.Args.Count >= 2)
+                {
+                    int? inner = currentTurn;
+                    if (n.Args[0] is [{ Command: EqualTo } test] && test.Args.Count == 2 && test.Args[0] is [{ Command: ScriptParser.Variable, Variable: int tv }]
+                        && turnValues.Contains(tv) && test.Args[1] is [{ Value: int t }]) inner = t;
+                    Walk(n.Args[1], inner);
+                    if (n.Args.Count == 3) Walk(n.Args[2], currentTurn);
+                    continue;
+                }
+                if (n.Command == AppearUnit && n.Args.Count >= 7 && Arrival(n, 3, 5) is { } a) result.Add(a with { Turn = currentTurn, Event = source });
+                else if (n.Command == AppearUnitOld && n.Args.Count >= 5 && Arrival(n, 3, 3) is { } b) result.Add(b with { Turn = currentTurn, Event = source });
+                else if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && n.Args[0] is [{ Value: int inner }]) CollectArrivals(inner, source, currentTurn, turnCommands, result, visiting, depth + 1);
+                foreach (var arg in n.Args) Walk(arg, currentTurn);
+            }
+        }
+        Walk(nodes, turn);
+        visiting.Remove(number);
+    }
+
+    private static Reinforcement? Arrival(ScriptNode n, int from, int to)
+    {
+        if (n.Args[0] is not [{ Value: int script }] || n.Args[1] is not [{ Text: { } file }] || UnitFile.Match(file) is not { Success: true } m || n.Args[2] is not [{ Value: int team }]) return null;
+        if (n.Args[from] is not [{ Value: int fx }] || n.Args[from + 1] is not [{ Value: int fy }] || n.Args[to] is not [{ Value: int x }] || n.Args[to + 1] is not [{ Value: int y }]) return null;
+        return new Reinforcement(int.Parse(m.Groups[1].Value), script, team, x, y, fx, fy, null, 0);
     }
 
     // Map animation: CreateBackGroudTree(0, event) starts an event that loops over frames, each switching map layers with

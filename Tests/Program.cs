@@ -1258,6 +1258,9 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("(9, 3) (10, 3) (8, 3) (9, 2) (10, 2) (7, 2) (8, 2)",string.Join(" ",quest.Deployment));
             Equal("1,12 2,13 2,10 1,6 2,6 6,7 5,9 4,13 8,9 7,12 7,14 5,16 2,15",string.Join(" ",quest.Units.Select(u=>$"{u.X},{u.Y}")));
             Equal(true,quest.Units.Select((u,i)=>u.Army==371 && u.Team==1 && u.Index==i).All(ok=>ok));
+            Equal("370/4 2,1 from 2,-1 turn 5;370/5 5,19 from 5,21 turn 6;370/6 2,1 from 2,-1 turn 7;370/7 5,19 from 5,21 turn 8",
+                string.Join(";",quest.Arrivals.Select(r=>$"{r.Army}/{r.Script} {r.X},{r.Y} from {r.FromX},{r.FromY} turn {r.Turn}")));
+            Equal(true,library.Reinforcements(11).Count(r=>r.Turn is not null)>=20);
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

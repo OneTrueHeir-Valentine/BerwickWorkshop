@@ -53,6 +53,9 @@ public static class ArmyData
     }
 
     /// <summary>Unit blocks in a team file, or nothing when the file does not have the expected layout.</summary>
+    /// <summary>The number events use to pick a unit (AppearUnit and unit commands): often its name number, but reinforcements and many story enemies have their own.</summary>
+    public static int ScriptNumber(ReadOnlySpan<byte> record) => BinaryPrimitives.ReadUInt16LittleEndian(record[12..]);
+
     public static IReadOnlyList<(int Record, int Items, int NameId)> Units(ReadOnlySpan<byte> team)
     {
         var units = new List<(int, int, int)>();

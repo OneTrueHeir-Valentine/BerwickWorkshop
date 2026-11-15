@@ -23,6 +23,9 @@ public sealed record BattleMap(int Battle, string File, int Width, int Height, I
     /// </summary>
     public IReadOnlyList<MapUnit> Units { get; init; } = [];
 
+    /// <summary>Units the battle's events bring in after it opens (see <see cref="EventLibrary.Reinforcements"/>).</summary>
+    public IReadOnlyList<Reinforcement> Arrivals { get; init; } = [];
+
     public int KindAt(int x, int y) => x < 0 || y < 0 || x >= BattleMaps.Side || y >= BattleMaps.Side ? BattleMaps.Border : Terrain[y * BattleMaps.Side + x];
 }
 
@@ -142,7 +145,8 @@ public static class BattleMaps
             .Where(r => r.Battle == battle && r.Type == 1 && r.Args.Length >= 4 && r.Args[2] >= 0 && r.Args[2] < width && r.Args[3] >= 0 && r.Args[3] < height)
             .Select(r => new MapSpot(r.Args[0], SpotName(r.Args[0]), r.Args[2], r.Args[3], r.Args[1], r.Event))
             .DistinctBy(s => (s.Kind, s.X, s.Y, s.Unit)).OrderBy(s => s.Y).ThenBy(s => s.X).ToList();
-        return new BattleMap(battle, file, width, height, terrain, spots) { Top = top, Deployment = deployment, Units = units };
+        var arrivals = events.Reinforcements(battle).Where(r => r.X >= 0 && r.Y >= 0 && r.X < width && r.Y < height).ToList();
+        return new BattleMap(battle, file, width, height, terrain, spots) { Top = top, Deployment = deployment, Units = units, Arrivals = arrivals };
     }
 
     /// <summary>

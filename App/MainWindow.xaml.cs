@@ -397,6 +397,8 @@ public partial class MainWindow : Window
         bool showUnits=MapUnitsBox.IsChecked==true;
         var unitsAt=showUnits?placed.GroupBy(p=>(p.Place.X,p.Place.Y)).ToDictionary(g=>g.Key,g=>g.ToList()):[];
         var deployAt=showUnits?map.Deployment.ToHashSet():[];
+        var arrivals=ArrivingUnits(map);
+        var arrivalsAt=MapArrivalsBox.IsChecked==true?arrivals.GroupBy(a=>(a.Place.X,a.Place.Y)).ToDictionary(g=>g.Key,g=>g.OrderBy(a=>a.Place.Turn??int.MaxValue).ToList()):[];
         var used=new HashSet<string>();
         var gridLine=new SolidColorBrush(art?Color.FromArgb(70,255,255,255):Color.FromArgb(70,0,0,0));gridLine.Freeze();
         double marker=Math.Max(15,h*0.6);
@@ -417,6 +419,8 @@ public partial class MainWindow : Window
                 unitsAt.TryGetValue((x,y),out var standing);
                 if(standing is not null)tip+="\n"+string.Join("\n",standing.Select(p=>$"{TeamName(p.Place.Team)}: {p.Text}"));
                 if(deployAt.Contains((x,y)))tip+="\nYour units can start here";
+                arrivalsAt.TryGetValue((x,y),out var arriving);
+                if(arriving is not null)tip+="\n"+string.Join("\n",arriving.Select(a=>$"Arrives {When(a.Place.Turn)}: {a.Text}{(a.Place.FromX!=a.Place.X || a.Place.FromY!=a.Place.Y?", from the map edge":"")}"));
                 hex.ToolTip=tip;MapCanvas.Children.Add(hex);
                 if(deployAt.Contains((x,y)))
                 {
@@ -425,6 +429,14 @@ public partial class MainWindow : Window
                     MapCanvas.Children.Add(start);
                 }
                 double shift=here is not null && standing is not null?w*0.24:0;
+                if(arriving is not null)
+                {
+                    double size=Math.Max(13,marker*0.72);var first=arriving[0];
+                    var tag=new Border {Width=size,Height=size,CornerRadius=new CornerRadius(3),Background=Brushes.White,BorderBrush=new SolidColorBrush(TeamColor(first.Place.Team)),BorderThickness=new Thickness(2),ToolTip=tip,
+                        Child=new TextBlock {Text=first.Place.Turn?.ToString()??"",FontSize=size>16?10:8,FontWeight=FontWeights.SemiBold,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center}};
+                    bool crowded=standing is not null || here is not null;
+                    Canvas.SetLeft(tag,cx-size/2+(crowded?w*0.3:0));Canvas.SetTop(tag,cy-size/2-(crowded?h*0.28:0));Panel.SetZIndex(tag,3);MapCanvas.Children.Add(tag);
+                }
                 if(standing is not null)
                 {
                     var first=standing[0];double size=marker*0.8;
@@ -473,6 +485,19 @@ public partial class MainWindow : Window
                 MapDetails.Children.Add(line);
             }
         }
+        if(arrivals.Count>0)
+        {
+            AddSection(MapDetails,"Later arrivals");
+            foreach(var turn in arrivals.GroupBy(a=>a.Place.Turn).OrderBy(g=>g.Key??int.MaxValue))
+            {
+                var names=turn.GroupBy(a=>a.Name).Select(g=>g.Count()>1?$"{g.Key} ({g.Count()})":g.Key);
+                AddText(MapDetails,$"{(turn.Key is int t?$"Turn {t}":"When an event happens")}: {string.Join(", ",names)}");
+            }
+            var key=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,2,0,4)};
+            key.Children.Add(new Border {Width=14,Height=14,CornerRadius=new CornerRadius(3),Background=Brushes.White,BorderBrush=new SolidColorBrush(TeamColor(1)),BorderThickness=new Thickness(2),Margin=new Thickness(0,0,8,0)});
+            key.Children.Add(new TextBlock {Text="Later arrival and its turn",FontSize=12});
+            MapDetails.Children.Add(key);
+        }
         AddSection(MapDetails,"Armies");
         var armyIds=battleArmies.TryGetValue(map.Battle,out var ids)?ids:[];
         var armyLabels=primary?.Armies.Where(a=>armyIds.Contains(a.Id)).Select(a=>$"Army {a.Id:000}: {string.Join(", ",a.Units.Where(u=>u.Named).Select(u=>u.Name).Distinct().Take(4).DefaultIfEmpty(a.Units.Count==0?"":a.Units[0].Name))}").ToList()??[];
@@ -505,6 +530,26 @@ public partial class MainWindow : Window
         }
         return result;
     }
+    // Units the battle's events bring in later. Several calls can name the same script number; each takes the next unit with it.
+    private List<(Reinforcement Place,string Name,string Text)> ArrivingUnits(BattleMap map)
+    {
+        var result=new List<(Reinforcement,string,string)>();
+        if(primary is null)return result;
+        var armies=primary.Armies.ToDictionary(a=>a.Id);
+        var noItems=new Dictionary<int,string>();var taken=new Dictionary<(int,int),int>();
+        foreach(var r in map.Arrivals)
+        {
+            if(!armies.TryGetValue(r.Army,out var army))continue;
+            var matches=army.Units.Where(u=>ArmyData.ScriptNumber(ArmyBytes(u))==r.Script).ToList();
+            if(matches.Count==0)continue;
+            int n=taken.TryGetValue((r.Army,r.Script),out var c)?c:0;taken[(r.Army,r.Script)]=n+1;
+            var unit=matches[n%matches.Count];var record=ArmyRecord(unit,noItems);
+            string className=classLookup.TryGetValue(record.ClassId,out var k)?k.Name:$"Class 0x{record.ClassId:X2}";
+            result.Add((r,unit.Name,$"{unit.Name}, {className} level {record.Level} (army {r.Army:000})"));
+        }
+        return result;
+    }
+    private static string When(int? turn)=>turn is int t?$"on turn {t}":"when an event happens";
     private static string TeamName(int team)=>team switch {0=>"Your army",1=>"Enemy",_=>"Other army"};
     private static Color TeamColor(int team)=>team switch {0=>Color.FromRgb(46,111,216),1=>Color.FromRgb(192,57,43),_=>Color.FromRgb(46,139,87)};
 
@@ -1925,7 +1970,7 @@ public partial class MainWindow : Window
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),
-            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Units that arrive later through the battle's events are not shown. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
+            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, or no number when an event in the battle brings it, such as reaching a place or a unit being defeated. Hover over it for the unit and where it comes from. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
