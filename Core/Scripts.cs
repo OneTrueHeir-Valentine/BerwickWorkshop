@@ -241,6 +241,8 @@ public sealed class EventLibrary
     private readonly GameArchives archives;
     private readonly Dictionary<int, int> topOf = new();
     private readonly Dictionary<int, byte[]> cache = new();
+    private const string MapEventFile = "evdata.dat";
+    private int mapEventTop = -1;
 
     public IReadOnlyList<int> Numbers { get; }
 
@@ -260,8 +262,10 @@ public sealed class EventLibrary
             {
                 int end = Array.IndexOf(head, (byte)0, p);
                 if (end < 0) break;
-                var m = EventName.Match(Encoding.ASCII.GetString(head, p, end - p));
+                string name = Encoding.ASCII.GetString(head, p, end - p);
+                var m = EventName.Match(name);
                 if (m.Success) { topOf.TryAdd(int.Parse(m.Groups[1].Value), i); found++; }
+                else if (name == MapEventFile && mapEventTop < 0) mapEventTop = i;
                 p = end + 1;
             }
         }
@@ -284,4 +288,77 @@ public sealed class EventLibrary
     public IReadOnlyList<string>? CommandNames { get; }
 
     public string Text(int number) => ScriptText.Format(ScriptParser.Parse(Bytes(number)), CommandNames);
+
+    /// <summary>The top-level archive that holds an event; a battle's events share one archive.</summary>
+    public int TopOf(int number) => topOf.TryGetValue(number, out int top) ? top : throw new InvalidDataException($"Event {number} is not on this disc.");
+
+    // Commands, by the game's own names: LaunchBMap and LaunchBMap2 start a battle (battle number first), PreloadUnitList,
+    // PreloadUnit, AppearUnitOld, AppearUnit and AppearUnitEx name a unit file ("ud371" or "ud371.ar"), AppearUnitOld as its second argument.
+    private const int LaunchBMap = 0x2DE, LaunchBMap2 = 0x2DF, PreloadUnitList = 0x167, PreloadUnit = 0x328;
+    private static readonly int[] UnitCommands = [PreloadUnitList, PreloadUnit, 0x32A, 0x32B, 0x32C];
+    private static readonly Regex UnitFile = new(@"^ud(\d{3})(\.ar)?$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The battles each army (unit file udNNN) appears in, for armies placed by events: a battle's own events are listed in the map
+    /// event file (evdata.dat), and the events in the same archive as the event that starts a battle belong to that battle too.
+    /// </summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<int>> ArmyBattles()
+    {
+        var eventBattles = MapEventBattles();
+        var battles = new Dictionary<int, HashSet<int>>();
+        var armies = new Dictionary<int, HashSet<(int Top, int Event)>>();
+        static IEnumerable<ScriptNode> Walk(IEnumerable<ScriptNode> nodes)
+        {
+            foreach (var n in nodes) { yield return n; foreach (var a in n.Args) foreach (var c in Walk(a)) yield return c; }
+        }
+        foreach (int number in Numbers)
+        {
+            IReadOnlyList<ScriptNode> nodes;
+            try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
+            int top = topOf[number];
+            foreach (var n in Walk(nodes))
+            {
+                if (n.Args.Count == 0) continue;
+                if (n.Command is LaunchBMap or LaunchBMap2 && n.Args[0] is [{ Value: int battle }] && battle > 0)
+                    (battles.TryGetValue(top, out var set) ? set : battles[top] = []).Add(battle);
+                else if (UnitCommands.Contains(n.Command)
+                    && n.Args.Select(a => a is [{ Text: { } text }] ? UnitFile.Match(text) : null).FirstOrDefault(x => x is { Success: true }) is { } m)
+                    (armies.TryGetValue(int.Parse(m.Groups[1].Value), out var places) ? places : armies[int.Parse(m.Groups[1].Value)] = []).Add((top, number));
+            }
+        }
+        var result = new Dictionary<int, IReadOnlyList<int>>();
+        foreach (var (army, places) in armies)
+        {
+            var found = places.Where(p => p.Top >= 0 && battles.ContainsKey(p.Top)).SelectMany(p => battles[p.Top])
+                .Concat(places.SelectMany(p => eventBattles.TryGetValue(p.Event, out var b) ? b : [])).Distinct().Order().ToList();
+            if (found.Count > 0) result[army] = found;
+        }
+        return result;
+    }
+
+    // Map event records: a byte count, then a word with the event number in its top 16 bits and the battle number in the low 16
+    // (0 for events of every battle), then the number of words that follow (condition type and arguments).
+    private Dictionary<int, HashSet<int>> MapEventBattles()
+    {
+        var result = new Dictionary<int, HashSet<int>>();
+        if (mapEventTop < 0) return result;
+        byte[] data;
+        try
+        {
+            var archive = archives.Top(mapEventTop);
+            data = Tarc.Extract(archive, Tarc.Parse(archive).Single(e => e.Name == MapEventFile));
+        }
+        catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { return result; }
+        for (int o = 0; o + 12 <= data.Length; o += 4)
+        {
+            int size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o));
+            uint head = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(o + 4));
+            int count = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 8));
+            if (size < 12 || size % 4 != 0 || o + 4 + size > data.Length || count != size / 4 - 2) continue;
+            int number = (int)(head >> 16), battle = (int)(head & 0xFFFF);
+            if (battle == 0 || !topOf.ContainsKey(number)) continue;
+            (result.TryGetValue(number, out var set) ? set : result[number] = []).Add(battle);
+        }
+        return result;
+    }
 }

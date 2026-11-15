@@ -227,6 +227,12 @@ public static class Inspector
                     armies.Add(army);
                     foreach(var unit in army.Units) armyUnitBytes[unit.Key]=ArmyData.Present(team,unit);
                 }
+                // Name each army after the battles it appears in, where the events show it (one or two battles).
+                var battleNames=LiveGame.Battles(exe,ArmyData.LoadBattleTitles(archives)).GroupBy(b=>b.Battle).ToDictionary(g=>g.Key,g=>g.First().Text);
+                var armyBattles=new EventLibrary(archives).ArmyBattles();
+                for(int i=0;i<armies.Count;i++)
+                    if(armyBattles.TryGetValue(armies[i].Id,out var found) && found.Count is 1 or 2)
+                        armies[i]=armies[i] with { Label=$"{armies[i].Label} ({string.Join(" and ",found.Select(b=>battleNames.TryGetValue(b,out var n)?n:$"battle {b}"))})" };
             }
             catch (InvalidDataException) { armies.Clear();armyUnitBytes.Clear(); }
         }

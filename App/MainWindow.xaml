@@ -26,7 +26,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.50.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.51.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -114,7 +114,7 @@
        <Grid>
         <DataGrid x:Name="ArmyGrid" SelectionChanged="ArmyUnitSelected" AutomationProperties.Name="Army units" EnableRowVirtualization="True">
          <DataGrid.Columns>
-          <DataGridTextColumn Header="Army" Binding="{Binding ArmyLabel}" Width="120" MinWidth="100"/>
+          <DataGridTextColumn Header="Army" Binding="{Binding ArmyLabel}" Width="1.6*" MinWidth="120"/>
           <DataGridTextColumn Header="Unit" Binding="{Binding Name}" Width="*" MinWidth="120"/>
           <DataGridTextColumn Header="Class" Binding="{Binding ClassName}" Width="1.3*" MinWidth="150"/>
           <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="56" MinWidth="56"/>

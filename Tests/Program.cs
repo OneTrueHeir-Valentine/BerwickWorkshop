@@ -1018,6 +1018,13 @@ foreach(var exportDisc in new[]{jp!,en!})
             Throws<EditException>(()=>s.Apply(EditSession.ArmyUnits,key,new Dictionary<string,int>{["class"]=0xFF}));
         }
         Equal(true,jp!.Armies.Select(a=>a.Id).SequenceEqual(en!.Armies.Select(a=>a.Id)));
+        // Armies are named after the battles their events place them in (checked in game for 65, 164 and 371).
+        Equal("Army 371 (Quest 6: Cruel Brothers)",en.Armies.Single(a=>a.Id==371).Label);Equal("Army 371 (Quest 6)",jp.Armies.Single(a=>a.Id==371).Label);
+        Equal("Army 065 (Story mission 9: Breaking Bridges)",en.Armies.Single(a=>a.Id==65).Label);
+        Equal("Army 164 (Story mission 5: Hold the Fort)",en.Armies.Single(a=>a.Id==164).Label);
+        Equal("Army 053 (Story mission 3: The Three Priests and Story mission 11: Bloodstained Valley)",en.Armies.Single(a=>a.Id==53).Label);
+        Equal(true,en.Armies.Count(a=>a.Label.Contains('('))>=150);
+        Equal(true,jp.Armies.Select(a=>a.Label.Contains('(')).SequenceEqual(en.Armies.Select(a=>a.Label.Contains('('))));
         Equal(true,jp.ArmyUnitBytes.All(p=>p.Value.Span.SequenceEqual(en.ArmyUnitBytes[p.Key].Span)));
         using(var stream=new FileStream(en.Path,FileMode.Open,FileAccess.Read,FileShare.Read))
         {
