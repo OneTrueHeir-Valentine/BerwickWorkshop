@@ -8,12 +8,12 @@ public static class SkillCatalog
 {
     private const string Game = "Checked in a running game";
     private const string Program = "Read from the game program";
-    private const string Described = "From the game's own description; not traced in the program yet";
 
     public static IReadOnlyList<SkillInfo> All { get; } = Array.AsReadOnly(new SkillInfo[]
     {
         new("Locktouch", "Commands", "Opens doors, gates and treasure chests without a key.",
-            "Next to a door or gate the unit can choose Open, and standing on a treasure chest it can choose Chest.", Described),
+            "Next to a door or gate the unit can choose Open without carrying a key. A unit without the skill needs a Door Key, and opening uses it up. Some maps also have spots where only a unit with the skill gets an extra command.",
+            "Opening a gate without a key: checked in a running game. Door Key use and the extra spots: read from the game program"),
         new("Canto", "Command", "Lets the unit move again after attacking.",
             "After attacking, or after using a healing orb, the unit can spend its remaining movement by choosing Canto. It is not offered if the unit took damage in that fight.",
             "Moving on after attacking: checked in a running game. Healing orbs and taking damage: from the game's own description"),
