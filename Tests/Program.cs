@@ -158,6 +158,9 @@ Test("Archive decompression and script parsing on built samples",()=>{
     w.Write(12+12);w.Write(0x20);w.Write(12);Num(517);
     var parsed=ScriptParser.Parse(ms.ToArray());
     Equal("event (3 local values)|    v2 = 7|    command32(517)",string.Join("|",ScriptText.Format(parsed).TrimEnd().Split("\r\n")));
+    var someNames=Enumerable.Range(0,40).Select(k=>$"Name{k}").ToList();
+    Equal("event (3 local values)|    v2 = 7|    Name32(517)",string.Join("|",ScriptText.Format(parsed,someNames).TrimEnd().Split("\r\n")));
+    Equal("wait",ScriptText.Name(ScriptParser.Wait,someNames));Equal("command9",ScriptText.Name(9,someNames));Equal("command50",ScriptText.Name(50,someNames));
 });
 Test("Compression round trips literals, repeats, control boundaries and distant copies",()=>{
     var random=new Random(48);
@@ -928,6 +931,9 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,commands>20000);
             string text=library.Text(172);
             Equal(true,text.StartsWith("event ("));Equal(true,text.Contains("517"));
+            var names=library.CommandNames!;
+            Equal(0x4EF,names.Count);Equal("SetEventFlag",names[0x77]);Equal("GUnitCalcMercenaryCost",names[0x1C0]);Equal("LaunchMapEvent",names[0x41F]);
+            Equal(false,System.Text.RegularExpressions.Regex.IsMatch(text,@"\bcommand\d"));
         }
     });
     Test("Partners and bags read the same on both discs, and edits are checked",()=>{

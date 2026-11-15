@@ -122,87 +122,114 @@ public static class ScriptText
         [0x0F] = "==", [0x10] = "!=", [0x11] = ">=", [0x12] = ">", [0x13] = "<=", [0x14] = "<",
     };
 
-    public static string Name(int command) => Names.TryGetValue(command, out var n) ? n : $"command{command}";
+    // The game's own names for its commands, from the program file in top-level archive 16 (the same on both editions):
+    // one name per command number, in order, from "PredefinedEmpty" for command 0. The first 0x18 are the script's own
+    // syntax, which the text shows in its own form.
+    private const int NameArchive = 16, CommandCount = 0x4EF, SyntaxCommands = 0x18;
 
-    public static string Format(IReadOnlyList<ScriptNode> nodes)
+    /// <summary>The game's names for its script commands, by command number, or null when the disc does not have the list.</summary>
+    public static IReadOnlyList<string>? ReadCommandNames(GameArchives archives)
+    {
+        if (archives.Count <= NameArchive) return null;
+        var data = archives.Top(NameArchive);
+        if (data.Length < 4 || data[0] != 0x7F || data[1] != (byte)'E' || data[2] != (byte)'L' || data[3] != (byte)'F') return null;
+        int p = data.AsSpan().IndexOf("PredefinedEmpty\0"u8);
+        if (p < 0) return null;
+        var names = new List<string>(CommandCount);
+        while (names.Count < CommandCount)
+        {
+            int end = Array.IndexOf(data, (byte)0, p);
+            if (end <= p) return null;
+            string name = Encoding.ASCII.GetString(data, p, end - p);
+            if (!name.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_')) return null;
+            names.Add(name);
+            for (p = end; p < data.Length && data[p] == 0; p++) { }
+        }
+        return names;
+    }
+
+    public static string Name(int command, IReadOnlyList<string>? names = null) =>
+        Names.TryGetValue(command, out var n) ? n : names is not null && command >= SyntaxCommands && command < names.Count ? names[command] : $"command{command}";
+
+    public static string Format(IReadOnlyList<ScriptNode> nodes, IReadOnlyList<string>? names = null)
     {
         var sb = new StringBuilder();
-        foreach (var n in nodes) Statement(n, 0, sb);
+        foreach (var n in nodes) Statement(n, 0, sb, names);
         return sb.ToString();
     }
 
     private static void Line(StringBuilder sb, int depth, string text) => sb.Append(' ', depth * 4).Append(text).Append("\r\n");
 
-    private static void Statement(ScriptNode n, int depth, StringBuilder sb)
+    private static void Statement(ScriptNode n, int depth, StringBuilder sb, IReadOnlyList<string>? names)
     {
         switch (n.Command)
         {
             case ScriptParser.Event:
                 Line(sb, depth, n.Locals == 1 ? "event (1 local value)" : $"event ({n.Locals} local values)");
-                foreach (var s in n.Args[0]) Statement(s, depth + 1, sb);
+                foreach (var s in n.Args[0]) Statement(s, depth + 1, sb, names);
                 return;
             case ScriptParser.Assign:
-                if (Inline(n.Args[0]) is { } value) Line(sb, depth, $"v{n.Variable} = {value}");
-                else { Line(sb, depth, $"v{n.Variable} ="); foreach (var s in n.Args[0]) Statement(s, depth + 1, sb); }
+                if (Inline(n.Args[0], names) is { } value) Line(sb, depth, $"v{n.Variable} = {value}");
+                else { Line(sb, depth, $"v{n.Variable} ="); foreach (var s in n.Args[0]) Statement(s, depth + 1, sb, names); }
                 return;
             case ScriptParser.While when n.Args.Count == 2:
-                Line(sb, depth, $"while {Inline(n.Args[0]) ?? "(condition)"}");
-                if (Inline(n.Args[0]) is null) foreach (var s in n.Args[0]) Statement(s, depth + 2, sb);
-                foreach (var s in n.Args[1]) Statement(s, depth + 1, sb);
+                Line(sb, depth, $"while {Inline(n.Args[0], names) ?? "(condition)"}");
+                if (Inline(n.Args[0], names) is null) foreach (var s in n.Args[0]) Statement(s, depth + 2, sb, names);
+                foreach (var s in n.Args[1]) Statement(s, depth + 1, sb, names);
                 return;
             case ScriptParser.If when n.Args.Count is 2 or 3:
-                Line(sb, depth, $"if {Inline(n.Args[0]) ?? "(condition)"}");
-                if (Inline(n.Args[0]) is null) foreach (var s in n.Args[0]) Statement(s, depth + 2, sb);
-                foreach (var s in n.Args[1]) Statement(s, depth + 1, sb);
+                Line(sb, depth, $"if {Inline(n.Args[0], names) ?? "(condition)"}");
+                if (Inline(n.Args[0], names) is null) foreach (var s in n.Args[0]) Statement(s, depth + 2, sb, names);
+                foreach (var s in n.Args[1]) Statement(s, depth + 1, sb, names);
                 if (n.Args.Count == 3 && n.Args[2].Count > 0)
                 {
                     Line(sb, depth, "else");
-                    foreach (var s in n.Args[2]) Statement(s, depth + 1, sb);
+                    foreach (var s in n.Args[2]) Statement(s, depth + 1, sb, names);
                 }
                 return;
         }
-        if (Expression(n) is { } e && e.Length <= 100) { Line(sb, depth, e); return; }
-        if (n.Data is { } data) { Line(sb, depth, $"{Name(n.Command)} [{Convert.ToHexString(data)}]"); return; }
-        Line(sb, depth, $"{Name(n.Command)}(");
+        if (Expression(n, names) is { } e && e.Length <= 100) { Line(sb, depth, e); return; }
+        if (n.Data is { } data) { Line(sb, depth, $"{Name(n.Command, names)} [{Convert.ToHexString(data)}]"); return; }
+        Line(sb, depth, $"{Name(n.Command, names)}(");
         for (int i = 0; i < n.Args.Count; i++)
         {
-            if (Inline(n.Args[i]) is { } v) Line(sb, depth + 1, v + (i + 1 < n.Args.Count ? "," : ""));
+            if (Inline(n.Args[i], names) is { } v) Line(sb, depth + 1, v + (i + 1 < n.Args.Count ? "," : ""));
             else
             {
                 Line(sb, depth + 1, "{");
-                foreach (var s in n.Args[i]) Statement(s, depth + 2, sb);
+                foreach (var s in n.Args[i]) Statement(s, depth + 2, sb, names);
                 Line(sb, depth + 1, "}" + (i + 1 < n.Args.Count ? "," : ""));
             }
         }
         Line(sb, depth, ")");
     }
 
-    private static string? Inline(IReadOnlyList<ScriptNode> block) =>
-        block.Count == 0 ? "nothing" : block.Count == 1 ? Expression(block[0]) : null;
+    private static string? Inline(IReadOnlyList<ScriptNode> block, IReadOnlyList<string>? names) =>
+        block.Count == 0 ? "nothing" : block.Count == 1 ? Expression(block[0], names) : null;
 
-    private static string? Expression(ScriptNode n)
+    private static string? Expression(ScriptNode n, IReadOnlyList<string>? names)
     {
         if (n.Value is int v) return v.ToString();
         if (n.Text is { } t) return "\"" + t.Replace("\r", "").Replace("\n", "\\n") + "\"";
         if (n.Command == ScriptParser.Variable) return $"v{n.Variable}";
         if (n.Command is ScriptParser.Assign or ScriptParser.Event or ScriptParser.If or ScriptParser.While || n.Data is not null) return null;
-        if (Operators.TryGetValue(n.Command, out var op) && n.Args.Count == 2 && Inline(n.Args[0]) is { } left && Inline(n.Args[1]) is { } right)
+        if (Operators.TryGetValue(n.Command, out var op) && n.Args.Count == 2 && Inline(n.Args[0], names) is { } left && Inline(n.Args[1], names) is { } right)
         {
             string text = $"({left} {op} {right})";
             return text.Length <= 100 ? text : null;
         }
-        if (n.Command == 0x15 && n.Args.Count == 1 && Inline(n.Args[0]) is { } neg) return $"-{neg}";
-        if (n.Command == 0x16 && n.Args.Count == 1 && Inline(n.Args[0]) is { } inner) return $"not {inner}";
+        if (n.Command == 0x15 && n.Args.Count == 1 && Inline(n.Args[0], names) is { } neg) return $"-{neg}";
+        if (n.Command == 0x16 && n.Args.Count == 1 && Inline(n.Args[0], names) is { } inner) return $"not {inner}";
         if (n.Command == ScriptParser.Break && n.Args.Count == 0) return "break";
-        if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && Inline(n.Args[0]) is { } ev) return $"run event {ev}";
-        if (n.Command == ScriptParser.Wait && n.Args.Count == 1 && Inline(n.Args[0]) is { } frames) return frames == "1" ? "wait 1 frame" : $"wait {frames} frames";
+        if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && Inline(n.Args[0], names) is { } ev) return $"run event {ev}";
+        if (n.Command == ScriptParser.Wait && n.Args.Count == 1 && Inline(n.Args[0], names) is { } frames) return frames == "1" ? "wait 1 frame" : $"wait {frames} frames";
         var parts = new List<string>();
         foreach (var a in n.Args)
         {
-            if (Inline(a) is not { } s) return null;
+            if (Inline(a, names) is not { } s) return null;
             parts.Add(s);
         }
-        string call = $"{Name(n.Command)}({string.Join(", ", parts)})";
+        string call = $"{Name(n.Command, names)}({string.Join(", ", parts)})";
         return call.Length <= 100 ? call : null;
     }
 }
@@ -239,6 +266,7 @@ public sealed class EventLibrary
             }
         }
         Numbers = topOf.Keys.Order().ToList();
+        CommandNames = ScriptText.ReadCommandNames(archives);
     }
 
     public byte[] Bytes(int number)
@@ -252,5 +280,8 @@ public sealed class EventLibrary
         return cache.TryGetValue(number, out b) ? b : throw new InvalidDataException($"Event {number} could not be read.");
     }
 
-    public string Text(int number) => ScriptText.Format(ScriptParser.Parse(Bytes(number)));
+    /// <summary>The game's names for its script commands, or null when the disc does not have them.</summary>
+    public IReadOnlyList<string>? CommandNames { get; }
+
+    public string Text(int number) => ScriptText.Format(ScriptParser.Parse(Bytes(number)), CommandNames);
 }
