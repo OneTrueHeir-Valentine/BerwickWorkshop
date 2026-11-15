@@ -236,9 +236,19 @@ public static class ScriptText
 
 /// <summary>
 /// A unit a battle's events bring in later: the unit of army file udNNN (Army) whose script number is Script, on a team, arriving
-/// at X, Y from FromX, FromY (off the map when outside it), on the given turn when the script says so, from map event Event.
+/// at X, Y from FromX, FromY (off the map when outside it), from map event Event. Turn is the first turn the script allows and
+/// LastTurn the last (equal for a single turn, null when open); with neither, an event in the battle brings the unit.
 /// </summary>
-public sealed record Reinforcement(int Army, int Script, int Team, int X, int Y, int FromX, int FromY, int? Turn, int Event);
+public sealed record Reinforcement(int Army, int Script, int Team, int X, int Y, int FromX, int FromY, int? Turn, int Event)
+{
+    public int? LastTurn { get; init; }
+
+    /// <summary>True when the script also tests something other than the turn, such as an event flag or a unit's state.</summary>
+    public bool Conditional { get; init; }
+
+    /// <summary>The spot whose command sets the arrival off, when its event belongs to a spot.</summary>
+    public MapSpot? Spot { get; init; }
+}
 
 /// <summary>An army file (udNNN) placed when a battle opens, on a team, at a placement group of the map.</summary>
 public sealed record ArmyPlacement(int Army, int Team, int Group);
@@ -415,49 +425,79 @@ public sealed class EventLibrary
 
     // Later arrivals: AppearUnit(id, "udNNN", team, from x, from y, to x, to y, flag) brings the unit whose script number
     // (record offset 0x0C) is id in from the first hex to the second; AppearUnitOld(id, "udNNN", team, x, y, flag) places it.
-    // The turn is read from the script: a value set from GetCurrentTurn or GameGetTurn compared with == around the call.
-    private const int AppearUnitOld = 0x32A, AppearUnit = 0x32B, EqualTo = 0x0F;
+    // The turns are read from the conditions around the call: a value set from GetCurrentTurn or GameGetTurn compared with a
+    // number (==, >=, >, <=, <, joined with "and"); any other test (an event flag, a unit's state) makes the arrival conditional.
+    private const int AppearUnitOld = 0x32A, AppearUnit = 0x32B, And = 8, EqualTo = 0x0F, AtLeast = 0x11, Above = 0x12, AtMost = 0x13, Below = 0x14;
+    private const int SpotEvent = 1;
+
+    private readonly record struct ArrivalCondition(int? First, int? Last, bool Other);
 
     /// <summary>
-    /// Units a battle's events bring in after it opens, with the hex they arrive at and, where the script compares the turn
-    /// with a number, the turn.
+    /// Units a battle's events bring in after it opens, with the hex they arrive at, the turns the script allows (where it
+    /// compares the turn with numbers) and, for arrivals set off by a spot, that spot.
     /// </summary>
     public IReadOnlyList<Reinforcement> Reinforcements(int battle)
     {
         var result = new List<Reinforcement>();
         var turnCommands = (CommandNames ?? []).Select((name, i) => (name, i)).Where(c => c.name is "GetCurrentTurn" or "GameGetTurn").Select(c => c.i).ToHashSet();
-        foreach (var record in MapEvents().Where(r => r.Battle == battle && r.Type != OpeningEvent).Select(r => r.Event).Distinct().Order())
-            CollectArrivals(record, record, null, turnCommands, result, [], 0);
-        return result.DistinctBy(r => (r.Army, r.Script, r.Team, r.X, r.Y, r.Turn)).ToList();
+        var records = MapEvents().Where(r => r.Battle == battle && r.Type != OpeningEvent).ToList();
+        foreach (int number in records.Select(r => r.Event).Distinct().Order())
+        {
+            var found = new List<Reinforcement>();
+            CollectArrivals(number, number, new(null, null, false), turnCommands, found, [], 0);
+            var spot = records.FirstOrDefault(r => r.Event == number && r.Type == SpotEvent && r.Args.Length >= 4);
+            foreach (var f in found)
+                result.Add(spot is null ? f : f with { Spot = new MapSpot(spot.Args[0], BattleMaps.SpotName(spot.Args[0]), spot.Args[2], spot.Args[3], spot.Args[1], number) });
+        }
+        return result.DistinctBy(r => (r.Army, r.Script, r.Team, r.X, r.Y, r.Turn, r.LastTurn, r.Conditional)).ToList();
     }
 
-    private void CollectArrivals(int number, int source, int? turn, HashSet<int> turnCommands, List<Reinforcement> result, HashSet<int> visiting, int depth)
+    private void CollectArrivals(int number, int source, ArrivalCondition outer, HashSet<int> turnCommands, List<Reinforcement> result, HashSet<int> visiting, int depth)
     {
         if (depth > 3 || !visiting.Add(number) || !topOf.ContainsKey(number)) return;
         IReadOnlyList<ScriptNode> nodes;
         try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { visiting.Remove(number); return; }
         var turnValues = new HashSet<int>();
-        void Walk(IEnumerable<ScriptNode> list, int? currentTurn)
+        ArrivalCondition Narrow(ArrivalCondition c, IReadOnlyList<ScriptNode> test)
+        {
+            if (test is not [{ } op] || op.Args.Count != 2) return c with { Other = true };
+            if (op.Command == And) return Narrow(Narrow(c, op.Args[0]), op.Args[1]);
+            if (op.Args[0] is not [{ Command: ScriptParser.Variable, Variable: int v }] || !turnValues.Contains(v) || op.Args[1] is not [{ Value: int t }]) return c with { Other = true };
+            int? first = c.First, last = c.Last;
+            switch (op.Command)
+            {
+                case EqualTo: first = Math.Max(first ?? t, t); last = Math.Min(last ?? t, t); break;
+                case AtLeast: first = Math.Max(first ?? t, t); break;
+                case Above: first = Math.Max(first ?? t + 1, t + 1); break;
+                case AtMost: last = Math.Min(last ?? t, t); break;
+                case Below: last = Math.Min(last ?? t - 1, t - 1); break;
+                default: return c with { Other = true };
+            }
+            return c with { First = first, Last = last };
+        }
+        void Walk(IEnumerable<ScriptNode> list, ArrivalCondition c)
         {
             foreach (var n in list)
             {
                 if (n.Command == ScriptParser.Assign && n.Variable is int v && n.Args.Count == 1 && n.Args[0] is [{ } call] && turnCommands.Contains(call.Command)) turnValues.Add(v);
                 if (n.Command == ScriptParser.If && n.Args.Count >= 2)
                 {
-                    int? inner = currentTurn;
-                    if (n.Args[0] is [{ Command: EqualTo } test] && test.Args.Count == 2 && test.Args[0] is [{ Command: ScriptParser.Variable, Variable: int tv }]
-                        && turnValues.Contains(tv) && test.Args[1] is [{ Value: int t }]) inner = t;
-                    Walk(n.Args[1], inner);
-                    if (n.Args.Count == 3) Walk(n.Args[2], currentTurn);
+                    Walk(n.Args[1], Narrow(c, n.Args[0]));
+                    if (n.Args.Count == 3) Walk(n.Args[2], c with { Other = true });
                     continue;
                 }
-                if (n.Command == AppearUnit && n.Args.Count >= 7 && Arrival(n, 3, 5) is { } a) result.Add(a with { Turn = currentTurn, Event = source });
-                else if (n.Command == AppearUnitOld && n.Args.Count >= 5 && Arrival(n, 3, 3) is { } b) result.Add(b with { Turn = currentTurn, Event = source });
-                else if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && n.Args[0] is [{ Value: int inner }]) CollectArrivals(inner, source, currentTurn, turnCommands, result, visiting, depth + 1);
-                foreach (var arg in n.Args) Walk(arg, currentTurn);
+                Reinforcement? found = n.Command == AppearUnit && n.Args.Count >= 7 ? Arrival(n, 3, 5) : n.Command == AppearUnitOld && n.Args.Count >= 5 ? Arrival(n, 3, 3) : null;
+                if (found is not null)
+                {
+                    // A turn range that cannot happen (first after last) means the call is not reached by the turn alone.
+                    bool possible = c.First is null || c.Last is null || c.First <= c.Last;
+                    result.Add(found with { Turn = possible ? c.First ?? (c.Last is not null ? 1 : null) : null, LastTurn = possible ? c.Last : null, Conditional = c.Other || !possible, Event = source });
+                }
+                else if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && n.Args[0] is [{ Value: int inner }]) CollectArrivals(inner, source, c, turnCommands, result, visiting, depth + 1);
+                foreach (var arg in n.Args) Walk(arg, c);
             }
         }
-        Walk(nodes, turn);
+        Walk(nodes, outer);
         visiting.Remove(number);
     }
 

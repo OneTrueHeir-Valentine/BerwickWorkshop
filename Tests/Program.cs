@@ -1261,6 +1261,10 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("370/4 2,1 from 2,-1 turn 5;370/5 5,19 from 5,21 turn 6;370/6 2,1 from 2,-1 turn 7;370/7 5,19 from 5,21 turn 8",
                 string.Join(";",quest.Arrivals.Select(r=>$"{r.Army}/{r.Script} {r.X},{r.Y} from {r.FromX},{r.FromY} turn {r.Turn}")));
             Equal(true,library.Reinforcements(11).Count(r=>r.Turn is not null)>=20);
+            // Battle 12 brings unit 2 of ud083 each turn from 2 to 21 while an event flag is set; battle 9 has arrivals set off by its Withdraw spot.
+            var ranged=library.Reinforcements(12).First(r=>r.Army==83 && r.Script==2);
+            Equal("2-21 True",$"{ranged.Turn}-{ranged.LastTurn} {ranged.Conditional}");
+            Equal(true,library.Reinforcements(9).Any(r=>r.Spot is {Kind:14,X:22,Y:1}));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
