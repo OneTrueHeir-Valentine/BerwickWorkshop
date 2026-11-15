@@ -529,6 +529,11 @@ Test("Live game: units, record and item edits, rules and undo over a stand-in fo
     memory[unit+0xF]=0x20;BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)unit+0x10),(ushort)(7|30<<6));
     Put(unit+0xA8,battle);Put(battle,0);Put(battle+4,3);Put(battle+8,4);
     Put(unit+0x7C,list);Put(list,1);Put(list+4,0x22u|40u<<20);
+    // An enemy whose script ID (2) is not its name ID (1025), as reinforcements and many story enemies have.
+    const uint enemy=0x01D00400,enemyBattle=0x01D10100;
+    BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)enemy+8),2);BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)enemy+10),1025);
+    memory[enemy+0xF]=0x69;BinaryPrimitives.WriteUInt16LittleEndian(memory.AsSpan((int)enemy+0x10),(ushort)(2|26<<6));
+    Put(enemy+0xA8,enemyBattle);Put(enemyBattle,1);Put(enemyBattle+4,1);Put(enemyBattle+8,6);
     var program=new byte[0x004B4300-(int)GameRules.ProgramToFile];new Random(3).NextBytes(program);
     program.AsSpan(0x0041BE00-(int)GameRules.ProgramToFile).CopyTo(memory.AsSpan(0x0041BE00,program.Length-(0x0041BE00-(int)GameRules.ProgramToFile)));
     var rule=GameRules.ById(117);
@@ -564,8 +569,9 @@ Test("Live game: units, record and item edits, rules and undo over a stand-in fo
     {
         Equal("SLPS-25497",game.GameId());Equal(true,game.Running());
         Equal(true,game.MatchesProgram(program));
-        var units=game.Units(new Dictionary<int,string>{[5]="Ward"});
-        Equal(1,units.Count);var ward=units[0];
+        var units=game.Units(new Dictionary<int,string>{[5]="Ward",[1025]="Muthay Gang"});
+        Equal(2,units.Count);var ward=units[0];
+        Equal("Muthay Gang 1 1,6 2",$"{units[1].Name} {units[1].Army} {units[1].X},{units[1].Y} {units[1].Level}");
         Equal("Ward 0 3,4 7 30 32",$"{ward.Name} {ward.Army} {ward.X},{ward.Y} {ward.Level} {ward.Hp} {ward.ClassId}");
         var record=game.ReadRecord(ward);var level=CharacterFields.Record.First(f=>f.Key=="level");
         Equal(7,FieldCodec.Read(record,level));Equal(0x20,(int)record[4+0xF]);
@@ -1245,6 +1251,13 @@ foreach(var exportDisc in new[]{jp!,en!})
                 Equal(true,art.Width>=used.Width*BattleMaps.ColumnWidth && art.Height>=used.Height*BattleMaps.RowHeight);
             }
             Throws<InvalidDataException>(()=>Texture.Decode(new byte[0x40]));
+            // Start positions, checked in a running game on quest 6 (battle 104).
+            Equal("371/1/1",string.Join(";",library.StartingPlacements(104).Select(p=>$"{p.Army}/{p.Team}/{p.Group}")));
+            Equal("65/1/1;66/2/2;69/2/10",string.Join(";",library.StartingPlacements(9).Select(p=>$"{p.Army}/{p.Team}/{p.Group}")));
+            var quest=BattleMaps.Load(archives,library,104,files[104])!;
+            Equal("(9, 3) (10, 3) (8, 3) (9, 2) (10, 2) (7, 2) (8, 2)",string.Join(" ",quest.Deployment));
+            Equal("1,12 2,13 2,10 1,6 2,6 6,7 5,9 4,13 8,9 7,12 7,14 5,16 2,15",string.Join(" ",quest.Units.Select(u=>$"{u.X},{u.Y}")));
+            Equal(true,quest.Units.Select((u,i)=>u.Army==371 && u.Team==1 && u.Index==i).All(ok=>ok));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

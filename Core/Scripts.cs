@@ -234,6 +234,9 @@ public static class ScriptText
     }
 }
 
+/// <summary>An army file (udNNN) placed when a battle opens, on a team, at a placement group of the map.</summary>
+public sealed record ArmyPlacement(int Army, int Team, int Group);
+
 /// <summary>One record of the map event file: an event, the battle it belongs to (0 for every battle), its condition type and arguments.</summary>
 public sealed record MapEventRecord(int Event, int Battle, int Type, int[] Args);
 
@@ -382,6 +385,26 @@ public sealed class EventLibrary
             result.Add(new(number, (int)(head & 0xFFFF), words[0], words[1..]));
         }
         return mapEvents = result;
+    }
+
+    // Events of type 13 in the map event file run as a battle opens (their argument orders them). AppearUnitEx (0x32C) places a
+    // whole army file: AppearUnitEx("udNNN", team, placement group, ...).
+    private const int OpeningEvent = 13, AppearUnitEx = 0x32C;
+
+    /// <summary>The army files a battle's opening events place, with the team and the map's placement group for each.</summary>
+    public IReadOnlyList<ArmyPlacement> StartingPlacements(int battle)
+    {
+        var result = new List<ArmyPlacement>();
+        foreach (int number in MapEvents().Where(r => r.Battle == battle && r.Type == OpeningEvent).Select(r => r.Event).Distinct().Order())
+        {
+            IReadOnlyList<ScriptNode> nodes;
+            try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
+            foreach (var n in WalkNodes(nodes))
+                if (n.Command == AppearUnitEx && n.Args.Count >= 3 && n.Args[0] is [{ Text: { } file }] && UnitFile.Match(file) is { Success: true } m
+                    && n.Args[1] is [{ Value: int team }] && n.Args[2] is [{ Value: int group }])
+                    result.Add(new ArmyPlacement(int.Parse(m.Groups[1].Value), team, group));
+        }
+        return result;
     }
 
     // Map animation: CreateBackGroudTree(0, event) starts an event that loops over frames, each switching map layers with

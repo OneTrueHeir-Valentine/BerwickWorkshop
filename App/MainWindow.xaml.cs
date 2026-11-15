@@ -393,6 +393,10 @@ public partial class MainWindow : Window
             MapCanvas.Children.Add(image);
         }
         var spotsAt=map.Spots.GroupBy(s=>(s.X,s.Y)).ToDictionary(g=>g.Key,g=>g.ToList());
+        var placed=PlacedUnits(map);
+        bool showUnits=MapUnitsBox.IsChecked==true;
+        var unitsAt=showUnits?placed.GroupBy(p=>(p.Place.X,p.Place.Y)).ToDictionary(g=>g.Key,g=>g.ToList()):[];
+        var deployAt=showUnits?map.Deployment.ToHashSet():[];
         var used=new HashSet<string>();
         var gridLine=new SolidColorBrush(art?Color.FromArgb(70,255,255,255):Color.FromArgb(70,0,0,0));gridLine.Freeze();
         double marker=Math.Max(15,h*0.6);
@@ -410,14 +414,31 @@ public partial class MainWindow : Window
                 hex.Points.Add(new Point(cx+w/2+side/2,cy));hex.Points.Add(new Point(cx+side,cy+h/2));hex.Points.Add(new Point(cx-side,cy+h/2));
                 string tip=$"{x}, {y}: {name}";
                 if(spotsAt.TryGetValue((x,y),out var here))tip+="\n"+string.Join("\n",here.Select(s=>s.Unit==0?s.Name:$"{s.Name} (one character only)"));
+                unitsAt.TryGetValue((x,y),out var standing);
+                if(standing is not null)tip+="\n"+string.Join("\n",standing.Select(p=>$"{TeamName(p.Place.Team)}: {p.Text}"));
+                if(deployAt.Contains((x,y)))tip+="\nYour units can start here";
                 hex.ToolTip=tip;MapCanvas.Children.Add(hex);
+                if(deployAt.Contains((x,y)))
+                {
+                    var start=new System.Windows.Shapes.Polygon {Fill=new SolidColorBrush(Color.FromArgb(70,46,111,216)),Stroke=new SolidColorBrush(TeamColor(0)),StrokeThickness=2,IsHitTestVisible=false};
+                    foreach(var point in hex.Points)start.Points.Add(new Point(cx+(point.X-cx)*0.82,cy+(point.Y-cy)*0.82));
+                    MapCanvas.Children.Add(start);
+                }
+                double shift=here is not null && standing is not null?w*0.24:0;
+                if(standing is not null)
+                {
+                    var first=standing[0];double size=marker*0.8;
+                    var box=new System.Windows.Shapes.Rectangle {Width=size,Height=size,RadiusX=3,RadiusY=3,Fill=new SolidColorBrush(TeamColor(first.Place.Team)),
+                        Stroke=first.Named?new SolidColorBrush(Color.FromRgb(241,196,15)):Brushes.White,StrokeThickness=first.Named?2.4:1.4,ToolTip=tip};
+                    Canvas.SetLeft(box,cx-shift-size/2);Canvas.SetTop(box,cy-size/2);Panel.SetZIndex(box,1);MapCanvas.Children.Add(box);
+                }
                 if(here is not null)
                 {
                     var mark=new System.Windows.Shapes.Ellipse {Width=marker,Height=marker,Fill=Brushes.White,Stroke=Brushes.Black,StrokeThickness=1.4,ToolTip=tip};
-                    Canvas.SetLeft(mark,cx-marker/2);Canvas.SetTop(mark,cy-marker/2);Panel.SetZIndex(mark,1);MapCanvas.Children.Add(mark);
+                    Canvas.SetLeft(mark,cx+shift-marker/2);Canvas.SetTop(mark,cy-marker/2);Panel.SetZIndex(mark,1);MapCanvas.Children.Add(mark);
                     var label=new TextBlock {Text=(map.Spots.ToList().IndexOf(here[0])+1).ToString(),FontSize=marker>18?11:9,FontWeight=FontWeights.SemiBold,IsHitTestVisible=false};
                     label.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
-                    Canvas.SetLeft(label,cx-label.DesiredSize.Width/2);Canvas.SetTop(label,cy-label.DesiredSize.Height/2);Panel.SetZIndex(label,2);MapCanvas.Children.Add(label);
+                    Canvas.SetLeft(label,cx+shift-label.DesiredSize.Width/2);Canvas.SetTop(label,cy-label.DesiredSize.Height/2);Panel.SetZIndex(label,2);MapCanvas.Children.Add(label);
                 }
             }
         MapDetails.Children.Add(new TextBlock {Text=$"{map.Width} by {map.Height} hexes, file {map.File}",Foreground=(Brush)FindResource("Muted"),FontSize=12,Margin=new Thickness(0,0,0,10)});
@@ -431,6 +452,26 @@ public partial class MainWindow : Window
         {
             var s=map.Spots[i];
             AddText(MapDetails,$"{i+1}. {s.Name} at {s.X}, {s.Y}{(s.Unit!=0?" (one character only)":"")}");
+        }
+        AddSection(MapDetails,"Units at the start");
+        if(map.Deployment.Count>0)AddText(MapDetails,$"Your army: {map.Deployment.Count} hexes to place units");
+        foreach(var team in placed.GroupBy(p=>p.Place.Team).OrderBy(g=>g.Key==1?0:1).ThenBy(g=>g.Key))
+        {
+            var named=team.Where(p=>p.Named).Select(p=>p.Name).Distinct().ToList();
+            AddText(MapDetails,$"{TeamName(team.Key)}: {team.Count()} {(team.Count()==1?"unit":"units")}{(named.Count>0?", led by "+string.Join(", ",named):"")}");
+        }
+        if(placed.Count==0)AddText(MapDetails,"No army is placed when this battle opens; its units arrive through the battle's events.");
+        if(placed.Count>0 || map.Deployment.Count>0)
+        {
+            foreach(var (label,color,boxed) in new[]{("Where your units can start",TeamColor(0),false),("Enemy unit",TeamColor(1),true),("Unit of another army",TeamColor(2),true),("Leader or boss (gold edge)",TeamColor(1),true)})
+            {
+                if(boxed && label.StartsWith("Unit of") && !placed.Any(p=>p.Place.Team>=2))continue;
+                var line=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,4)};
+                line.Children.Add(new Border {Width=14,Height=14,CornerRadius=new CornerRadius(boxed?3:0),Background=boxed?new SolidColorBrush(color):new SolidColorBrush(Color.FromArgb(70,46,111,216)),
+                    BorderBrush=label.StartsWith("Leader")?new SolidColorBrush(Color.FromRgb(241,196,15)):new SolidColorBrush(boxed?Colors.White:color),BorderThickness=new Thickness(label.StartsWith("Leader")?2:boxed?1:2),Margin=new Thickness(0,0,8,0)});
+                line.Children.Add(new TextBlock {Text=label,FontSize=12});
+                MapDetails.Children.Add(line);
+            }
         }
         AddSection(MapDetails,"Armies");
         var armyIds=battleArmies.TryGetValue(map.Battle,out var ids)?ids:[];
@@ -446,6 +487,26 @@ public partial class MainWindow : Window
             MapDetails.Children.Add(line);
         }
     }
+
+    // Units a battle places when it opens, with the unit's name, class and level as the army file has them.
+    private List<(MapUnit Place,string Name,string Text,bool Named)> PlacedUnits(BattleMap map)
+    {
+        var result=new List<(MapUnit,string,string,bool)>();
+        if(primary is null)return result;
+        var armies=primary.Armies.ToDictionary(a=>a.Id);
+        var noItems=new Dictionary<int,string>();
+        foreach(var place in map.Units)
+        {
+            // A group can have more slots than the army file has units; the extra slots stay empty in the game.
+            if(!armies.TryGetValue(place.Army,out var army) || place.Index>=army.Units.Count)continue;
+            var unit=army.Units[place.Index];var record=ArmyRecord(unit,noItems);
+            string className=classLookup.TryGetValue(record.ClassId,out var k)?k.Name:$"Class 0x{record.ClassId:X2}";
+            result.Add((place,unit.Name,$"{unit.Name}, {className} level {record.Level} (army {place.Army:000})",unit.Named));
+        }
+        return result;
+    }
+    private static string TeamName(int team)=>team switch {0=>"Your army",1=>"Enemy",_=>"Other army"};
+    private static Color TeamColor(int team)=>team switch {0=>Color.FromRgb(46,111,216),1=>Color.FromRgb(192,57,43),_=>Color.FromRgb(46,139,87)};
 
     // Event scripts are read from the disc on demand, so the disc stays open while the page is used.
     private FileStream? eventStream;
@@ -1864,7 +1925,7 @@ public partial class MainWindow : Window
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),
-            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Maps that no battle in the game uses are listed at the end. Enemy starting positions are not shown yet. The page is for reading only."),
+            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Units that arrive later through the battle's events are not shown. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

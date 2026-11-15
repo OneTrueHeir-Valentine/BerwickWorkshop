@@ -188,12 +188,15 @@ public sealed class LiveGame : IDisposable
         for (uint a = PoolStart; a < PoolEnd - 0x100; a += 4)
         {
             int o = (int)(a - PoolStart);
-            int id = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 8)), id2 = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 10));
-            if (id != id2 || id is <= 0 or >= 1600) continue;
+            // The script ID (used by events to pick a unit) is often the name ID, but reinforcements and many story enemies have
+            // their own small numbers there.
+            int script = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 8)), id = BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 10));
+            if (script >= 1600 || id is <= 0 or >= 1600) continue;
             uint battle = U32(a + 0xA8);
             if (battle < PoolStart || battle >= PoolEnd - 12) continue;
             uint army = U32(battle), x = U32(battle + 4), y = U32(battle + 8);
-            if (army > 3 || x > 64 || y > 64) continue;
+            // The outer rows and columns are the map border, where no unit stands (records left over from other scenes sit at 0, 0).
+            if (army > 3 || x is < 1 or > 62 || y is < 1 or > 62) continue;
             int level = pool[o + 0x10] & 0x3F;
             if (level is < 1 or > 63) continue;
             int hp = (BinaryPrimitives.ReadUInt16LittleEndian(pool.AsSpan(o + 0x10)) & 0x1FFF) >> 6;

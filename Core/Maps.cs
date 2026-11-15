@@ -14,8 +14,23 @@ public sealed record BattleMap(int Battle, string File, int Width, int Height, I
     /// <summary>The top-level archive the map was read from (it also holds the map's picture).</summary>
     public int Top { get; init; } = -1;
 
+    /// <summary>The hexes where you place your units before the battle.</summary>
+    public IReadOnlyList<(int X, int Y)> Deployment { get; init; } = [];
+
+    /// <summary>
+    /// Units the battle's opening events place from army files, one per placement slot. A group can have more slots than its
+    /// army file has units; slots past the last unit stay empty in the game.
+    /// </summary>
+    public IReadOnlyList<MapUnit> Units { get; init; } = [];
+
     public int KindAt(int x, int y) => x < 0 || y < 0 || x >= BattleMaps.Side || y >= BattleMaps.Side ? BattleMaps.Border : Terrain[y * BattleMaps.Side + x];
 }
+
+/// <summary>
+/// A unit placed when a battle starts: unit Index of army file udNNN (Army), on the given team (0 your army, 1 the enemy,
+/// 2 and 3 other armies), at hex X, Y.
+/// </summary>
+public sealed record MapUnit(int Team, int Army, int Index, int X, int Y);
 
 /// <summary>A map's painted picture as 32-bit BGRA pixels, top row first.</summary>
 public sealed record MapPicture(int Width, int Height, byte[] Pixels);
@@ -33,6 +48,20 @@ public static class BattleMaps
     // are not staggered like the hexes). Layers hold moving water and changes such as a broken bridge; the game switches
     // them on and off from event scripts.
     private const int LayerGrid = 0x18, LayerStride = 0x2014, LayerCount = 16;
+
+    // After the terrain grid come the placement groups: 16 groups of 64 slots, one byte of x per slot from 0x22144 and one of y
+    // 0x400 later, 0xFF for no slot. Group 0 holds the hexes where you place your units; a battle's opening event places army
+    // file udNNN with AppearUnitEx(file, team, group, ...), unit n of the file at slot n + 1 of the group. Slot 0 of every group
+    // lies on the border and holds no unit. Checked against a running game on quest 6 (every unit of armies 371 and the
+    // player's at its slot).
+    private const int PlacementX = 0x22144, PlacementY = PlacementX + 0x400, Groups = 16, Slots = 64, NoSlot = 0xFF;
+
+    private static (int X, int Y)? Slot(byte[] map, int group, int slot)
+    {
+        int at = group * Slots + slot;
+        if (PlacementY + at >= map.Length || map[PlacementX + at] == NoSlot || map[PlacementY + at] == NoSlot) return null;
+        return (map[PlacementX + at], map[PlacementY + at]);
+    }
 
     // The map file ("map" in the battle's archive in folder bmap) holds the terrain grid at 0x20144: 64 rows of 64 16-bit values,
     // the terrain kind in the low 6 bits. Kind 63 is the border.
@@ -100,12 +129,20 @@ public static class BattleMaps
             if (raw != 0) { width = Math.Max(width, i % Side + 1); height = Math.Max(height, i / Side + 1); }
         }
         if (width == 0) return null;
-        if (battle == 0 || events is null) return new BattleMap(battle, file, width, height, terrain, []) { Top = top };
+        var deployment = new List<(int, int)>();
+        for (int slot = 1; slot < Slots; slot++) if (Slot(grid, 0, slot) is { } hex) deployment.Add(hex);
+        if (battle == 0 || events is null) return new BattleMap(battle, file, width, height, terrain, []) { Top = top, Deployment = deployment };
+        var units = new List<MapUnit>();
+        foreach (var placement in events.StartingPlacements(battle))
+            if (placement.Group is > 0 and < Groups)
+                for (int slot = 1; slot < Slots; slot++)
+                    if (Slot(grid, placement.Group, slot) is { } hex && hex.X < width && hex.Y < height)
+                        units.Add(new MapUnit(placement.Team, placement.Army, slot - 1, hex.X, hex.Y));
         var spots = events.MapEvents()
             .Where(r => r.Battle == battle && r.Type == 1 && r.Args.Length >= 4 && r.Args[2] >= 0 && r.Args[2] < width && r.Args[3] >= 0 && r.Args[3] < height)
             .Select(r => new MapSpot(r.Args[0], SpotName(r.Args[0]), r.Args[2], r.Args[3], r.Args[1], r.Event))
             .DistinctBy(s => (s.Kind, s.X, s.Y, s.Unit)).OrderBy(s => s.Y).ThenBy(s => s.X).ToList();
-        return new BattleMap(battle, file, width, height, terrain, spots) { Top = top };
+        return new BattleMap(battle, file, width, height, terrain, spots) { Top = top, Deployment = deployment, Units = units };
     }
 
     /// <summary>
