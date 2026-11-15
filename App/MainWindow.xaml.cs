@@ -605,6 +605,7 @@ public partial class MainWindow : Window
         bool on=live is not null;
         LiveConnectButton.Content=on?"Disconnect":"Connect";
         LiveRefreshButton.IsEnabled=on;LiveUndoButton.IsEnabled=on;
+        LiveBattleBox.IsEnabled=on && LiveBattleBox.Items.Count>0;LiveSendButton.IsEnabled=LiveBattleBox.IsEnabled;LiveOwnBattlesButton.IsEnabled=on && live!.SortiesChanged;
         LiveRulesButton.IsEnabled=on && session is not null && session.Changes.Any(c=>c.Table==EditSession.Rules);
     }
     private void LiveConnect(object sender,RoutedEventArgs e)
@@ -625,6 +626,7 @@ public partial class MainWindow : Window
             }
             if(!game.MatchesProgram(exe)){game.Dispose();SetLiveStatus($"PCSX2 is running a different edition of Berwick Saga than the opened disc ({primary.Edition}). Open the matching disc first.");return;}
             live=game;SetLiveStatus($"Connected to Berwick Saga ({primary.Edition}) in PCSX2.");
+            LiveBattleBox.ItemsSource=LiveGame.Battles(exe).Select(b=>new Choice(b.Battle,$"{b.Name}, battle {b.Battle}")).ToList();LiveBattleBox.SelectedIndex=0;
             LiveRefresh(this,new());
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
@@ -635,7 +637,7 @@ public partial class MainWindow : Window
         if(live is null)return;
         if(live.ChangedWords>0 && MessageBox.Show(this,"Put back everything Berwick Workshop changed in the running game before disconnecting?","Disconnect",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes)
             try{live.UndoAll();}catch(IOException){}
-        live.Dispose();live=null;liveRows=[];LiveGrid.ItemsSource=null;LiveEditor.Children.Clear();LiveUnitName.Text="Select a unit";
+        live.Dispose();live=null;liveRows=[];LiveGrid.ItemsSource=null;LiveBattleBox.ItemsSource=null;LiveEditor.Children.Clear();LiveUnitName.Text="Select a unit";
         NoLiveUnits.Text="Connect to see the units on the current map.";NoLiveUnits.Visibility=Visibility.Visible;LiveCount.Text="";SetLiveStatus("Not connected.");UpdateLiveButtons();
     }
     private void LiveRefresh(object sender,RoutedEventArgs e)
@@ -757,6 +759,24 @@ public partial class MainWindow : Window
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
     }
+    private void LiveSendSorties(object sender,RoutedEventArgs e)
+    {
+        if(live is null || LiveBattleBox.SelectedItem is not Choice choice)return;
+        try
+        {
+            int n=live.SendSorties(choice.Value);
+            SetLiveStatus($"The next sortie loads {choice.Text}, whichever mission or quest you start ({n} sorties changed). It takes effect from the base; a battle already on the map stays as it is.");
+        }
+        catch(IOException ex){SetLiveStatus(ex.Message);}
+        UpdateLiveButtons();
+    }
+    private void LiveOwnBattles(object sender,RoutedEventArgs e)
+    {
+        if(live is null)return;
+        try{live.RestoreSorties();SetLiveStatus("Every mission and quest loads its own battle again.");}
+        catch(IOException ex){SetLiveStatus(ex.Message);}
+        UpdateLiveButtons();
+    }
     private void LiveUndo(object sender,RoutedEventArgs e)
     {
         if(live is null)return;
@@ -768,6 +788,7 @@ public partial class MainWindow : Window
             LiveRefresh(this,new());
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
+        UpdateLiveButtons();
     }
     private void ApplyFurnitureList()
     {
@@ -1681,7 +1702,7 @@ public partial class MainWindow : Window
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands whose meaning is known are named; the rest are shown by number. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
-            ("Live game","The Live game page changes the game while it runs in PCSX2, which is useful for trying a change without playing up to it. Turn on PINE in PCSX2 (Settings, Advanced, slot 28011), start the game from the same edition as the opened disc, and choose Connect. The page lists the units on the current map; select one to change its class, level, current HP, stat bonuses, weapon levels, personal skills and items, then choose Apply to the game. Try this project's rules writes every rule you changed into the running game, so you can test it before exporting. Undo all changes puts back everything the page changed. Nothing on the disc or in your saves changes, and loading a save state also undoes it. Berwick Workshop connects only to PCSX2 on this computer, and only when you choose Connect."),
+            ("Live game","The Live game page changes the game while it runs in PCSX2, which is useful for trying a change without playing up to it. Turn on PINE in PCSX2 (Settings, Advanced, slot 28011), start the game from the same edition as the opened disc, and choose Connect. The page lists the units on the current map; select one to change its class, level, current HP, stat bonuses, weapon levels, personal skills and items, then choose Apply to the game. Try this project's rules writes every rule you changed into the running game, so you can test it before exporting. To test on a map you have not reached, choose a battle under Next sortie loads and Send sorties there while the game is at the base, then start any mission or quest: the game loads the chosen battle with its own map, units and events. Use each sortie's own battle puts the missions back. Undo all changes puts back everything the page changed. Nothing on the disc or in your saves changes, and loading a save state also undoes it. Berwick Workshop connects only to PCSX2 on this computer, and only when you choose Connect."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
             ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Armies: class, level, bonuses, weapon levels, skills, items and drops of any enemy, boss or guest unit. Furniture: the shop price of each piece. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),

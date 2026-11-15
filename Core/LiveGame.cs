@@ -10,6 +10,9 @@ public sealed record LiveUnit(uint Address, int NameId, string Name, int Army, i
 /// <summary>An item slot of a unit in the running game.</summary>
 public sealed record LiveItem(int Slot, int ItemId, int Uses);
 
+/// <summary>A battle a sortie from the base can load: a story mission or a quest, with the battle number the game gives it.</summary>
+public sealed record LiveBattle(string Name, int Battle);
+
 /// <summary>
 /// Reads and changes the running game in PCSX2 through PINE, a connection PCSX2 offers on this computer only
 /// (127.0.0.1). Every word this class changes is remembered so all changes can be undone; nothing on the disc or in saves changes.
@@ -245,6 +248,88 @@ public sealed class LiveGame : IDisposable
         Store(at, w);
         itemEdits[(unit.Address, slot)] = (original, w);
     }
+
+    // Story missions (16-byte records) and quests (52-byte records). Bits 12 to 23 of a record's first word are the battle its sortie
+    // loads, and the battle's own data then names the map, units and events; quests that are not battles have 0. A mission record's
+    // low byte is its number and a quest record's second word is 1. The addresses are the same on both editions.
+    private const uint MissionTable = 0x0046D8F0, QuestTable = 0x0046D9E0;
+    private const int MissionCount = 15, MissionLength = 16, QuestCount = 218, QuestLength = 52;
+
+    private static List<(uint Address, string Name, uint Word)>? SortieRecords(ReadOnlySpan<byte> missions, ReadOnlySpan<byte> quests)
+    {
+        var records = new List<(uint, string, uint)>();
+        for (int k = 0; k < MissionCount; k++)
+        {
+            uint w = BinaryPrimitives.ReadUInt32LittleEndian(missions[(k * MissionLength)..]);
+            if ((w & 0xFF) != k + 1) return null;
+            records.Add((MissionTable + (uint)(k * MissionLength), $"Story mission {k + 1}", w));
+        }
+        for (int k = 0; k < QuestCount; k++)
+        {
+            var record = quests[(k * QuestLength)..];
+            if (BinaryPrimitives.ReadUInt32LittleEndian(record[4..]) != 1) return null;
+            records.Add((QuestTable + (uint)(k * QuestLength), $"Quest {k + 1}", BinaryPrimitives.ReadUInt32LittleEndian(record)));
+        }
+        return records;
+    }
+
+    private static int BattleOf(uint word) => (int)(word >> 12 & 0xFFF);
+
+    /// <summary>The story missions and quest battles in a program, in the game's order, or none when the lists are not where expected.</summary>
+    public static IReadOnlyList<LiveBattle> Battles(ReadOnlySpan<byte> executable)
+    {
+        long missions = MissionTable - GameRules.ProgramToFile, quests = QuestTable - GameRules.ProgramToFile;
+        if (missions < 0 || quests + QuestCount * QuestLength > executable.Length) return [];
+        var records = SortieRecords(executable.Slice((int)missions, MissionCount * MissionLength), executable.Slice((int)quests, QuestCount * QuestLength));
+        return records is null ? [] : records.Where(r => BattleOf(r.Word) != 0).Select(r => new LiveBattle(r.Name, BattleOf(r.Word))).ToList();
+    }
+
+    private List<(uint Address, string Name, uint Word)> LiveSortieRecords()
+    {
+        var missions = ReadRange(MissionTable, MissionCount * MissionLength);
+        var quests = ReadRange(QuestTable, QuestCount * QuestLength);
+        var records = SortieRecords(missions, quests) ?? throw new IOException("The game's list of missions is not where Berwick Workshop expects it, so it was left alone.");
+        // A record already changed through this connection keeps its own battle in the remembered original.
+        return records.Select(r => (r.Address, r.Name, originals.TryGetValue(r.Address, out var known) ? known.Original : r.Word)).ToList();
+    }
+
+    /// <summary>
+    /// Makes every story mission and quest battle load the given battle when its sortie starts, until the sorties are put back.
+    /// Takes effect at the next sortie; a battle already on the map is not changed. Returns how many sorties now load it.
+    /// </summary>
+    public int SendSorties(int battle)
+    {
+        if (battle is <= 0 or > 0xFFF) throw new ArgumentOutOfRangeException(nameof(battle));
+        int count = 0;
+        foreach (var (address, _, word) in LiveSortieRecords())
+        {
+            if (BattleOf(word) == 0) continue;
+            uint target = (word & ~(0xFFFu << 12)) | ((uint)battle << 12);
+            if (ReadWord(address) != target) WriteWord(address, target);
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>Gives every sortie its own battle again. Returns how many records were left because the game changed them since.</summary>
+    public int RestoreSorties()
+    {
+        int left = 0;
+        foreach (var address in originals.Keys.Where(IsSortieRecord).ToList())
+        {
+            var (original, written) = originals[address];
+            if (ReadWord(address) == written) Store(address, original); else left++;
+            originals.Remove(address);
+        }
+        return left;
+    }
+
+    /// <summary>Whether any sortie loads a battle other than its own because of this connection.</summary>
+    public bool SortiesChanged => originals.Keys.Any(IsSortieRecord);
+
+    private static bool IsSortieRecord(uint address) =>
+        address >= MissionTable && address < MissionTable + MissionCount * MissionLength && (address - MissionTable) % MissionLength == 0 ||
+        address >= QuestTable && address < QuestTable + QuestCount * QuestLength && (address - QuestTable) % QuestLength == 0;
 
     /// <summary>Writes a rule's instructions for a setting, after checking that each site holds an instruction the rule knows.</summary>
     public bool WriteRule(GameRule rule, int setting)

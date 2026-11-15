@@ -586,6 +586,19 @@ Test("Live game: units, record and item edits, rules and undo over a stand-in fo
         // A rule is left alone where the running program has other code, and a different program is noticed.
         Put(rule.Sites[0].Address,0xFFFFFFFF);Equal(false,game.WriteRule(rule,setting));Equal(0xFFFFFFFFu,Get(rule.Sites[0].Address));Equal(0,game.ChangedWords);
         Put(0x0041BE54,Get(0x0041BE54)^1);Equal(false,game.MatchesProgram(program));
+        // Sorties: every mission and quest battle loads the chosen battle until put back; quests that are not battles stay as they are.
+        void Both(uint a,uint v){Put(a,v);BinaryPrimitives.WriteUInt32LittleEndian(program.AsSpan((int)(a-GameRules.ProgramToFile)),v);}
+        for(int k=0;k<15;k++)Both(0x0046D8F0+(uint)k*16,0x01000000u|(uint)(k+20)<<12|(uint)(k+1));
+        for(int k=0;k<218;k++){Both(0x0046D9E0+(uint)k*52,0x32000000u|(k%4==0?0u:(uint)(100+k)<<12)|(uint)((k+1)&0xFF));Both(0x0046D9E4+(uint)k*52,1);}
+        var battles=LiveGame.Battles(program);
+        Equal(15+218-55,battles.Count);Equal(new LiveBattle("Story mission 3",22),battles[2]);Equal(new LiveBattle("Quest 6",105),battles.First(b=>b.Name=="Quest 6"));
+        Equal(0,LiveGame.Battles(program.AsSpan(0,0x00360000)).Count);
+        Equal(false,game.SortiesChanged);Equal(178,game.SendSorties(13));Equal(true,game.SortiesChanged);
+        Equal(13u,Get(0x0046D8F0)>>12&0xFFF);Equal(0x01000001u,Get(0x0046D8F0)&~(0xFFFu<<12));Equal(0x32000001u,Get(0x0046D9E0));Equal(13u,Get(0x0046D9E0+52)>>12&0xFFF);
+        Equal(178,game.SendSorties(31));Equal(31u,Get(0x0046D9E0+52)>>12&0xFFF);
+        Equal(0,game.RestoreSorties());Equal(false,game.SortiesChanged);Equal(0x01014001u,Get(0x0046D8F0));Equal(0x32065002u,Get(0x0046D9E0+52));
+        game.SendSorties(9);game.UndoAll();Equal(0x01014001u,Get(0x0046D8F0));Equal(false,game.SortiesChanged);
+        Put(0x0046D8F0,0);Throws<IOException>(()=>game.SendSorties(9));Equal(0,game.ChangedWords);Throws<ArgumentOutOfRangeException>(()=>game.SendSorties(0));
     }
     listener.Stop();
     Throws<IOException>(()=>LiveGame.Connect(port));
@@ -1159,6 +1172,18 @@ foreach(var exportDisc in new[]{jp!,en!})
             Throws<EditException>(()=>StablePrices.Write(decoded,new Dictionary<int,int>{[0x205]=0}));
             Throws<EditException>(()=>StablePrices.Write(decoded,new Dictionary<int,int>{[0x210]=500}));
             var broken=decoded.ToArray();broken[0xAC-4]=2;Throws<InvalidDataException>(()=>StablePrices.Read(broken));
+        }
+    });
+    Test("Live game: both programs list the 15 story missions and 45 quest battles a sortie can load",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            byte[] exe;
+            using(var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read))
+            using(var iso=new IsoImage(stream)) exe=iso.ReadRange(disc.ExecutableFile!.Offset,(int)disc.ExecutableFile.Length,(int)disc.ExecutableFile.Length);
+            var battles=LiveGame.Battles(exe);
+            Equal(60,battles.Count);
+            Equal("26,13,6,21,31,15,25,24,9,22,14,23,11,12,39",string.Join(",",battles.Take(15).Select(b=>b.Battle)));
+            Equal(new LiveBattle("Quest 6",104),battles.First(b=>b.Name=="Quest 6"));Equal(true,battles.Skip(15).All(b=>b.Battle is >= 100 and <= 200));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
