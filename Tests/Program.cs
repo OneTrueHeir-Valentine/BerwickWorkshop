@@ -1190,6 +1190,19 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(60,battles.Count);
             Equal("26,13,6,21,31,15,25,24,9,22,14,23,11,12,39",string.Join(",",battles.Take(15).Select(b=>b.Battle)));
             Equal(new LiveBattle("Quest 6",104),battles.First(b=>b.Name=="Quest 6"));Equal(true,battles.Skip(15).All(b=>b.Battle is >= 100 and <= 200));
+            using(var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read))
+            using(var iso=new IsoImage(stream))
+            {
+                var titles=ArmyData.LoadBattleTitles(new GameArchives(iso));
+                var named=LiveGame.Battles(exe,titles);
+                if(disc==en)
+                {
+                    Equal("Story mission 9: Breaking Bridges",named[8].Text);Equal("Quest 6: Cruel Brothers",named.First(b=>b.Name=="Quest 6").Text);
+                    Equal("A Reason to Fight",titles["mission001"]);Equal("St. Stefano",titles["quest030"]);Equal("Save My Colts!",titles["quest093"]);
+                    Equal(false,titles.ContainsKey("quest035"));Equal(false,titles.ContainsKey("quest001"));Equal(true,named.Count(b=>b.Title.Length>0)>=55);
+                }
+                else Equal(true,named.All(b=>b.Text==b.Name));
+            }
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

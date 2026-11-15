@@ -26,7 +26,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.49.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.50.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -329,7 +329,7 @@
      </DockPanel>
      <DockPanel Grid.Row="2" Margin="0,0,0,12" LastChildFill="True">
       <TextBlock DockPanel.Dock="Left" Text="Next sortie loads" VerticalAlignment="Center" FontSize="12" Margin="0,0,8,0"/>
-      <ComboBox x:Name="LiveBattleBox" DockPanel.Dock="Left" Width="240" Margin="0,0,8,0" IsEnabled="False" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battle for the next sortie"/>
+      <ComboBox x:Name="LiveBattleBox" DockPanel.Dock="Left" Width="320" Margin="0,0,8,0" IsEnabled="False" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battle for the next sortie"/>
       <Button x:Name="LiveSendButton" DockPanel.Dock="Left" Content="Send sorties there" Style="{StaticResource SmallButton}" Click="LiveSendSorties" Margin="0,0,8,0" IsEnabled="False" ToolTip="Every story mission and quest started from the base loads this battle"/>
       <Button x:Name="LiveOwnBattlesButton" DockPanel.Dock="Left" Content="Use each sortie's own battle" Style="{StaticResource SmallButton}" Click="LiveOwnBattles" Margin="0,0,12,0" IsEnabled="False"/>
       <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Text="Choose at the base, then start any mission or quest: its map, units and events are those of the chosen battle."/>

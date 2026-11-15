@@ -83,6 +83,11 @@ public static class ArmyData
                 < 52 => (char)('a' + g - 26),
                 >= 0x34 and <= 0x3C => (char)('1' + g - 0x34),
                 0x3D => '0',
+                0x3E => '.',
+                0x3F => ',',
+                0x40 => '!',
+                0x41 => '?',
+                0x42 => ':',
                 0x44 => '(',
                 0x45 => ')',
                 0x46 => '-',
@@ -94,6 +99,30 @@ public static class ArmyData
             text.Append(c.Value);
         }
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Mission and quest titles by entry name ("mission009", "quest006"), from the archive in the same font as the unit names
+    /// (readable on the English disc only). Quest numbers follow the order of the quest records. Titles that are only
+    /// placeholders (no small letters) are left out.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> LoadBattleTitles(GameArchives archives)
+    {
+        var result = new Dictionary<string, string>();
+        for (int top = 0; top < archives.Count && result.Count == 0; top++)
+        {
+            if (List(archives, top) is not { } entries || !entries.Any(e => e.Name == "mission001" && !e.Compressed)) continue;
+            foreach (var e in entries)
+            {
+                if (e.Compressed || e.Size is <= 0 or > 256) continue;
+                bool mission = e.Name.Length == 10 && e.Name.StartsWith("mission", StringComparison.Ordinal) && int.TryParse(e.Name.AsSpan(7), out _);
+                bool quest = e.Name.Length == 8 && e.Name.StartsWith("quest", StringComparison.Ordinal) && int.TryParse(e.Name.AsSpan(5), out _);
+                if (!mission && !quest) continue;
+                string title = DecodeName(archives.TopRange(top, e.Offset, e.Size)).Trim();
+                if (title.Any(char.IsAsciiLetterLower)) result[e.Name] = title;
+            }
+        }
+        return result;
     }
 
     /// <summary>The files of a top-level archive, read from its header and name list only.</summary>

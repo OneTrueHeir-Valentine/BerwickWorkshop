@@ -10,8 +10,12 @@ public sealed record LiveUnit(uint Address, int NameId, string Name, int Army, i
 /// <summary>An item slot of a unit in the running game.</summary>
 public sealed record LiveItem(int Slot, int ItemId, int Uses);
 
-/// <summary>A battle a sortie from the base can load: a story mission or a quest, with the battle number the game gives it.</summary>
-public sealed record LiveBattle(string Name, int Battle);
+/// <summary>A battle a sortie from the base can load: a story mission or a quest, with the battle number the game gives it,
+/// and its title where the disc has one.</summary>
+public sealed record LiveBattle(string Name, int Battle, string Title = "")
+{
+    public string Text => Title.Length > 0 ? $"{Name}: {Title}" : Name;
+}
 
 /// <summary>
 /// Reads and changes the running game in PCSX2 through PINE, a connection PCSX2 offers on this computer only
@@ -255,33 +259,37 @@ public sealed class LiveGame : IDisposable
     private const uint MissionTable = 0x0046D8F0, QuestTable = 0x0046D9E0;
     private const int MissionCount = 15, MissionLength = 16, QuestCount = 218, QuestLength = 52;
 
-    private static List<(uint Address, string Name, uint Word)>? SortieRecords(ReadOnlySpan<byte> missions, ReadOnlySpan<byte> quests)
+    private static List<(uint Address, string Name, uint Word, string Entry)>? SortieRecords(ReadOnlySpan<byte> missions, ReadOnlySpan<byte> quests)
     {
-        var records = new List<(uint, string, uint)>();
+        var records = new List<(uint, string, uint, string)>();
         for (int k = 0; k < MissionCount; k++)
         {
             uint w = BinaryPrimitives.ReadUInt32LittleEndian(missions[(k * MissionLength)..]);
             if ((w & 0xFF) != k + 1) return null;
-            records.Add((MissionTable + (uint)(k * MissionLength), $"Story mission {k + 1}", w));
+            records.Add((MissionTable + (uint)(k * MissionLength), $"Story mission {k + 1}", w, $"mission{k + 1:D3}"));
         }
         for (int k = 0; k < QuestCount; k++)
         {
             var record = quests[(k * QuestLength)..];
             if (BinaryPrimitives.ReadUInt32LittleEndian(record[4..]) != 1) return null;
-            records.Add((QuestTable + (uint)(k * QuestLength), $"Quest {k + 1}", BinaryPrimitives.ReadUInt32LittleEndian(record)));
+            records.Add((QuestTable + (uint)(k * QuestLength), $"Quest {k + 1}", BinaryPrimitives.ReadUInt32LittleEndian(record), $"quest{k + 1:D3}"));
         }
         return records;
     }
 
     private static int BattleOf(uint word) => (int)(word >> 12 & 0xFFF);
 
-    /// <summary>The story missions and quest battles in a program, in the game's order, or none when the lists are not where expected.</summary>
-    public static IReadOnlyList<LiveBattle> Battles(ReadOnlySpan<byte> executable)
+    /// <summary>
+    /// The story missions and quest battles in a program, in the game's order, or none when the lists are not where expected.
+    /// Titles come from <see cref="ArmyData.LoadBattleTitles"/>, by entry name.
+    /// </summary>
+    public static IReadOnlyList<LiveBattle> Battles(ReadOnlySpan<byte> executable, IReadOnlyDictionary<string, string>? titles = null)
     {
         long missions = MissionTable - GameRules.ProgramToFile, quests = QuestTable - GameRules.ProgramToFile;
         if (missions < 0 || quests + QuestCount * QuestLength > executable.Length) return [];
         var records = SortieRecords(executable.Slice((int)missions, MissionCount * MissionLength), executable.Slice((int)quests, QuestCount * QuestLength));
-        return records is null ? [] : records.Where(r => BattleOf(r.Word) != 0).Select(r => new LiveBattle(r.Name, BattleOf(r.Word))).ToList();
+        return records is null ? [] : records.Where(r => BattleOf(r.Word) != 0)
+            .Select(r => new LiveBattle(r.Name, BattleOf(r.Word), titles is not null && titles.TryGetValue(r.Entry, out var t) ? t : "")).ToList();
     }
 
     private List<(uint Address, string Name, uint Word)> LiveSortieRecords()
