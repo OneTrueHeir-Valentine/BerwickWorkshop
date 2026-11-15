@@ -1212,6 +1212,41 @@ foreach(var exportDisc in new[]{jp!,en!})
             }
         }
     });
+    Test("Battle maps: file lookup, terrain and spots on both discs, and maps no battle uses",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var archives=new GameArchives(iso);var library=new EventLibrary(archives);
+            Equal(3716,archives.Find("bmap/bmap009.ar"));Equal(3677,archives.Find("bmap/qmap005.ar"));Equal(-1,archives.Find("bmap/maptest.ar"));Equal(-1,archives.Find("nofolder/bmap009.ar"));
+            var files=library.BattleMapFiles();
+            Equal("bmap009.ar",files[9]);Equal("qmap005.ar",files[104]);Equal("bmap003.ar",files[126]);Equal("zmap002.ar",files[201]);
+            var map=BattleMaps.Load(archives,library,9,files[9])!;
+            Equal((26,28),(map.Width,map.Height));
+            Equal("Withdraw 22,1;Chest 14,2;Investigate 18,2;Gate 10,4;Gate 3,9;Drawbridge 1,11;Investigate 5,15;Investigate 18,20;Investigate 22,26",string.Join(";",map.Spots.Where(s=>s.Kind is 8 or 9 or 13 or 14 or 33).Select(s=>$"{s.Name} {s.X},{s.Y}")));
+            Equal(BattleMaps.Border,map.KindAt(-1,0));Equal(BattleMaps.Border,map.KindAt(0,64));
+            var onDisc=BattleMaps.Files(archives);
+            Equal(83,onDisc.Count);Equal(41,onDisc.Count(f=>!files.Values.Contains(f.File)));
+            var unused=onDisc.First(f=>f.File=="qmap001.ar");
+            var empty=BattleMaps.Load(archives,null,unused.Top,0,unused.File)!;
+            Equal((14,19,0),(empty.Width,empty.Height,empty.Spots.Count));
+            var picture=BattleMaps.LoadPicture(archives,map.Top)!;
+            Equal((1280,1024),(picture.Width,picture.Height));
+            uint Pixel(int x,int y)=>BinaryPrimitives.ReadUInt32LittleEndian(picture.Pixels.AsSpan((y*picture.Width+x)*4));
+            Equal(0xFFE4E3D9u,Pixel(820,450));Equal(0xFF043BA9u,Pixel(420,450));
+            Equal("4,7",string.Join(",",library.StartingLayers(9)!));Equal("4",string.Join(",",library.StartingLayers(104)!));Equal(null,library.StartingLayers(14));
+            var started=BattleMaps.LoadPicture(archives,map.Top,library.StartingLayers(9))!;
+            uint At(MapPicture p,int x,int y)=>BinaryPrimitives.ReadUInt32LittleEndian(p.Pixels.AsSpan((y*p.Width+x)*4));
+            Equal(0xFFE4E3D9u,At(started,820,450));Equal(false,started.Pixels.AsSpan().SequenceEqual(picture.Pixels));
+            Equal(true,At(BattleMaps.LoadPicture(archives,map.Top,[10])!,820,450)!=0xFFE4E3D9u);
+            foreach(var file in files.Values.Distinct().Where(f=>onDisc.Any(d=>d.File==f)))
+            {
+                var used=BattleMaps.Load(archives,library,files.First(f=>f.Value==file).Key,file)!;var art=BattleMaps.LoadPicture(archives,used.Top)!;
+                Equal(true,art.Width>=used.Width*BattleMaps.ColumnWidth && art.Height>=used.Height*BattleMaps.RowHeight);
+            }
+            Throws<InvalidDataException>(()=>Texture.Decode(new byte[0x40]));
+        }
+    });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

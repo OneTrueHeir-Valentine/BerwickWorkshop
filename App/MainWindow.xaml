@@ -16,6 +16,7 @@
      <Button x:Name="FurnitureNav" Content="_Furniture" Style="{StaticResource NavButton}" Click="ShowFurniture" IsEnabled="False"/>
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
+     <Button x:Name="MapsNav" Content="Ma_ps" Style="{StaticResource NavButton}" Click="ShowMaps" IsEnabled="False"/>
      <Button x:Name="EventsNav" Content="Eve_nts" Style="{StaticResource NavButton}" Click="ShowEvents" IsEnabled="False"/>
      <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
      <Button x:Name="MechanicsNav" Content="_Mechanics" Style="{StaticResource NavButton}" Click="ShowMechanics"/>
@@ -26,7 +27,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.51.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.52.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -302,7 +303,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Border Grid.ColumnSpan="3" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands whose meaning is known are named; the rest are shown by number. This page is for reading; script editing is not available yet."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. This page is for reading; script editing is not available yet."/>
      </Border>
      <DockPanel Grid.Row="1">
       <TextBlock DockPanel.Dock="Top" Text="Event number or text to find, then Enter" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
@@ -312,6 +313,31 @@
      <TextBox Grid.Row="1" Grid.Column="2" x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
      <TextBlock Grid.Row="2" Grid.ColumnSpan="3" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="MapsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250"/></Grid.ColumnDefinitions>
+     <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Each battle's map as the game paints it, with the terrain of every hex and the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize. Hover over a hex to see its position and terrain. Enemy starting positions are not shown yet. This page is for reading."/>
+     </Border>
+     <ListBox Grid.Row="1" x:Name="MapList" SelectionChanged="MapSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battles"/>
+     <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
+      <DockPanel>
+       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,10,12,0">
+        <CheckBox x:Name="MapArtBox" Content="Map art" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="The map as it is painted in the game"/>
+        <CheckBox x:Name="MapTerrainBox" Content="Terrain colors" IsChecked="False" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Color each hex by its terrain"/>
+        <TextBlock Text="Size" VerticalAlignment="Center" FontSize="12" Margin="0,0,8,0"/>
+        <ComboBox x:Name="MapSizeBox" Width="90" SelectedIndex="1" SelectionChanged="MapViewChanged" AutomationProperties.Name="Map size">
+         <ComboBoxItem Content="Small"/><ComboBoxItem Content="Medium"/><ComboBoxItem Content="Large"/>
+        </ComboBox>
+       </StackPanel>
+       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Canvas x:Name="MapCanvas" Margin="12" ClipToBounds="True" AutomationProperties.Name="Battle map"/></ScrollViewer>
+      </DockPanel>
+     </Border>
+     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="MapDetails" Margin="0,0,8,0"/></ScrollViewer>
+     </Border>
+     <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="MapCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <ScrollViewer x:Name="MechanicsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="MechanicsList" Margin="0,0,8,0" MaxWidth="860" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="SkillsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SkillsList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>

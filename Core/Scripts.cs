@@ -234,11 +234,17 @@ public static class ScriptText
     }
 }
 
+/// <summary>One record of the map event file: an event, the battle it belongs to (0 for every battle), its condition type and arguments.</summary>
+public sealed record MapEventRecord(int Event, int Battle, int Type, int[] Args);
+
 /// <summary>The event scripts on a disc (files e0000001.dat and on), found in the top-level archives that hold them.</summary>
 public sealed class EventLibrary
 {
     private static readonly Regex EventName = new(@"^e(\d{7})\.dat$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private readonly GameArchives archives;
+
+    /// <summary>The disc's archives the events were read from.</summary>
+    public GameArchives Archives => archives;
     private readonly Dictionary<int, int> topOf = new();
     private readonly Dictionary<int, byte[]> cache = new();
     private const string MapEventFile = "evdata.dat";
@@ -336,28 +342,120 @@ public sealed class EventLibrary
         return result;
     }
 
-    // Map event records: a byte count, then a word with the event number in its top 16 bits and the battle number in the low 16
-    // (0 for events of every battle), then the number of words that follow (condition type and arguments).
     private Dictionary<int, HashSet<int>> MapEventBattles()
     {
         var result = new Dictionary<int, HashSet<int>>();
-        if (mapEventTop < 0) return result;
-        byte[] data;
-        try
-        {
-            var archive = archives.Top(mapEventTop);
-            data = Tarc.Extract(archive, Tarc.Parse(archive).Single(e => e.Name == MapEventFile));
-        }
-        catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { return result; }
+        foreach (var r in MapEvents())
+            if (r.Battle != 0) (result.TryGetValue(r.Event, out var set) ? set : result[r.Event] = []).Add(r.Battle);
+        return result;
+    }
+
+    private IReadOnlyList<MapEventRecord>? mapEvents;
+
+    /// <summary>
+    /// The map event file (evdata.dat): records of a byte count, then a word with the event number in its top 16 bits and the battle
+    /// number in the low 16 (0 for every battle), then the number of words that follow (the condition type and its arguments).
+    /// Type 1 is a spot: menu kind, unit (0 for any), x, y.
+    /// </summary>
+    public IReadOnlyList<MapEventRecord> MapEvents()
+    {
+        if (mapEvents is not null) return mapEvents;
+        var result = new List<MapEventRecord>();
+        byte[] data = [];
+        if (mapEventTop >= 0)
+            try
+            {
+                var archive = archives.Top(mapEventTop);
+                data = Tarc.Extract(archive, Tarc.Parse(archive).Single(e => e.Name == MapEventFile));
+            }
+            catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { data = []; }
         for (int o = 0; o + 12 <= data.Length; o += 4)
         {
             int size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o));
             uint head = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(o + 4));
             int count = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 8));
             if (size < 12 || size % 4 != 0 || o + 4 + size > data.Length || count != size / 4 - 2) continue;
-            int number = (int)(head >> 16), battle = (int)(head & 0xFFFF);
-            if (battle == 0 || !topOf.ContainsKey(number)) continue;
-            (result.TryGetValue(number, out var set) ? set : result[number] = []).Add(battle);
+            int number = (int)(head >> 16);
+            if (!topOf.ContainsKey(number)) continue;
+            var words = new int[count];
+            for (int i = 0; i < count; i++) words[i] = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 12 + i * 4));
+            result.Add(new(number, (int)(head & 0xFFFF), words[0], words[1..]));
+        }
+        return mapEvents = result;
+    }
+
+    // Map animation: CreateBackGroudTree(0, event) starts an event that loops over frames, each switching map layers with
+    // DisplayLayer(layer, 1 or 0).
+    private const int DisplayLayer = 0x2D1, CreateBackgroundAnimation = 0x2D2;
+
+    /// <summary>
+    /// The map layers shown when a battle starts: the first of the battle's events (by number, following the events they
+    /// run) that starts the map's animation, and the layers that animation's first frame turns on. Null when no event of the
+    /// battle starts one.
+    /// </summary>
+    public IReadOnlyList<int>? StartingLayers(int battle)
+    {
+        var seen = new HashSet<int>();
+        foreach (int number in MapEvents().Where(r => r.Battle == battle).Select(r => r.Event).Distinct().Order())
+            if (FindAnimation(number, seen, 0) is int animation) return FirstFrame(animation);
+        return null;
+    }
+
+    private int? FindAnimation(int number, HashSet<int> seen, int depth)
+    {
+        if (depth > 4 || !seen.Add(number) || !topOf.ContainsKey(number)) return null;
+        IReadOnlyList<ScriptNode> nodes;
+        try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { return null; }
+        foreach (var n in WalkNodes(nodes))
+        {
+            if (n.Command == CreateBackgroundAnimation && n.Args.Count >= 2 && n.Args[1] is [{ Value: int animation }]) return animation;
+            if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && n.Args[0] is [{ Value: int inner }] && FindAnimation(inner, seen, depth + 1) is int found) return found;
+        }
+        return null;
+    }
+
+    private IReadOnlyList<int> FirstFrame(int animation)
+    {
+        var on = new List<int>();
+        if (!topOf.ContainsKey(animation)) return on;
+        IReadOnlyList<ScriptNode> nodes;
+        try { nodes = ScriptParser.Parse(Bytes(animation)); } catch (InvalidDataException) { return on; }
+        var set = new HashSet<int>();
+        foreach (var n in WalkNodes(nodes))
+            if (n.Command == DisplayLayer && n.Args.Count == 2 && n.Args[0] is [{ Value: int layer }] && n.Args[1] is [{ Value: int shown }])
+            {
+                if (!set.Add(layer)) break;
+                if (shown != 0) on.Add(layer);
+            }
+        return on;
+    }
+
+    private static IEnumerable<ScriptNode> WalkNodes(IEnumerable<ScriptNode> nodes)
+    {
+        foreach (var n in nodes) { yield return n; foreach (var a in n.Args) foreach (var c in WalkNodes(a)) yield return c; }
+    }
+
+    /// <summary>
+    /// The map file each battle loads, from the events that start battles: LaunchBMap with the battle number and the file, or
+    /// LaunchBMap2 with a mode first (the demo battle on the title screen uses it).
+    /// </summary>
+    public IReadOnlyDictionary<int, string> BattleMapFiles()
+    {
+        var result = new Dictionary<int, string>();
+        static IEnumerable<ScriptNode> Walk(IEnumerable<ScriptNode> nodes)
+        {
+            foreach (var n in nodes) { yield return n; foreach (var a in n.Args) foreach (var c in Walk(a)) yield return c; }
+        }
+        foreach (int number in Numbers)
+        {
+            IReadOnlyList<ScriptNode> nodes;
+            try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
+            foreach (var n in Walk(nodes))
+            {
+                int first = n.Command == LaunchBMap2 ? 1 : n.Command == LaunchBMap ? 0 : -1;
+                if (first >= 0 && n.Args.Count >= first + 2 && n.Args[first] is [{ Value: int battle }] && n.Args[first + 1] is [{ Text: { } file }] && battle > 0)
+                    result.TryAdd(battle, file);
+            }
         }
         return result;
     }

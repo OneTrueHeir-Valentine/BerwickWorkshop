@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Berwick.Workshop;
 
@@ -19,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Live, Skills, Rules, Events, Mechanics, Disc }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Live, Skills, Rules, Maps, Events, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -162,7 +163,7 @@ public partial class MainWindow : Window
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
         LiveNav.IsEnabled=primary.Supported;
-        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;
+        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;
         PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
     }
@@ -284,13 +285,174 @@ public partial class MainWindow : Window
     private void ShowSkills(object sender,RoutedEventArgs e) { view=View.Skills;UpdatePage(); }
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowEvents(object sender,RoutedEventArgs e) { view=View.Events;UpdatePage();_=OpenEvents(); }
+    private void ShowMaps(object sender,RoutedEventArgs e) { view=View.Maps;UpdatePage();_=OpenMaps(); }
+
+    // Maps: each battle's terrain and spots, read through the event library (which keeps the disc open).
+    private string? mapsPath;
+    // Battles are listed by number; maps that no battle uses are listed with their archive number made negative.
+    private List<(int Battle,string Text,string File)> mapBattles=[];
+    private Dictionary<int,List<int>> battleArmies=[];
+    private async Task OpenMaps()
+    {
+        if(primary is null || !primary.Supported)return;
+        if(mapsPath==primary.Path && mapBattles.Count>0)return;
+        await OpenEvents();
+        if(events is not { } library || primary is null)return;
+        string path=primary.Path;var exeEntry=primary.ExecutableFile!;
+        MapCount.Text="Reading the battles...";
+        try
+        {
+            var (list,armies)=await Task.Run(()=>
+            {
+                byte[] exe;
+                using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read))
+                using(var iso=new IsoImage(stream)) exe=iso.ReadRange(exeEntry.Offset,(int)exeEntry.Length,(int)exeEntry.Length);
+                lock(library)
+                {
+                    var files=library.BattleMapFiles();
+                    var named=LiveGame.Battles(exe,ArmyData.LoadBattleTitles(library.Archives));
+                    var order=named.Select(b=>b.Battle).Distinct().ToList();
+                    var names=named.GroupBy(b=>b.Battle).ToDictionary(g=>g.Key,g=>g.First().Text);
+                    var onDisc=BattleMaps.Files(library.Archives);
+                    var known=onDisc.Select(f=>f.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var result=files.Keys.Where(b=>known.Contains(files[b])).OrderBy(b=>order.IndexOf(b) is int i && i>=0?i:order.Count+b)
+                        .Select(b=>(b,names.TryGetValue(b,out var n)?$"{n} (battle {b})":files[b].StartsWith("zmap",StringComparison.OrdinalIgnoreCase)?$"Title screen demo (battle {b})":$"Battle {b}",files[b])).ToList();
+                    var usedFiles=files.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    result.AddRange(onDisc.Where(f=>!usedFiles.Contains(f.File)).Select(f=>(-f.Top,$"Unused map {Path.GetFileNameWithoutExtension(f.File)}",f.File)));
+                    var byBattle=new Dictionary<int,List<int>>();
+                    foreach(var (army,battles) in library.ArmyBattles())
+                        if(battles.Count<=2) foreach(int b in battles)(byBattle.TryGetValue(b,out var l)?l:byBattle[b]=[]).Add(army);
+                    return (result,byBattle);
+                }
+            });
+            if(events!=library)return;
+            mapBattles=list;battleArmies=armies;mapsPath=path;
+            MapList.ItemsSource=mapBattles.Select(b=>new Choice(b.Battle,b.Text)).ToList();
+            int unused=mapBattles.Count(b=>b.Battle<0);
+            MapCount.Text=$"{mapBattles.Count-unused} battles, {unused} unused maps";
+            if(mapBattles.Count>0)MapList.SelectedIndex=0;
+        }
+        catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException){MapCount.Text="The battles could not be read from this disc.";}
+    }
+    private async void MapSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(events is not { } library || MapList.SelectedValue is not int battle)return;
+        var entry=mapBattles.FirstOrDefault(b=>b.Battle==battle);
+        BattleMap? map;BitmapSource? picture=null;
+        try
+        {
+            (map,picture)=await Task.Run(()=>
+            {
+                BattleMap? read;MapPicture? art;
+                lock(library)
+                {
+                    read=battle<0?BattleMaps.Load(library.Archives,null,-battle,0,entry.File):BattleMaps.Load(library.Archives,library,battle,entry.File);
+                    // Maps no battle uses have no scripts to say which layers show; the first water frame (layer 4) is drawn for them.
+                    art=read is null?null:BattleMaps.LoadPicture(library.Archives,read.Top,battle<0?[4]:library.StartingLayers(battle));
+                }
+                BitmapSource? image=null;
+                if(art is not null){image=BitmapSource.Create(art.Width,art.Height,96,96,PixelFormats.Bgra32,null,art.Pixels,art.Width*4);image.Freeze();}
+                return (read,image);
+            });
+        }
+        catch(Exception ex) when (ex is IOException or InvalidDataException){map=null;}
+        if(events!=library || MapList.SelectedValue is not int now || now!=battle)return;
+        shownMap=map;shownPicture=picture;shownTitle=entry.Text;
+        DrawMap(map,picture,entry.Text);
+    }
+    private BattleMap? shownMap;
+    private BitmapSource? shownPicture;
+    private string shownTitle="";
+    private void MapViewChanged(object sender,RoutedEventArgs e){if(shownTitle.Length>0)DrawMap(shownMap,shownPicture,shownTitle);}
+    private static readonly Dictionary<string,Color> TerrainColors=new()
+    {
+        ["Plain or grassland"]=Color.FromRgb(185,216,138),["Wasteland"]=Color.FromRgb(205,187,142),["Sand"]=Color.FromRgb(233,217,160),
+        ["Forest"]=Color.FromRgb(79,138,60),["Flying only"]=Color.FromRgb(124,150,178),["Mountain foot"]=Color.FromRgb(168,139,94),
+        ["Shallows"]=Color.FromRgb(156,201,227),["Unidentified"]=Color.FromRgb(208,200,216),["Cave (open)"]=Color.FromRgb(154,143,128),
+        ["Cave (narrow)"]=Color.FromRgb(125,115,104),["Blocked"]=Color.FromRgb(94,90,85),["Snow, temple or castle"]=Color.FromRgb(232,230,224),
+        ["Gate"]=Color.FromRgb(224,123,57),["Road or bridge"]=Color.FromRgb(216,196,154),["Floor"]=Color.FromRgb(207,194,168),
+        ["Throne"]=Color.FromRgb(217,180,74),["Cliff"]=Color.FromRgb(142,122,98),["Building"]=Color.FromRgb(181,82,59),
+        ["Snow forest"]=Color.FromRgb(159,191,160),["Poison swamp"]=Color.FromRgb(141,111,168),
+    };
+    private void DrawMap(BattleMap? map,BitmapSource? picture,string title)
+    {
+        MapCanvas.Children.Clear();MapDetails.Children.Clear();
+        MapDetails.Children.Add(new TextBlock {Text=title,FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)});
+        if(map is null){MapDetails.Children.Add(new TextBlock {Text="This battle's map could not be read.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted")});return;}
+        // Hexes follow the painted picture: 40 pixels per column, 35 per row, odd columns half a row lower.
+        double scale=MapSizeBox.SelectedIndex switch {0=>0.5,2=>1.0,_=>0.75};
+        double w=BattleMaps.ColumnWidth*scale,h=BattleMaps.RowHeight*scale,side=w/3;
+        bool art=MapArtBox.IsChecked==true && picture is not null;
+        bool colors=!art || MapTerrainBox.IsChecked==true;
+        MapTerrainBox.IsEnabled=picture is not null && MapArtBox.IsChecked==true;MapArtBox.IsEnabled=picture is not null;
+        MapCanvas.Width=map.Width*w;MapCanvas.Height=(map.Height+0.5)*h;
+        if(art)
+        {
+            var image=new Image {Source=picture,Width=picture!.PixelWidth*scale,Height=picture.PixelHeight*scale,IsHitTestVisible=false};
+            RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
+            MapCanvas.Children.Add(image);
+        }
+        var spotsAt=map.Spots.GroupBy(s=>(s.X,s.Y)).ToDictionary(g=>g.Key,g=>g.ToList());
+        var used=new HashSet<string>();
+        var gridLine=new SolidColorBrush(art?Color.FromArgb(70,255,255,255):Color.FromArgb(70,0,0,0));gridLine.Freeze();
+        double marker=Math.Max(15,h*0.6);
+        for(int y=0;y<map.Height;y++)
+            for(int x=0;x<map.Width;x++)
+            {
+                int kind=map.KindAt(x,y);
+                if(kind==BattleMaps.Border)continue;
+                string name=TerrainData.TerrainNames[kind];used.Add(name);
+                double cx=x*w+w/2,cy=y*h+h/2+((x&1)==1?h/2:0);
+                Color fill=colors?(TerrainColors.TryGetValue(name,out var c)?c:Colors.LightGray):Colors.Transparent;
+                if(colors&&art)fill.A=120;
+                var hex=new System.Windows.Shapes.Polygon {Fill=new SolidColorBrush(fill),Stroke=gridLine,StrokeThickness=0.6};
+                hex.Points.Add(new Point(cx-w/2-side/2,cy));hex.Points.Add(new Point(cx-side,cy-h/2));hex.Points.Add(new Point(cx+side,cy-h/2));
+                hex.Points.Add(new Point(cx+w/2+side/2,cy));hex.Points.Add(new Point(cx+side,cy+h/2));hex.Points.Add(new Point(cx-side,cy+h/2));
+                string tip=$"{x}, {y}: {name}";
+                if(spotsAt.TryGetValue((x,y),out var here))tip+="\n"+string.Join("\n",here.Select(s=>s.Unit==0?s.Name:$"{s.Name} (one character only)"));
+                hex.ToolTip=tip;MapCanvas.Children.Add(hex);
+                if(here is not null)
+                {
+                    var mark=new System.Windows.Shapes.Ellipse {Width=marker,Height=marker,Fill=Brushes.White,Stroke=Brushes.Black,StrokeThickness=1.4,ToolTip=tip};
+                    Canvas.SetLeft(mark,cx-marker/2);Canvas.SetTop(mark,cy-marker/2);Panel.SetZIndex(mark,1);MapCanvas.Children.Add(mark);
+                    var label=new TextBlock {Text=(map.Spots.ToList().IndexOf(here[0])+1).ToString(),FontSize=marker>18?11:9,FontWeight=FontWeights.SemiBold,IsHitTestVisible=false};
+                    label.Measure(new Size(double.PositiveInfinity,double.PositiveInfinity));
+                    Canvas.SetLeft(label,cx-label.DesiredSize.Width/2);Canvas.SetTop(label,cy-label.DesiredSize.Height/2);Panel.SetZIndex(label,2);MapCanvas.Children.Add(label);
+                }
+            }
+        MapDetails.Children.Add(new TextBlock {Text=$"{map.Width} by {map.Height} hexes, file {map.File}",Foreground=(Brush)FindResource("Muted"),FontSize=12,Margin=new Thickness(0,0,0,10)});
+        if(map.Battle==0)
+            AddText(MapDetails,"No event in the game starts a battle on this map. Some belong to quests that are listed in the game's data but never offered.");
+        else
+        {
+        AddSection(MapDetails,"Spots");
+        if(map.Spots.Count==0)AddText(MapDetails,"None");
+        for(int i=0;i<map.Spots.Count;i++)
+        {
+            var s=map.Spots[i];
+            AddText(MapDetails,$"{i+1}. {s.Name} at {s.X}, {s.Y}{(s.Unit!=0?" (one character only)":"")}");
+        }
+        AddSection(MapDetails,"Armies");
+        var armyIds=battleArmies.TryGetValue(map.Battle,out var ids)?ids:[];
+        var armyLabels=primary?.Armies.Where(a=>armyIds.Contains(a.Id)).Select(a=>$"Army {a.Id:000}: {string.Join(", ",a.Units.Where(u=>u.Named).Select(u=>u.Name).Distinct().Take(4).DefaultIfEmpty(a.Units.Count==0?"":a.Units[0].Name))}").ToList()??[];
+        if(armyLabels.Count==0)AddText(MapDetails,"Not known");else foreach(var l in armyLabels)AddText(MapDetails,l);
+        }
+        AddSection(MapDetails,"Terrain");
+        foreach(var name in TerrainData.TerrainNames.Distinct().Where(used.Contains))
+        {
+            var line=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,4)};
+            line.Children.Add(new Border {Width=14,Height=14,Background=new SolidColorBrush(TerrainColors.TryGetValue(name,out var c)?c:Colors.LightGray),BorderBrush=new SolidColorBrush(Color.FromArgb(90,0,0,0)),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,8,0)});
+            line.Children.Add(new TextBlock {Text=name,FontSize=12});
+            MapDetails.Children.Add(line);
+        }
+    }
 
     // Event scripts are read from the disc on demand, so the disc stays open while the page is used.
     private FileStream? eventStream;
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
@@ -356,7 +518,7 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -369,6 +531,7 @@ public partial class MainWindow : Window
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
         SkillsPage.Visibility=view==View.Skills && supported?Visibility.Visible:Visibility.Collapsed;
         EventsPage.Visibility=view==View.Events && supported?Visibility.Visible:Visibility.Collapsed;
+        MapsPage.Visibility=view==View.Maps && supported?Visibility.Visible:Visibility.Collapsed;
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         LivePage.Visibility=view==View.Live && supported?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
@@ -384,6 +547,7 @@ public partial class MainWindow : Window
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
         SkillsNav.Background=view==View.Skills?active:Brushes.Transparent;
         EventsNav.Background=view==View.Events?active:Brushes.Transparent;
+        MapsNav.Background=view==View.Maps?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         LiveNav.Background=view==View.Live?active:Brushes.Transparent;
         if(view==View.Live)UpdateLiveButtons();
@@ -1700,6 +1864,7 @@ public partial class MainWindow : Window
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),
+            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Maps that no battle in the game uses are listed at the end. Enemy starting positions are not shown yet. The page is for reading only."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The page is for reading only."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

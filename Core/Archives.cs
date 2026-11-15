@@ -215,4 +215,57 @@ public sealed class GameArchives
         if (offset < 0 || offset >= size) return [];
         return iso.ReadRange(data3 + sector * (long)SectorSize + offset, Math.Min(size - (uint)offset, (uint)length), length);
     }
+
+    // The index starts with the folder count and file count, then 20 bytes per folder (its name, NUL-terminated within the first
+    // 10 bytes). Each file's first word is its folder number times 2^27 plus the low 27 bits of the hash of its name.
+    private const int FolderRecord = 20, FolderName = 10;
+
+    /// <summary>The top-level archive for a path such as "bmap/bmap009.ar", or -1 when the disc has no such file.</summary>
+    public int Find(string path)
+    {
+        int slash = path.LastIndexOf('/');
+        string folder = slash < 0 ? "" : path[..slash], name = path[(slash + 1)..];
+        uint hash = NameHash(name) & 0x07FFFFFF;
+        foreach (var (top, fileHash) in FolderFiles(folder))
+            if (fileHash == hash) return top;
+        return -1;
+    }
+
+    /// <summary>The top-level archives in a folder, each with the low 27 bits of its name's hash.</summary>
+    public IReadOnlyList<(int Top, uint Hash)> FolderFiles(string folder)
+    {
+        var header = iso.ReadRange(data4, IndexStart, IndexStart);
+        int folders = BinaryPrimitives.ReadInt32LittleEndian(header);
+        int number = -1;
+        for (int k = 0; k < folders && 8 + (k + 1) * FolderRecord <= IndexStart; k++)
+        {
+            var raw = header.AsSpan(8 + k * FolderRecord, FolderName);
+            int end = raw.IndexOf((byte)0);
+            if (Encoding.ASCII.GetString(end < 0 ? raw : raw[..end]).Equals(folder, StringComparison.OrdinalIgnoreCase)) { number = k; break; }
+        }
+        var result = new List<(int, uint)>();
+        if (number < 0) return result;
+        var rows = iso.ReadRange(data4 + IndexStart, Count * 12, Count * 12);
+        for (int i = 0; i < Count; i++)
+        {
+            uint key = BinaryPrimitives.ReadUInt32LittleEndian(rows.AsSpan(i * 12));
+            if (key >> 27 == (uint)number) result.Add((i, key & 0x07FFFFFF));
+        }
+        return result;
+    }
+
+    /// <summary>The game's hash of a file name: short names are their bytes, longer ones a shift register with feedback 0x1201.</summary>
+    public static uint NameHash(string name)
+    {
+        var bytes = Encoding.ASCII.GetBytes(name);
+        uint s = 0;
+        if (bytes.Length < 5) { foreach (byte c in bytes) s = s << 8 | c; return s; }
+        s = (uint)bytes.Length;
+        foreach (byte c in bytes)
+        {
+            s ^= (uint)c << 8;
+            for (int i = 0; i < 8; i++) { s <<= 1; if ((s & 0x04000000) != 0) s ^= 0x1201; }
+        }
+        return s;
+    }
 }
