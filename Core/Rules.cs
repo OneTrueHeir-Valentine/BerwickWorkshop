@@ -232,12 +232,12 @@ public static class GameRules
         ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn.",
-        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn.",
+        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game.",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
-        ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. A throw gets 10 more hit in the game.",
         ["Mercy"] = "In the game, Mercy can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
@@ -245,13 +245,13 @@ public static class GameRules
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses. Mag on the status screen is the Mind stat itself, not magic defense. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
         [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and a unit with the Critical skill also adds its level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
         [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage in the game; it can be set to deal 1 instead. A critical hit then adds its bonus damage on top. Knives leave the attack stat out and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit. Which stat knives add, and whether they add a random part of it or all of it, can be changed; knives also ignore the target's Defense.",
-        ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10.",
-        ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each.",
-        ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3.",
-        ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within 3 hexes. The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16.",
-        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5.",
-        ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5.",
-        ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5.",
+        ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10, and the range is 3 hexes.",
+        ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each, and the range is 3 hexes.",
+        ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3, and the range is 5 hexes.",
+        ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within range (3 hexes in the game). The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16.",
+        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes.",
+        ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes.",
+        ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes.",
         ["Celerity"] = "A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
         ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
@@ -274,6 +274,19 @@ public static class GameRules
     private static readonly string[] WeaponMoveChoices = ["Allowed", "Not allowed", "Weapon decides"];
 
     /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
+    // An immediate of 0 to max in an instruction with the given upper half, or null.
+    private static int? Imm(uint word, uint upper, int max = 10) => (word & 0xFFFF0000u) == upper && (word & 0xFFFF) <= max ? (int)(word & 0xFFFF) : null;
+
+    // An aura's range checked as "slti at, s3, range + 1".
+    private static RuleSite Below(uint address) =>
+        new(address, n => 0x2A610000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x2A610000u && (w & 0xFFFF) is >= 1 and <= 11 ? (int)(w & 0xFFFF) - 1 : null);
+
+    // An aura's range passed to the map drawing as "addiu t0, zero, range".
+    private static RuleSite Drawn(uint address) => new(address, n => 0x24080000u | (uint)n, w => Imm(w, 0x24080000u));
+
+    private static GameRule AuraRange(int id, string key, string skill, int range, params RuleSite[] sites) =>
+        new(id, key, $"{skill} range", "", RuleKind.Limit, 0, 10, range, null, sites, confirmed: true) { Group = skill, Short = "Range (hexes, 0 turns it off)", Section = SkillsSection };
+
     private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words, bool confirmed = true) =>
         new(id, key, name, "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
             addresses.Select((a, i) => new RuleSite(a, s => words[s][i], w => null)).ToArray(), confirmed: confirmed,
@@ -602,6 +615,27 @@ public static class GameRules
         new GameRule(129, "despoilRandom", "Despoil random gold", "", RuleKind.Limit, 0, 999, 50, null,
             [new RuleSite(0x003F98AC, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) <= 999 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Despoil", Short = "Random extra gold, up to", Section = SkillsSection },
+        // Aura ranges. Each aura skill has a helper that counts the allies in range who have the skill (distance from 0x0015BA70).
+        // The range is either compared directly (slti at, s3, range + 1) or added to a register first (addiu v0, v0, range).
+        // The map shows the area with 0x001B2780, which takes the range in t0, while game option 0x0052C000 is 0.
+        AuraRange(130, "commanderRange", "Commander", 3, new RuleSite(0x001B90D0, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u)),
+            new RuleSite(0x001B2640, n => 0x24480000u | (uint)n, w => Imm(w, 0x24480000u))),
+        AuraRange(131, "commander2Range", "Commander II", 3, new RuleSite(0x001B8EF0, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u))),
+        AuraRange(132, "safeZoneRange", "Safe Zone", 3, Below(0x001B8D10), Drawn(0x001B26E4)),
+        AuraRange(133, "charismaRange", "Charisma", 5, Below(0x001B8B90), Drawn(0x001B274C)),
+        AuraRange(134, "supporterRange", "Supporter", 3, Below(0x001B8710), Drawn(0x001B2714)),
+        AuraRange(135, "resistorRange", "Resistor", 3, Below(0x001B8A10), Drawn(0x001B2684)),
+        // The map's Protector area copies its range from a register that happens to hold 3 (daddu t0, a3, zero).
+        AuraRange(136, "protectorRange", "Protector", 3, Below(0x001B8890),
+            new RuleSite(0x001B26BC, n => n == 3 ? 0x00E0402Du : 0x24080000u | (uint)n, w => w == 0x00E0402Du ? 3 : Imm(w, 0x24080000u))),
+        // Focus Chant (fight flag 0x2) and Throw (unit state 0x80) add hit in the fight (two fields) and in the forecast.
+        new GameRule(137, "focusChantHit", "Focus Chant hit bonus", "", RuleKind.Limit, 0, 100, 30, null,
+            [new RuleSite(0x0022C174, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100)), new RuleSite(0x0022C180, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100)),
+             new RuleSite(0x00389E28, n => 0x24620000u | (uint)n, w => Imm(w, 0x24620000u, 100))], confirmed: true)
+        { Group = "Focus Chant", Short = "Hit bonus", Section = SkillsSection },
+        new GameRule(138, "throwHit", "Throw hit bonus", "", RuleKind.Limit, 0, 100, 10, null,
+            [new RuleSite(0x0022C08C, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100)), new RuleSite(0x00389DA0, n => 0x24620000u | (uint)n, w => Imm(w, 0x24620000u, 100))], confirmed: true)
+        { Group = "Throw", Short = "Hit bonus", Section = SkillsSection },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
