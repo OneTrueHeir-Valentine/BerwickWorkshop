@@ -27,7 +27,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.58.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.59.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -303,7 +303,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. The numbers in a script can be changed: choose one on the right and choose Edit. The change goes into every copy of the event when you export a disc."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. The numbers in a script can be changed on the Numbers tab, and its lines added, copied, removed or moved on the Lines tab. Changes go into every copy of the event when you export a disc."/>
      </Border>
      <DockPanel Grid.Row="1">
       <TextBlock DockPanel.Dock="Top" Text="Event number or text to find, then Enter" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
@@ -312,15 +312,48 @@
      </DockPanel>
      <TextBox Grid.Row="1" Grid.Column="2" x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
-     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="14">
-      <Grid>
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-       <DockPanel Margin="0,0,0,8"><Button x:Name="EditScriptNumberButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginScriptNumberEdit" ToolTip="Change this number (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="NUMBERS IN THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
-       <ListBox Grid.Row="1" x:Name="ScriptNumberList" SelectionChanged="ScriptNumberSelected" DisplayMemberPath="Text" SelectedValuePath="Value" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Numbers in this event"/>
-       <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
-        <StackPanel Margin="0,0,8,0"><StackPanel x:Name="ScriptNumberFields"/><StackPanel x:Name="ScriptNumberEditor" Visibility="Collapsed"/></StackPanel>
-       </ScrollViewer>
-      </Grid>
+     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="10">
+      <TabControl x:Name="ScriptTabs" BorderThickness="0" Padding="4,8,4,4">
+       <TabItem Header="Numbers">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <DockPanel Margin="0,0,0,8"><Button x:Name="EditScriptNumberButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginScriptNumberEdit" ToolTip="Change this number (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="NUMBERS IN THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+         <ListBox Grid.Row="1" x:Name="ScriptNumberList" SelectionChanged="ScriptNumberSelected" DisplayMemberPath="Text" SelectedValuePath="Value" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Numbers in this event"/>
+         <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+          <StackPanel Margin="0,0,8,0"><StackPanel x:Name="ScriptNumberFields"/><StackPanel x:Name="ScriptNumberEditor" Visibility="Collapsed"/></StackPanel>
+         </ScrollViewer>
+        </Grid>
+       </TabItem>
+       <TabItem Header="Lines">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <TextBlock Text="LINES OF THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+         <ListBox Grid.Row="1" x:Name="ScriptLineList" SelectionChanged="ScriptLineSelected" DisplayMemberPath="Text" SelectedValuePath="Value" FontFamily="Consolas" FontSize="12" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Lines of this event"/>
+         <WrapPanel Grid.Row="2" Margin="0,8,0,0">
+          <Button x:Name="AddLineButton" Content="Add after" Style="{StaticResource SmallButton}" Click="BeginAddLine" Margin="0,0,6,6" ToolTip="Add a command after the selected line"/>
+          <Button x:Name="DuplicateLineButton" Content="Duplicate" Style="{StaticResource SmallButton}" Click="DuplicateLine" Margin="0,0,6,6" ToolTip="Add a copy of the selected line after it"/>
+          <Button x:Name="RemoveLineButton" Content="Remove" Style="{StaticResource SmallButton}" Click="RemoveLine" Margin="0,0,6,6" ToolTip="Remove the selected line (with the lines under it, for if and while)"/>
+          <Button x:Name="LineUpButton" Content="Up" Style="{StaticResource SmallButton}" Click="MoveLineUp" Margin="0,0,6,6" ToolTip="Move the selected line up within its part of the script"/>
+          <Button x:Name="LineDownButton" Content="Down" Style="{StaticResource SmallButton}" Click="MoveLineDown" Margin="0,0,6,6" ToolTip="Move the selected line down within its part of the script"/>
+         </WrapPanel>
+         <StackPanel Grid.Row="3">
+          <StackPanel x:Name="AddLinePanel" Visibility="Collapsed" Margin="0,4,0,0">
+           <TextBlock Text="Command" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
+           <ComboBox x:Name="AddLineCommand" IsEditable="True" IsTextSearchEnabled="True" DisplayMemberPath="Text" SelectedValuePath="Value" SelectionChanged="AddLineCommandChanged" Margin="0,0,0,4" AutomationProperties.Name="Command to add"/>
+           <TextBlock x:Name="AddLineHint" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+           <TextBlock Text="Arguments, separated by commas" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
+           <TextBox x:Name="AddLineArguments" Padding="6,4,6,4" FontFamily="Consolas" Margin="0,0,0,4" ToolTip="Numbers, text in double quotes, or local values such as v0" AutomationProperties.Name="Arguments of the command"/>
+           <TextBlock x:Name="AddLineError" Foreground="#9A3B2E" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" Visibility="Collapsed"/>
+           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Style="{StaticResource SmallButton}" Click="CancelAddLine" Margin="0,0,6,0"/>
+            <Button Content="Add" Style="{StaticResource SmallButton}" Click="ApplyAddLine" Background="{StaticResource Accent}" Foreground="White" BorderBrush="{StaticResource Accent}"/>
+           </StackPanel>
+          </StackPanel>
+          <StackPanel x:Name="ScriptLineNotes" Margin="0,6,0,0"/>
+         </StackPanel>
+        </Grid>
+       </TabItem>
+      </TabControl>
      </Border>
      <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>

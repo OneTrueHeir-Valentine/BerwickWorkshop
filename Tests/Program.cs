@@ -977,6 +977,55 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(3,EventCopies.Locate(archives,602).Count);
         }
     });
+    Test("Script lines: listed, duplicated, removed, moved and added, kept in a project and written to the disc",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var archives=new GameArchives(iso);var library=new EventLibrary(archives);
+            var bytes=library.Bytes(3276);
+            var lines=ScriptLines.Lines(ScriptParser.Parse(bytes),library.CommandNames);
+            Equal("SetEventFlag(1311, 1)",lines[0].Text);Equal(0,lines[0].Depth);
+            var appear=lines.First(l=>l.Text.StartsWith("AppearUnit(4, \"ud370\""));Equal(1,appear.Depth);
+            // Duplicate, then remove the copy: back to the disc's bytes.
+            var doubled=ScriptLines.Duplicate(bytes,appear.Path);
+            Equal(2,ScriptLines.Lines(ScriptParser.Parse(doubled),library.CommandNames).Count(l=>l.Text==appear.Text));
+            var copyPath=appear.Path.Take(appear.Path.Count-1).Append((appear.Path[^1].Arg,appear.Path[^1].Item+1)).ToList();
+            Equal(true,ScriptLines.Remove(doubled,copyPath).AsSpan().SequenceEqual(bytes));
+            Equal(true,ScriptLines.Move(ScriptLines.Move(bytes,appear.Path,1),copyPath,-1).AsSpan().SequenceEqual(bytes));
+            Throws<EditException>(()=>ScriptLines.Move(bytes,lines[0].Path,-1));
+            // A new command typed as text.
+            var added=ScriptLines.InsertAfter(bytes,appear.Path,ScriptLines.Command(0x32B,"8, \"ud370\", 1, 2, -1, 2, 1, 0"));
+            Equal(true,ScriptText.Format(ScriptParser.Parse(added),library.CommandNames).Contains("AppearUnit(8, \"ud370\", 1, 2, -1, 2, 1, 0)"));
+            Equal(true,ScriptText.Format([ScriptLines.Command(0x2C,"v1, 0x1F, -3")],null).Contains("v1"));
+            Throws<EditException>(()=>ScriptLines.Command(1,"\"open"));Throws<EditException>(()=>ScriptLines.Command(1,"4,"));Throws<EditException>(()=>ScriptLines.Command(1,"four"));
+            // In a session: earlier number edits become part of the new script; undo, project and export.
+            var session=new EditSession(disc);
+            var turn=ScriptValues.Numbers(3276,ScriptParser.Parse(bytes)).First(n=>n.Command=="==" && n.Value==5);
+            session.Apply(EditSession.ScriptValues,ScriptValues.Key(3276,turn.Index),new Dictionary<string,int>{["value"]=4});
+            var withTurn=ScriptLines.Duplicate(session.EventScript(3276)!,appear.Path);
+            Equal(true,session.SetScript(3276,withTurn));
+            Equal(false,session.IsEdited(EditSession.ScriptValues,ScriptValues.Key(3276,turn.Index)));Equal(true,session.HasScript(3276));
+            Equal(4,ScriptValues.Numbers(3276,ScriptParser.Parse(session.EventScript(3276)!))[turn.Index].Value);
+            session.Undo();Equal(false,session.HasScript(3276));Equal(4,session.Value(EditSession.ScriptValues,ScriptValues.Key(3276,turn.Index),"value"));
+            session.Redo();Equal(true,session.HasScript(3276));
+            var reopened=EditSession.FromJson(disc,session.ToJson());
+            Equal(true,reopened.EventScript(3276)!.AsSpan().SequenceEqual(withTurn));
+            Equal(true,session.ToJson().Contains("\"formatVersion\": 3"));
+            var patches=Exporter.PatchesFor(reopened,disc);
+            var copy=EventCopies.Locate(archives,3276).Single();
+            var top=archives.ReadData3(archives.Row(copy.Top).Sector*2048L,(int)((archives.Row(copy.Top).Size+2047)/2048*2048));long at=archives.TopOffset(copy.Top);
+            foreach(var p in patches.Where(p=>p.Offset>=at && p.Offset<at+top.Length))p.Bytes.CopyTo(top,(int)(p.Offset-at));
+            uint newSize=patches.FirstOrDefault(p=>p.Offset==archives.RowOffset(copy.Top)+8) is { } sizePatch?BitConverter.ToUInt32(sizePatch.Bytes,0):archives.Row(copy.Top).Size;
+            Equal(true,EventCopies.Extract(top[..(int)newSize],3276,copy).AsSpan().SequenceEqual(withTurn));
+            // Restoring the event removes the change; the shop price events are left to their own pages.
+            session.Revert(EditSession.Scripts,3276);Equal(false,session.HasScript(3276));
+            Throws<EditException>(()=>session.SetScript(602,ScriptLines.Duplicate(library.Bytes(602),ScriptLines.Lines(ScriptParser.Parse(library.Bytes(602))).First().Path)));
+            // The argument counts seen on the disc: AppearUnit takes 8.
+            var counts=ScriptLines.ArgumentCounts(library.Numbers.Take(400).Select(library.Bytes).Append(bytes));
+            Equal("8",string.Join(",",counts[0x32B]));
+        }
+    });
     Test("Archives: every archive holding events lays out again to the same bytes, grows in place or moves, and keeps every other file",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

@@ -263,14 +263,15 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", ScriptValues = "scriptValues";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, ScriptValues];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", ScriptValues = "scriptValues", Scripts = "scripts";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, ScriptValues, Scripts];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
-    private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name)
+    private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name, byte[]? Script = null)
     {
         public bool SameAs(RecordState other) => CopyFrom == other.CopyFrom && Name == other.Name
-            && Values.Count == other.Values.Count && Values.All(v => other.Values.TryGetValue(v.Key, out int o) && o == v.Value);
+            && Values.Count == other.Values.Count && Values.All(v => other.Values.TryGetValue(v.Key, out int o) && o == v.Value)
+            && (Script is null ? other.Script is null : other.Script is not null && Script.AsSpan().SequenceEqual(other.Script));
     }
     private sealed record Step(IReadOnlyList<(string Table, int Id, RecordState Before, RecordState After)> Records);
 
@@ -282,6 +283,9 @@ public sealed class EditSession
     private readonly Dictionary<(string Table, int Id, string Field), int> values = [];
     private readonly Dictionary<(string Table, int Id), int> copies = [];
     private readonly Dictionary<(string Table, int Id), string> names = [];
+    // Events whose lines were changed: the whole new script, decoded.
+    private readonly Dictionary<int, byte[]> scripts = [];
+    private readonly ScriptValueRecords scriptRecords;
     private readonly List<Step> steps = [];
     private HashSet<int>? armyClasses, armyItems;
     private int position, savedPosition;
@@ -293,6 +297,7 @@ public sealed class EditSession
         originalItems = disc.Items.ToDictionary(i => i.Id);
         originalCharacters = disc.Characters.ToDictionary(c => c.Id);
         originalClasses = disc.Classes.ToDictionary(c => c.Id);
+        scriptRecords = new ScriptValueRecords(disc.Path);
         tables = new()
         {
             [Items] = new(Items, "item", ItemEncoder.Fields, disc.ItemBytes, ItemEncoder.Validate),
@@ -313,7 +318,7 @@ public sealed class EditSession
             [StablePrices] = new(StablePrices, "horse", [Core.StablePrices.Field], disc.StablePriceBytes),
             [FurniturePrices] = new(FurniturePrices, "piece of furniture", [Core.FurniturePrices.Table.Field], disc.FurniturePriceBytes),
             // Numbers in event scripts, read from the disc when first needed.
-            [ScriptValues] = new(ScriptValues, "script number", [Core.ScriptValues.Field], new ScriptValueRecords(disc.Path)),
+            [ScriptValues] = new(ScriptValues, "script number", [Core.ScriptValues.Field], scriptRecords),
             [Partners] = new(Partners, "character", PartnerData.Fields, disc.PartnerBytes, PartnerData.Validate),
             [Mercenaries] = new(Mercenaries, "character", MercenaryData.Fields, disc.MercenaryBytes),
             [ArmyUnits] = new(ArmyUnits, "unit", ArmyData.Fields, disc.ArmyUnitBytes, values =>
@@ -355,7 +360,7 @@ public sealed class EditSession
     public bool IsDirty => position != savedPosition;
     public bool CanUndo => position > 0;
     public bool CanRedo => position < steps.Count;
-    public int ChangeCount => values.Count + copies.Count + names.Count;
+    public int ChangeCount => values.Count + copies.Count + names.Count + scripts.Count;
 
     public EditTable Table(string name) => tables.TryGetValue(name, out var t) ? t : throw new EditException("This project contains changes this version cannot open.");
 
@@ -369,7 +374,7 @@ public sealed class EditSession
     public int OriginalValue(string table, int id, string field) => ReadValue(table, id, Record(table, id).Span, Table(table).Field(field));
     private int BaseValue(string table, int id, string field) => ReadValue(table, id, BaseRecord(table, id).Span, Table(table).Field(field));
     public int Value(string table, int id, string field) => values.TryGetValue((table, id, field), out int v) ? v : BaseValue(table, id, field);
-    public bool IsEdited(string table, int id) => values.Keys.Any(k => k.Table == table && k.Id == id) || copies.ContainsKey((table, id)) || names.ContainsKey((table, id));
+    public bool IsEdited(string table, int id) => table == Scripts ? scripts.ContainsKey(id) : values.Keys.Any(k => k.Table == table && k.Id == id) || copies.ContainsKey((table, id)) || names.ContainsKey((table, id));
     public int? CopiedFrom(string table, int id) => copies.TryGetValue((table, id), out int from) ? from : null;
     public string? CustomName(string table, int id) => names.TryGetValue((table, id), out var name) ? name : null;
 
@@ -383,7 +388,7 @@ public sealed class EditSession
     }
 
     public IReadOnlyList<(string Table, int Id)> EditedRecords =>
-        values.Keys.Select(k => (k.Table, k.Id)).Concat(copies.Keys).Concat(names.Keys).Distinct()
+        values.Keys.Select(k => (k.Table, k.Id)).Concat(copies.Keys).Concat(names.Keys).Concat(scripts.Keys.Select(n => (Scripts, n))).Distinct()
               .OrderBy(k => Array.IndexOf(TableOrder, k.Item1)).ThenBy(k => k.Item2).ToList();
 
     public IReadOnlyList<FieldChange> Changes =>
@@ -434,10 +439,15 @@ public sealed class EditSession
 
     private RecordState Capture(string table, int id) => new(
         values.Where(v => v.Key.Table == table && v.Key.Id == id).ToDictionary(v => v.Key.Field, v => v.Value),
-        CopiedFrom(table, id), CustomName(table, id));
+        CopiedFrom(table, id), CustomName(table, id), table == Scripts && scripts.TryGetValue(id, out var script) ? script : null);
 
     private void Restore(string table, int id, RecordState state)
     {
+        if (table == Scripts)
+        {
+            if (state.Script is { } script) scripts[id] = script; else scripts.Remove(id);
+            return;
+        }
         foreach (var key in values.Keys.Where(k => k.Table == table && k.Id == id).ToList()) values.Remove(key);
         if (state.CopyFrom is int from) copies[(table, id)] = from; else copies.Remove((table, id));
         if (state.Name is { } name) names[(table, id)] = name; else names.Remove((table, id));
@@ -513,6 +523,44 @@ public sealed class EditSession
         });
     public void Revert(string table, int id) => Revert((table, id));
 
+    // Changed event scripts
+
+    /// <summary>The event as this project has it (its new script, or the disc's with the changed numbers), or null when it is not on the disc.</summary>
+    public byte[]? EventScript(int eventNumber)
+    {
+        if (scripts.TryGetValue(eventNumber, out var script)) return script;
+        if (scriptRecords.Bytes(eventNumber) is not { } original) return null;
+        var numbers = values.Where(v => v.Key.Table == ScriptValues && Core.ScriptValues.Split(v.Key.Id).Event == eventNumber)
+            .ToDictionary(v => Core.ScriptValues.Split(v.Key.Id).Index, v => v.Value);
+        return numbers.Count == 0 ? original : Core.ScriptValues.Apply(original, numbers);
+    }
+
+    /// <summary>The event's script on the disc, or null when it is not there.</summary>
+    public byte[]? OriginalEventScript(int eventNumber) => scriptRecords.Bytes(eventNumber);
+
+    /// <summary>True when the event's lines were changed (its whole script is kept in the project).</summary>
+    public bool HasScript(int eventNumber) => scripts.ContainsKey(eventNumber);
+
+    /// <summary>
+    /// Keeps a whole new script for an event, as one undoable step. Numbers changed earlier in the event are part of the new
+    /// script from then on. A script equal to the disc's removes the change.
+    /// </summary>
+    public bool SetScript(int eventNumber, byte[] decoded)
+    {
+        var original = scriptRecords.Bytes(eventNumber) ?? throw new EditException($"Event {eventNumber} is not on this disc.");
+        if (eventNumber is StablePriceEvent or FurniturePriceEvent)
+            throw new EditException("This event holds the shop's prices, which are changed on their own pages; its lines cannot be changed here.");
+        ScriptParser.Parse(decoded);
+        var numberKeys = values.Keys.Where(k => k.Table == ScriptValues && Core.ScriptValues.Split(k.Id).Event == eventNumber).Select(k => (k.Table, k.Id)).ToList();
+        return Record(numberKeys.Append((Scripts, eventNumber)), () =>
+        {
+            foreach (var key in numberKeys) Restore(key.Table, key.Id, new RecordState(new Dictionary<string, int>(), null, null));
+            if (decoded.AsSpan().SequenceEqual(original)) scripts.Remove(eventNumber); else scripts[eventNumber] = decoded.ToArray();
+        });
+    }
+
+    private const int StablePriceEvent = 602, FurniturePriceEvent = 727;
+
     // New items
 
     /// <summary>Placeholder item slots that no character starts with and that this project has not already used.</summary>
@@ -547,15 +595,19 @@ public sealed class EditSession
     // Project files
 
     private const string FormatName = "Berwick Workshop project";
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
     private const long MaxProjectSize = 4 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
     private sealed record ProjectChange(string Table, int Id, string? Name, string Field, int Original, int Value);
     private sealed record ProjectCopy(string Table, int Id, int From);
     private sealed record ProjectName(string Table, int Id, string Name);
+    private sealed record ProjectScript(int Event, string OriginalSha256, string Script);
     private sealed record ProjectFile(string Format, int FormatVersion, string Edition, string EditionSha256, string? AppVersion,
-        IReadOnlyList<ProjectChange> Changes, IReadOnlyList<ProjectCopy>? Copies = null, IReadOnlyList<ProjectName>? Names = null);
+        IReadOnlyList<ProjectChange> Changes, IReadOnlyList<ProjectCopy>? Copies = null, IReadOnlyList<ProjectName>? Names = null,
+        IReadOnlyList<ProjectScript>? Scripts = null);
+
+    private static string Sha(byte[] data) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
 
     private string? RecordName(string table, int id) => CustomName(table, id) ?? table switch
     {
@@ -574,11 +626,14 @@ public sealed class EditSession
     public string ToJson(string? appVersion = null)
     {
         bool extended = copies.Count > 0 || names.Count > 0;
-        return JsonSerializer.Serialize(new ProjectFile(FormatName, extended ? FormatVersion : 1, disc.Edition, disc.Sha256, appVersion,
+        // Projects with changed scripts need this version; others stay readable by older ones.
+        int version = scripts.Count > 0 ? FormatVersion : extended ? 2 : 1;
+        return JsonSerializer.Serialize(new ProjectFile(FormatName, version, disc.Edition, disc.Sha256, appVersion,
             values.OrderBy(v => Array.IndexOf(TableOrder, v.Key.Table)).ThenBy(v => v.Key.Id)
                   .Select(v => new ProjectChange(v.Key.Table, v.Key.Id, RecordName(v.Key.Table, v.Key.Id), v.Key.Field, OriginalValue(v.Key.Table, v.Key.Id, v.Key.Field), v.Value)).ToList(),
             extended ? copies.OrderBy(c => c.Key.Id).Select(c => new ProjectCopy(c.Key.Table, c.Key.Id, c.Value)).ToList() : null,
-            extended ? names.OrderBy(n => n.Key.Id).Select(n => new ProjectName(n.Key.Table, n.Key.Id, n.Value)).ToList() : null), Json);
+            extended ? names.OrderBy(n => n.Key.Id).Select(n => new ProjectName(n.Key.Table, n.Key.Id, n.Value)).ToList() : null,
+            scripts.Count > 0 ? scripts.OrderBy(s => s.Key).Select(s => new ProjectScript(s.Key, Sha(scriptRecords.Bytes(s.Key)!), Convert.ToBase64String(s.Value))).ToList() : null), Json);
     }
 
     public void Save(string path, string? appVersion = null)
@@ -662,7 +717,19 @@ public sealed class EditSession
                 throw new EditException($"{Capitalize(table.Noun)} 0x{change.Id:X3}: {FieldCodec.RangeError(field)}");
             session.Set(change.Table!, change.Id, change.Field, change.Value);
         }
-        foreach (var (tableName, id) in session.EditedRecords)
+        foreach (var script in file.Scripts ?? [])
+        {
+            if (script is null || script.Script is null || script.OriginalSha256 is null) throw new EditException("This project contains an empty script.");
+            var original = session.scriptRecords.Bytes(script.Event) ?? throw new EditException($"This project changes event {script.Event}, which is not on this disc.");
+            if (!string.Equals(Sha(original), script.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                throw new EditException($"The disc does not match this project: event {script.Event} differs from what the project expects.");
+            byte[] decoded;
+            try { decoded = Convert.FromBase64String(script.Script); ScriptParser.Parse(decoded); }
+            catch (Exception e) when (e is FormatException or InvalidDataException) { throw new EditException($"This project's script for event {script.Event} is damaged."); }
+            if (session.values.Keys.Any(k => k.Table == ScriptValues && Core.ScriptValues.Split(k.Id).Event == script.Event) || !session.scripts.TryAdd(script.Event, decoded))
+                throw new EditException($"This project changes event {script.Event} twice.");
+        }
+        foreach (var (tableName, id) in session.EditedRecords.Where(r => r.Table != Scripts))
         {
             var table = session.Table(tableName);
             string problem = table.Validate(table.Fields.ToDictionary(f => f.Key, f => session.Value(tableName, id, f.Key)));

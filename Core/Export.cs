@@ -51,8 +51,14 @@ public static class Exporter
         var stable = new Dictionary<int, int>();
         var furniture = new Dictionary<int, int>();
         var scripts = new Dictionary<int, Dictionary<int, int>>();
+        var replaced = new Dictionary<int, byte[]>();
         foreach (var (table, id) in session.EditedRecords)
         {
+            if (table == EditSession.Scripts)
+            {
+                replaced[id] = session.EventScript(id)!;
+                continue;
+            }
             if (table == EditSession.ScriptValues)
             {
                 var (eventNumber, index) = ScriptValues.Split(id);
@@ -116,7 +122,7 @@ public static class Exporter
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
-        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0)
+        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0 || replaced.Count > 0)
         {
             // Stable and furniture prices live in compressed event scripts, each stored several times and partly in the same
             // archives; every copy is rewritten in place, one archive at a time.
@@ -135,11 +141,16 @@ public static class Exporter
                 // The furniture shop's list writes each price into its own text, so the list is changed too.
                 if (table == FurniturePrices.Table) other.AddRange(FurnitureList.Edits(archives, original, prices));
             }
-            // Other events edited on the Events page: every copy, each rewritten in place.
+            // Other events edited on the Events page: every copy rewritten (moving files after it when it grew).
             foreach (var (eventNumber, numbers) in scripts.OrderBy(s => s.Key))
             {
                 var (decoded, copies) = EventCopies.Load(archives, eventNumber);
                 var edited = ScriptValues.Apply(decoded, numbers);
+                foreach (var copy in copies) other.Add((copy.Top, top => EventCopies.Replace(top, eventNumber, copy, edited)));
+            }
+            foreach (var (eventNumber, edited) in replaced.OrderBy(s => s.Key))
+            {
+                var (_, copies) = EventCopies.Load(archives, eventNumber);
                 foreach (var copy in copies) other.Add((copy.Top, top => EventCopies.Replace(top, eventNumber, copy, edited)));
             }
             patches.AddRange(ScriptPrices.Combined(archives, events, other, ArchiveEditing.FixedTops(archives, disc.Profile)));

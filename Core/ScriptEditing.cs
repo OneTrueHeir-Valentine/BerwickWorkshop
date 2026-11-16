@@ -171,19 +171,32 @@ public sealed class ScriptValueRecords(string discPath) : IReadOnlyDictionary<in
     private EventLibrary? library;
     private FileStream? stream;
 
-    /// <summary>The numbers of one event in reading order, or null when the event is not on the disc.</summary>
-    public int[]? EventNumbers(int eventNumber)
+    private readonly Dictionary<int, byte[]> bytes = [];
+
+    /// <summary>The event's decoded script as the disc has it, or null when the event is not on the disc.</summary>
+    public byte[]? Bytes(int eventNumber)
     {
         lock (gate)
         {
-            if (numbers.TryGetValue(eventNumber, out var known)) return known;
+            if (bytes.TryGetValue(eventNumber, out var known)) return known;
             if (library is null)
             {
                 stream = new FileStream(discPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 library = new EventLibrary(new GameArchives(new IsoImage(stream)));
             }
             if (!library.Numbers.Contains(eventNumber)) return null;
-            var list = ScriptValues.Numbers(eventNumber, ScriptParser.Parse(library.Bytes(eventNumber))).Select(n => n.Value).ToArray();
+            return bytes[eventNumber] = library.Bytes(eventNumber);
+        }
+    }
+
+    /// <summary>The numbers of one event in reading order, or null when the event is not on the disc.</summary>
+    public int[]? EventNumbers(int eventNumber)
+    {
+        lock (gate)
+        {
+            if (numbers.TryGetValue(eventNumber, out var known)) return known;
+            if (Bytes(eventNumber) is not { } script) return null;
+            var list = ScriptValues.Numbers(eventNumber, ScriptParser.Parse(script)).Select(n => n.Value).ToArray();
             return numbers[eventNumber] = list;
         }
     }
@@ -206,4 +219,158 @@ public sealed class ScriptValueRecords(string discPath) : IReadOnlyDictionary<in
     public int Count => throw new NotSupportedException();
     public IEnumerator<KeyValuePair<int, ReadOnlyMemory<byte>>> GetEnumerator() => throw new NotSupportedException();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+/// <summary>One line of a script as the Lines list shows it: its depth, its text, and where its command sits.</summary>
+public sealed record ScriptLine(int Depth, string Text, IReadOnlyList<(int Arg, int Item)> Path, bool Block);
+
+/// <summary>
+/// Changing the lines of an event script: removing, duplicating, moving and adding commands. A line is found by its path from
+/// the event: for each level, which argument of the command holds the list (the event's body, the branches of an if, the body
+/// of a while) and the line's place in that list.
+/// </summary>
+public static class ScriptLines
+{
+    /// <summary>Every line in reading order. Lines inside if and while are listed under them; "else" starts an else branch.</summary>
+    public static IReadOnlyList<ScriptLine> Lines(IReadOnlyList<ScriptNode> nodes, IReadOnlyList<string>? names = null)
+    {
+        var result = new List<ScriptLine>();
+        void Walk(IReadOnlyList<ScriptNode> list, int depth, List<(int, int)> path, int arg)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                var n = list[i];
+                var here = new List<(int, int)>(path) { (arg, i) };
+                bool block = n.Command is ScriptParser.If or ScriptParser.While;
+                result.Add(new(depth, ScriptText.Format([n], names).Split('\n')[0].Trim(), here, block));
+                if (n.Command == ScriptParser.If && n.Args.Count >= 2)
+                {
+                    Walk(n.Args[1], depth + 1, here, 1);
+                    if (n.Args.Count == 3 && n.Args[2].Count > 0)
+                    {
+                        result.Add(new(depth, "else", [.. here, (2, -1)], false));
+                        Walk(n.Args[2], depth + 1, here, 2);
+                    }
+                }
+                else if (n.Command == ScriptParser.While && n.Args.Count == 2) Walk(n.Args[1], depth + 1, here, 1);
+            }
+        }
+        if (nodes is [{ Command: ScriptParser.Event } e]) Walk(e.Args[0], 0, [], 0);
+        return result;
+    }
+
+    private static ScriptNode With(ScriptNode n, int arg, IReadOnlyList<ScriptNode> list) => new()
+    {
+        Command = n.Command, Value = n.Value, Text = n.Text, Variable = n.Variable, Locals = n.Locals, Data = n.Data,
+        Args = n.Args.Select((a, i) => i == arg ? list : a).ToList(),
+    };
+
+    // Rebuild the tree with the list that holds the line changed by the given function.
+    private static byte[] Change(ReadOnlySpan<byte> decoded, IReadOnlyList<(int Arg, int Item)> path, Func<List<ScriptNode>, int, List<ScriptNode>> change)
+    {
+        var nodes = ScriptParser.Parse(decoded);
+        if (nodes is not [{ Command: ScriptParser.Event } root] || path.Count == 0 || path.Any(p => p.Item < 0)) throw new EditException("Choose a line of the script.");
+        ScriptNode Down(ScriptNode parent, int level)
+        {
+            var (arg, item) = path[level];
+            if (arg >= parent.Args.Count) throw new EditException("Choose a line of the script.");
+            var list = parent.Args[arg].ToList();
+            if (item >= list.Count) throw new EditException("Choose a line of the script.");
+            if (level == path.Count - 1) return With(parent, arg, change(list, item));
+            list[item] = Down(list[item], level + 1);
+            return With(parent, arg, list);
+        }
+        var bytes = ScriptWriter.Write([Down(root, 0)]);
+        ScriptParser.Parse(bytes);
+        return bytes;
+    }
+
+    public static byte[] Remove(ReadOnlySpan<byte> decoded, IReadOnlyList<(int Arg, int Item)> path) =>
+        Change(decoded, path, (list, i) => { list.RemoveAt(i); return list; });
+
+    public static byte[] Duplicate(ReadOnlySpan<byte> decoded, IReadOnlyList<(int Arg, int Item)> path) =>
+        Change(decoded, path, (list, i) => { list.Insert(i + 1, list[i]); return list; });
+
+    /// <summary>Moves a line up (-1) or down (+1) within its own list.</summary>
+    public static byte[] Move(ReadOnlySpan<byte> decoded, IReadOnlyList<(int Arg, int Item)> path, int by) =>
+        Change(decoded, path, (list, i) =>
+        {
+            int to = i + by;
+            if (to < 0 || to >= list.Count) throw new EditException(by < 0 ? "This is already the first line of its part of the script." : "This is already the last line of its part of the script.");
+            (list[i], list[to]) = (list[to], list[i]);
+            return list;
+        });
+
+    /// <summary>Adds a command after the given line.</summary>
+    public static byte[] InsertAfter(ReadOnlySpan<byte> decoded, IReadOnlyList<(int Arg, int Item)> path, ScriptNode command) =>
+        Change(decoded, path, (list, i) => { list.Insert(i + 1, command); return list; });
+
+    /// <summary>
+    /// A command from its number and arguments typed as text: whole numbers (such as 12, -1 or 0x2A), text in double quotes,
+    /// or local values (v0, v1 and so on).
+    /// </summary>
+    public static ScriptNode Command(int command, string arguments)
+    {
+        var args = new List<IReadOnlyList<ScriptNode>>();
+        var text = arguments.Trim();
+        int at = 0;
+        while (at < text.Length)
+        {
+            while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
+            if (at >= text.Length) break;
+            if (text[at] == '"')
+            {
+                int end = text.IndexOf('"', at + 1);
+                if (end < 0) throw new EditException("A text argument is missing its closing quote.");
+                args.Add([new ScriptNode { Command = ScriptParser.TextValue, Text = text[(at + 1)..end] }]);
+                at = end + 1;
+            }
+            else
+            {
+                int end = text.IndexOf(',', at); if (end < 0) end = text.Length;
+                string item = text[at..end].Trim();
+                if (item.Length > 1 && (item[0] == 'v' || item[0] == 'V') && int.TryParse(item[1..], out int local) && local >= 0)
+                    args.Add([new ScriptNode { Command = ScriptParser.Variable, Variable = local }]);
+                else if (TryNumber(item, out int value)) args.Add([new ScriptNode { Command = ScriptParser.Number, Value = value }]);
+                else throw new EditException($"\"{item}\" is not a number, a text in quotes or a local value such as v0.");
+                at = end;
+            }
+            while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
+            if (at < text.Length)
+            {
+                if (text[at] != ',') throw new EditException("Separate the arguments with commas.");
+                at++;
+                if (text[at..].Trim().Length == 0) throw new EditException("An argument is missing after the last comma.");
+            }
+        }
+        return new ScriptNode { Command = command, Args = args };
+    }
+
+    private static bool TryNumber(string s, out int value)
+    {
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase) || s.StartsWith("-0x", StringComparison.OrdinalIgnoreCase))
+        {
+            bool negative = s[0] == '-';
+            bool ok = uint.TryParse(s[(negative ? 3 : 2)..], System.Globalization.NumberStyles.HexNumber, null, out uint raw);
+            value = ok ? (negative ? -(int)raw : (int)raw) : 0;
+            return ok;
+        }
+        return int.TryParse(s, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
+    /// <summary>The argument counts each command is used with in the given scripts (the game only reads what a command expects).</summary>
+    public static IReadOnlyDictionary<int, IReadOnlySet<int>> ArgumentCounts(IEnumerable<byte[]> scripts)
+    {
+        var result = new Dictionary<int, HashSet<int>>();
+        void Walk(IEnumerable<ScriptNode> nodes)
+        {
+            foreach (var n in nodes)
+            {
+                if (n.Command > ScriptParser.Event && n.Data is null) (result.TryGetValue(n.Command, out var set) ? set : result[n.Command] = []).Add(n.Args.Count);
+                foreach (var a in n.Args) Walk(a);
+            }
+        }
+        foreach (var s in scripts) { try { Walk(ScriptParser.Parse(s)); } catch (InvalidDataException) { } }
+        return result.ToDictionary(r => r.Key, r => (IReadOnlySet<int>)r.Value);
+    }
 }

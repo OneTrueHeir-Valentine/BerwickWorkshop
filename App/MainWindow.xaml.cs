@@ -634,20 +634,24 @@ public partial class MainWindow : Window
     {
         if(events is not { } library || EventList.SelectedValue is not int number)return;
         if(editing?.Page==View.Events)EndEdit();
+        AddLinePanel.Visibility=Visibility.Collapsed;
         await ShowEvent(library,number,scrollHome:true);
     }
     // The selected event as text, with the numbers changed in this project, and the list of its numbers.
     private async Task ShowEvent(EventLibrary library,int number,bool scrollHome)
     {
         var changes=ScriptChanges(number);
+        bool replaced=session?.HasScript(number)==true;
+        byte[]? projectScript=replaced?session!.EventScript(number):null;
         try
         {
-            var (text,numbers)=await Task.Run(()=>
+            var (text,numbers,lines)=await Task.Run(()=>
             {
-                byte[] bytes;lock(library)bytes=library.Bytes(number);
-                if(changes.Count>0)bytes=ScriptValues.Apply(bytes,changes);
+                byte[] bytes;
+                if(projectScript is not null)bytes=projectScript;
+                else{lock(library)bytes=library.Bytes(number);if(changes.Count>0)bytes=ScriptValues.Apply(bytes,changes);}
                 var nodes=ScriptParser.Parse(bytes);
-                return (changes.Count>0?ScriptText.Format(nodes,library.CommandNames):EventScript(library,number),ScriptValues.Numbers(number,nodes,library.CommandNames));
+                return (changes.Count>0 || replaced?ScriptText.Format(nodes,library.CommandNames):EventScript(library,number),ScriptValues.Numbers(number,nodes,library.CommandNames),ScriptLines.Lines(nodes,library.CommandNames));
             });
             if(events!=library || EventList.SelectedValue is not int now || now!=number)return;
             double offset=EventText.VerticalOffset;
@@ -659,6 +663,16 @@ public partial class MainWindow : Window
                 $"{n.Index+1}. {(n.Command.Length>0?n.Command:"value")}{(n.Argument>0?$", argument {n.Argument}":"")}: {n.Value}{(changes.ContainsKey(n.Index)?"  (changed)":"")}")).ToList();
             if(selected is int key && ScriptValues.Split(key).Event==number)ScriptNumberList.SelectedValue=key;
             if(numbers.Count==0){ScriptNumberFields.Children.Clear();AddText(ScriptNumberFields,"This event has no numbers.");}
+            int? line=lineEvent==number?ScriptLineList.SelectedIndex:null;
+            scriptLines=lines.ToList();lineEvent=number;
+            ScriptLineList.ItemsSource=lines.Select((l,i)=>new Choice(i,new string(' ',l.Depth*2)+l.Text)).ToList();
+            if(pendingLine is { } wanted)
+            {
+                int found=lines.ToList().FindIndex(x=>x.Path.SequenceEqual(wanted));
+                ScriptLineList.SelectedIndex=found>=0?found:Math.Min(line??0,lines.Count-1);pendingLine=null;
+            }
+            else if(line is int keep && keep>=0)ScriptLineList.SelectedIndex=Math.Min(keep,lines.Count-1);
+            ShowLineNotes(number);
         }
         catch(InvalidDataException){EventText.Text="This event could not be read.";ScriptNumberList.ItemsSource=null;scriptNumbers=[];}
         UpdateEditButtons();
@@ -680,9 +694,93 @@ public partial class MainWindow : Window
         AddPair(ScriptNumberFields,"Event",number.ToString());
         if(n.Line.Length>0)AddPair(ScriptNumberFields,"In",n.Line);
         if(n.Argument>0)AddPair(ScriptNumberFields,"Argument",n.Argument.ToString());
-        if(session?.IsEdited(EditSession.ScriptValues,key)==true)AddPair(ScriptNumberFields,"Value on the disc",session.OriginalValue(EditSession.ScriptValues,key,ScriptValues.Field.Key).ToString());
+        bool replaced=session?.HasScript(number)==true;
+        if(!replaced && session?.IsEdited(EditSession.ScriptValues,key)==true)AddPair(ScriptNumberFields,"Value on the disc",session.OriginalValue(EditSession.ScriptValues,key,ScriptValues.Field.Key).ToString());
         AddPair(ScriptNumberFields,"Value",n.Value.ToString());
-        if(session is not null)AddChangeList(ScriptNumberFields,ch=>ch.Table==EditSession.ScriptValues && ch.Id==key,()=>session.Revert(EditSession.ScriptValues,key));
+        if(replaced)AddText(ScriptNumberFields,"The lines of this event were changed, so a changed number is kept as part of its new script.");
+        else if(session is not null)AddChangeList(ScriptNumberFields,ch=>ch.Table==EditSession.ScriptValues && ch.Id==key,()=>session.Revert(EditSession.ScriptValues,key));
+    }
+    private List<ScriptLine> scriptLines=[];
+    private int? lineEvent;
+    private IReadOnlyList<(int Arg,int Item)>? pendingLine;
+    // The place of a line moved by some places within its own part of the script.
+    private static IReadOnlyList<(int Arg,int Item)> Sibling(IReadOnlyList<(int Arg,int Item)> path,int by)=>[..path.Take(path.Count-1),(path[^1].Arg,Math.Max(0,path[^1].Item+by))];
+    private IReadOnlyDictionary<int,IReadOnlySet<int>>? argumentCounts;
+    private void CheckEventFits(EventLibrary library,int number,byte[] edited)
+    {
+        lock(library)EventCopies.CheckFits(library.Archives,number,edited,fixedTops??=ArchiveEditing.FixedTops(library.Archives,primary?.Profile));
+    }
+    private void ShowLineNotes(int number)
+    {
+        ScriptLineNotes.Children.Clear();
+        bool can=session is not null && editing is null && number is not (602 or 727);
+        foreach(var b in new[]{AddLineButton,DuplicateLineButton,RemoveLineButton,LineUpButton,LineDownButton})b.IsEnabled=can && ScriptLineList.SelectedIndex>=0 && ScriptLineList.SelectedIndex<scriptLines.Count && scriptLines[ScriptLineList.SelectedIndex].Text!="else";
+        if(number is 602 or 727){AddText(ScriptLineNotes,"This event holds the shop's prices, which are changed on their own pages, so its lines are not changed here.");return;}
+        AddText(ScriptLineNotes,"Changing lines changes what the game does at this point. Removing an if or while removes the lines under it too.");
+        if(session?.HasScript(number)==true)
+        {
+            AddText(ScriptLineNotes,"The lines of this event are changed in this project.");
+            var restore=new Button {Content="Restore the event's lines",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
+            restore.Click+=(_,_)=>{session.Revert(EditSession.Scripts,number);RefreshDocument();Status.Text=$"Event {number} restored. Save the project to keep this change.";};
+            ScriptLineNotes.Children.Add(restore);
+        }
+    }
+    private void ScriptLineSelected(object sender,SelectionChangedEventArgs e){if(lineEvent is int n)ShowLineNotes(n);}
+    private ScriptLine? SelectedLine=>ScriptLineList.SelectedIndex>=0 && ScriptLineList.SelectedIndex<scriptLines.Count?scriptLines[ScriptLineList.SelectedIndex]:null;
+    // Applies a change to the selected event's lines as one undoable step, after checking the event still fits the disc.
+    private void ChangeLines(Func<byte[],byte[]> change,string done,IReadOnlyList<(int Arg,int Item)> select)
+    {
+        if(session is null || events is not { } library || EventList.SelectedValue is not int number)return;
+        try
+        {
+            var updated=change(session.EventScript(number)!);
+            CheckEventFits(library,number,updated);
+            if(!session.SetScript(number,updated)){Status.Text="Nothing was changed.";return;}
+        }
+        catch(EditException ex){Status.Text=ex.Message;return;}
+        pendingLine=select;
+        RefreshDocument();
+        Status.Text=done+" Save the project to keep your changes.";
+    }
+    private void DuplicateLine(object sender,RoutedEventArgs e){if(SelectedLine is { } l)ChangeLines(b=>ScriptLines.Duplicate(b,l.Path),"Line duplicated.",Sibling(l.Path,1));}
+    private void RemoveLine(object sender,RoutedEventArgs e){if(SelectedLine is { } l)ChangeLines(b=>ScriptLines.Remove(b,l.Path),"Line removed.",l.Path);}
+    private void MoveLineUp(object sender,RoutedEventArgs e){if(SelectedLine is { } l)ChangeLines(b=>ScriptLines.Move(b,l.Path,-1),"Line moved up.",Sibling(l.Path,-1));}
+    private void MoveLineDown(object sender,RoutedEventArgs e){if(SelectedLine is { } l)ChangeLines(b=>ScriptLines.Move(b,l.Path,1),"Line moved down.",Sibling(l.Path,1));}
+    private async void BeginAddLine(object sender,RoutedEventArgs e)
+    {
+        if(SelectedLine is null || events is not { } library)return;
+        AddLinePanel.Visibility=Visibility.Visible;AddLineError.Visibility=Visibility.Collapsed;
+        if(argumentCounts is null)
+        {
+            AddLineHint.Text="Reading how each command is used...";
+            argumentCounts=await Task.Run(()=>{lock(library)return ScriptLines.ArgumentCounts(library.Numbers.Select(library.Bytes).ToList());});
+        }
+        var names=library.CommandNames??[];
+        AddLineCommand.ItemsSource=argumentCounts.Keys.Where(c=>c<names.Count).Select(c=>new Choice(c,ScriptText.Name(c,names))).OrderBy(c=>c.Text,StringComparer.OrdinalIgnoreCase).ToList();
+        AddLineHint.Text="Choose a command, or type its name.";
+        AddLineCommand.Focus();
+    }
+    private void AddLineCommandChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(AddLineCommand.SelectedValue is not int command || argumentCounts is null || !argumentCounts.TryGetValue(command,out var counts))return;
+        var list=counts.Order().ToList();
+        AddLineHint.Text=$"{ScriptText.Name(command,events?.CommandNames)} is used with {(list.Count==1?list[0].ToString():string.Join(", ",list.Take(list.Count-1))+" or "+list[^1])} {(list.Count==1 && list[0]==1?"argument":"arguments")} in the game's scripts.";
+    }
+    private void CancelAddLine(object sender,RoutedEventArgs e){AddLinePanel.Visibility=Visibility.Collapsed;}
+    private void ApplyAddLine(object sender,RoutedEventArgs e)
+    {
+        if(SelectedLine is not { } l || argumentCounts is null)return;
+        void Fail(string message){AddLineError.Text=message;AddLineError.Visibility=Visibility.Visible;}
+        int? command=AddLineCommand.SelectedValue as int?;
+        if(command is null && AddLineCommand.ItemsSource is IEnumerable<Choice> choices)
+            command=choices.FirstOrDefault(c=>c.Text.Equals(AddLineCommand.Text.Trim(),StringComparison.OrdinalIgnoreCase))?.Value;
+        if(command is not int chosen || !argumentCounts.TryGetValue(chosen,out var counts)){Fail("Choose a command from the list.");return;}
+        ScriptNode node;
+        try{node=ScriptLines.Command(chosen,AddLineArguments.Text);}
+        catch(EditException ex){Fail(ex.Message);return;}
+        if(!counts.Contains(node.Args.Count)){Fail($"{ScriptText.Name(chosen,events?.CommandNames)} is not used with {node.Args.Count} {(node.Args.Count==1?"argument":"arguments")} in the game's scripts. {AddLineHint.Text}");return;}
+        AddLinePanel.Visibility=Visibility.Collapsed;AddLineArguments.Text="";
+        ChangeLines(b=>ScriptLines.InsertAfter(b,l.Path,node),"Line added.",Sibling(l.Path,1));
     }
     private void BeginScriptNumberEdit(object sender,RoutedEventArgs e)
     {
@@ -696,14 +794,12 @@ public partial class MainWindow : Window
     {
         if(events is not { } library)return null;
         var (number,index)=ScriptValues.Split(key);
-        var changes=ScriptChanges(number);changes[index]=value;
         try
         {
-            lock(library)
-            {
-                var edited=ScriptValues.Apply(library.Bytes(number),changes);
-                EventCopies.CheckFits(library.Archives,number,edited,fixedTops??=ArchiveEditing.FixedTops(library.Archives,primary?.Profile));
-            }
+            byte[] edited;
+            if(session?.HasScript(number)==true)edited=ScriptValues.Apply(session.EventScript(number)!,new Dictionary<int,int>{[index]=value});
+            else{var changes=ScriptChanges(number);changes[index]=value;lock(library)edited=ScriptValues.Apply(library.Bytes(number),changes);}
+            CheckEventFits(library,number,edited);
             return null;
         }
         catch(EditException ex){return ex.Message;}
@@ -1702,6 +1798,17 @@ public partial class MainWindow : Window
             edits.Add(new(table,editing.Id,field.Key,value));
         }
         if(editing.Page==View.Events && edits.Count==1 && ScriptFitProblem(edits[0].Id,edits[0].Value) is { } tooLarge){editorError.Text=tooLarge;editorError.BringIntoView();return;}
+        if(editing.Page==View.Events && edits.Count==1 && ScriptValues.Split(edits[0].Id) is var (scriptEvent,place) && session.HasScript(scriptEvent))
+        {
+            try
+            {
+                bool changedScript=session.SetScript(scriptEvent,ScriptValues.Apply(session.EventScript(scriptEvent)!,new Dictionary<int,int>{[place]=edits[0].Value}));
+                EndEdit();RefreshDocument();
+                Status.Text=changedScript?"Number updated. Save the project to keep your changes.":"No values were changed.";
+            }
+            catch(EditException ex){editorError.Text=ex.Message;editorError.BringIntoView();}
+            return;
+        }
         try
         {
             bool changed=session.Apply(edits);string noun=editing.Noun;
@@ -2079,7 +2186,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
-            ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. Texts and the commands themselves cannot be changed yet."),
+            ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Live game","The Live game page changes the game while it runs in PCSX2, which is useful for trying a change without playing up to it. Turn on PINE in PCSX2 (Settings, Advanced, slot 28011), start the game from the same edition as the opened disc, and choose Connect. The page lists the units on the current map; select one to change its class, level, current HP, stat bonuses, weapon levels, personal skills and items, then choose Apply to the game. Try this project's rules writes every rule you changed into the running game, so you can test it before exporting. To test on a map you have not reached, choose a battle under Next sortie loads (listed by their titles, in English on both editions) and Send sorties there while the game is at the base, then start any mission or quest: the game loads the chosen battle with its own map, units and events. Use each sortie's own battle puts the missions back. Undo all changes puts back everything the page changed. Nothing on the disc or in your saves changes, and loading a save state also undoes it. Berwick Workshop connects only to PCSX2 on this computer, and only when you choose Connect."),
