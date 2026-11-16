@@ -210,7 +210,7 @@ public static class GameRules
         ["Pursuit"] = "A unit with Pursuit attacks again when its attack speed beats the enemy's by at least the speed lead. The game's lead is 5. At 0, an equal attack speed is enough.",
         ["Parry"] = "A unit with the Parry skill parries at a chance of the unit's weapon level plus this bonus, halved: (weapon level + bonus) ÷ 2. The game's bonus is 10. Whether parrying happens at all is set by the Parry rule on the Rules page.",
         ["Sunder"] = "When the unit attacks using Sunder, its critical chance rises by this bonus for that attack. The game's bonus is 25. " + "In the game, Sunder can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
+        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. In the game the enemy always hits a unit using Desperation. Own defense set to Kept leaves the unit its defenses.",
         ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Steal"] = "In the game, Steal, Robbery and Mug II share one count per map: 3 steals, or 2 for a unit with Mug II, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
@@ -220,7 +220,7 @@ public static class GameRules
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
-        ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
         ["One-Two"] = "After use, One-Two can be chosen again this many of the unit's turns later. The game's wait is 6.",
@@ -239,7 +239,7 @@ public static class GameRules
         ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. A throw gets 10 more hit in the game.",
         ["Mercy"] = "In the game, Mercy can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
-        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
+        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Flourish halves the unit's attack for that attack and adds 33 to the chance that the hit cripples. Attack set to Not halved keeps the full attack.",
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses. Mag on the status screen is the Mind stat itself, not magic defense. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
@@ -252,7 +252,8 @@ public static class GameRules
         ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes.",
         ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes.",
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes.",
-        ["Miracle"] = "When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
+        [InjuryGroup] = "When a hit lands, the target may be crippled. The chance is the base, plus the knife bonus when the attacker uses a knife, plus Flourish and item bonuses, rolled against 0 to 99. Units with Robust or Robust+ are never crippled. The game's base is 3 and the knife bonus 6.",
+        ["Miracle"] ="When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
         ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
         ["Mug II"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug II starts each map with 2 steals in the game, shared with Steal and Robbery.",
         ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug II.",
@@ -295,8 +296,10 @@ public static class GameRules
             [new RuleSite(address, n => 0x64030000u | (uint)(n << 2), w => (w & 0xFFFF0000u) == 0x64030000u && (w & 0xFFF3u) == 0 ? (int)((w & 0xC) >> 2) : null)], confirmed: false)
         { Group = skill, Short = "Steals per map", Section = SkillsSection };
 
-    private static GameRule AuraRange(int id, string key, string skill, int range, params RuleSite[] sites) =>
-        new(id, key, $"{skill} range", "", RuleKind.Limit, 0, 10, range, null, sites, confirmed: true) { Group = skill, Short = "Range (hexes, 0 turns it off)", Section = SkillsSection };
+    private static GameRule AuraRange(int id, string key, string skill, int range, params RuleSite[] sites) => AuraRange(id, key, skill, range, true, sites);
+
+    private static GameRule AuraRange(int id, string key, string skill, int range, bool confirmed, params RuleSite[] sites) =>
+        new(id, key, $"{skill} range", "", RuleKind.Limit, 0, 10, range, null, sites, confirmed: confirmed) { Group = skill, Short = "Range (hexes, 0 turns it off)", Section = SkillsSection };
 
     private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words, bool confirmed = true) =>
         new(id, key, name, "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
@@ -318,7 +321,7 @@ public static class GameRules
             decode: found => found.Distinct().Count() == 1 && Array.FindIndex(StatFunctions, f => Jal(f) == found[0]) is var k and >= 0 ? k : null)
         { Group = BattleStatsGroup, Short = part };
 
-    public const string HitCriticalGroup = "Hit and critical", DamageGroup = "Damage";
+    public const string HitCriticalGroup = "Hit and critical", DamageGroup = "Damage", InjuryGroup = "Injury";
     // The same stats without the flag argument, as the knife code calls them.
     private static readonly uint[] PlainStatFunctions = [0x001808A0u, 0x0017F0A0u, 0x0017F0B0u, 0x001800A0u, 0x001808B0u];
     private const uint WeaponLevel = 0x0017A230u, WeaponLevelAbove = 0x0017A1F0u;
@@ -685,6 +688,26 @@ public static class GameRules
              .. new uint[] { 0x001E2E14, 0x002F2480 }.Select(a => new RuleSite(a, n => 0x28410000u | (uint)(n + 1), w => Imm(w, 0x28410000u, 16) is int k and > 0 ? k - 1 : null)),
              .. new uint[] { 0x001E2E2C, 0x002F2498 }.Select(a => new RuleSite(a, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 15)))], confirmed: true)
         { Group = "Battle Cry", Short = "Most uses", Section = SkillsSection },
+        // Provoke: the target check 0x001BFE10 (menu, targeting and enemy decisions) takes enemies within 5 hexes.
+        AuraRange(151, "provokeRange", "Provoke", 5, Below(0x001BFED0)),
+        // Flourish sets unit state bit 0x1000: the injury roll adds 33 (0x00228A48) and the fight halves attack (0x0022C354).
+        new GameRule(152, "flourishInjury", "Flourish injury bonus", "", RuleKind.Limit, 0, 100, 33, null,
+            [new RuleSite(0x00228A48, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
+        { Group = "Flourish", Short = "Injury chance bonus", Section = SkillsSection },
+        WordSets(153, "flourishAttack", "Flourish attack", "Flourish", "Attack", 0, ["Halved", "Not halved"],
+            [0x0022C358], [[0x1040000Du], [0x1000000Du]]),
+        // Desperation (unit state bit 0x20): the enemy's hit becomes 900 in the strike loop, and the user's defenses become 0.
+        WordSets(154, "desperationEnemyHit", "Desperation enemy hit", "Desperation", "Enemy hit", 0, ["Always hits", "Normal"],
+            [0x00227238], [[0x10400003u], [0x10000003u]], confirmed: false),
+        WordSets(155, "desperationDefense", "Desperation defense", "Desperation", "Own defense", 0, ["Drops to 0", "Kept"],
+            [0x0022C1AC, 0x0022C1B0, 0x0022C1B4], [[0xAE600068u, 0xAE60006Cu, 0xAE600070u], [0u, 0u, 0u]]),
+        // Injury roll 0x002289C0: base 3, plus 6 with a knife (weapon type 0), plus Flourish and item effects, against 0 to 99.
+        new GameRule(156, "injuryBase", "Injury base chance", "", RuleKind.Limit, 0, 100, 3, null,
+            [new RuleSite(0x00228A1C, n => 0x24100000u | (uint)n, w => Imm(w, 0x24100000u, 100))], confirmed: false)
+        { Group = InjuryGroup, Short = "Base chance" },
+        new GameRule(157, "injuryKnife", "Injury knife bonus", "", RuleKind.Limit, 0, 100, 6, null,
+            [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
+        { Group = InjuryGroup, Short = "Knife bonus" },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
