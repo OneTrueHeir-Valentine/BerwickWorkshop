@@ -703,7 +703,7 @@ public static class GameRules
             [0x0022C1AC, 0x0022C1B0, 0x0022C1B4], [[0xAE600068u, 0xAE60006Cu, 0xAE600070u], [0u, 0u, 0u]]),
         // Injury roll 0x002289C0: base 3, plus 6 with a knife (weapon type 0), plus Flourish and item effects, against 0 to 99.
         new GameRule(156, "injuryBase", "Injury base chance", "", RuleKind.Limit, 0, 100, 3, null,
-            [new RuleSite(0x00228A1C, n => 0x24100000u | (uint)n, w => Imm(w, 0x24100000u, 100))], confirmed: false)
+            [new RuleSite(0x00228A1C, n => 0x24100000u | (uint)n, w => Imm(w, 0x24100000u, 100))], confirmed: true)
         { Group = InjuryGroup, Short = "Base chance" },
         new GameRule(157, "injuryKnife", "Injury knife bonus", "", RuleKind.Limit, 0, 100, 6, null,
             [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
