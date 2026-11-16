@@ -104,12 +104,31 @@ public static class ArmyData
         return text.ToString();
     }
 
+    private static readonly Lazy<IReadOnlyDictionary<string, string>> titleCatalogue = new(() =>
+    {
+        using var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("titles.csv")!;
+        using var reader = new StreamReader(stream);
+        var result = new Dictionary<string, string>();
+        while (reader.ReadLine() is { } line)
+        {
+            int comma = line.IndexOf(',');
+            if (comma > 0) result[line[..comma]] = line[(comma + 1)..];
+        }
+        return result;
+    });
+
     /// <summary>
-    /// Mission and quest titles by entry name ("mission009", "quest006"), from the archive in the same font as the unit names
-    /// (readable on the English disc only). Quest numbers follow the order of the quest records. Titles that are only
-    /// placeholders (no small letters) are left out.
+    /// Mission and quest titles by entry name ("mission009", "quest006"), from the archive in the same font as the unit names.
+    /// Quest numbers follow the order of the quest records. Titles that are only placeholders (no small letters) are left out.
+    /// The Japanese disc's titles are not in that font, so it gets the English titles (the entries are numbered the same).
     /// </summary>
     public static IReadOnlyDictionary<string, string> LoadBattleTitles(GameArchives archives)
+    {
+        var read = ReadBattleTitles(archives);
+        return read.Count >= titleCatalogue.Value.Count / 2 ? read : titleCatalogue.Value;
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadBattleTitles(GameArchives archives)
     {
         var result = new Dictionary<string, string>();
         for (int top = 0; top < archives.Count && result.Count == 0; top++)

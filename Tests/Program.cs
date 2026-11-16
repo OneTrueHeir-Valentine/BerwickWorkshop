@@ -1025,7 +1025,7 @@ foreach(var exportDisc in new[]{jp!,en!})
         }
         Equal(true,jp!.Armies.Select(a=>a.Id).SequenceEqual(en!.Armies.Select(a=>a.Id)));
         // Armies are named after the battles their events place them in (checked in game for 65, 164 and 371).
-        Equal("Army 371 (Quest 6: Cruel Brothers)",en.Armies.Single(a=>a.Id==371).Label);Equal("Army 371 (Quest 6)",jp.Armies.Single(a=>a.Id==371).Label);
+        Equal("Army 371 (Quest 6: Cruel Brothers)",en.Armies.Single(a=>a.Id==371).Label);Equal("Army 371 (Quest 6: Cruel Brothers)",jp.Armies.Single(a=>a.Id==371).Label);
         Equal("Army 065 (Story mission 9: Breaking Bridges)",en.Armies.Single(a=>a.Id==65).Label);
         Equal("Army 164 (Story mission 5: Hold the Fort)",en.Armies.Single(a=>a.Id==164).Label);
         Equal("Army 053 (Story mission 3: The Three Priests and Story mission 11: Bloodstained Valley)",en.Armies.Single(a=>a.Id==53).Label);
@@ -1208,13 +1208,11 @@ foreach(var exportDisc in new[]{jp!,en!})
             {
                 var titles=ArmyData.LoadBattleTitles(new GameArchives(iso));
                 var named=LiveGame.Battles(exe,titles);
-                if(disc==en)
-                {
-                    Equal("Story mission 9: Breaking Bridges",named[8].Text);Equal("Quest 6: Cruel Brothers",named.First(b=>b.Name=="Quest 6").Text);
-                    Equal("A Reason to Fight",titles["mission001"]);Equal("St. Stefano",titles["quest030"]);Equal("Save My Colts!",titles["quest093"]);
-                    Equal(false,titles.ContainsKey("quest035"));Equal(false,titles.ContainsKey("quest001"));Equal(true,named.Count(b=>b.Title.Length>0)>=55);
-                }
-                else Equal(true,named.All(b=>b.Text==b.Name));
+                // The English disc's titles are read from it; the Japanese disc gets the same English titles from the catalogue.
+                Equal("Story mission 9: Breaking Bridges",named[8].Text);Equal("Quest 6: Cruel Brothers",named.First(b=>b.Name=="Quest 6").Text);
+                Equal("A Reason to Fight",titles["mission001"]);Equal("St. Stefano",titles["quest030"]);Equal("Save My Colts!",titles["quest093"]);
+                Equal(false,titles.ContainsKey("quest035"));Equal(false,titles.ContainsKey("quest001"));Equal(true,named.Count(b=>b.Title.Length>0)>=55);
+                Equal(230,titles.Count);
             }
         }
     });
