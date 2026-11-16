@@ -74,7 +74,7 @@ public static class SkillCatalog
         new("Hateful", "Always on", "Becomes Provoked when attacked.", "When attacked, the unit gets the Provoked status aimed at its attacker, the same status the Provoke command gives.", Program),
         new("Battle Cry", "Command", "Rouses the unit for its next fight.",
             "Chosen instead of moving. Each use adds 10 hit and 3 attack for the next fight, and it can be used up to 6 times for a larger bonus.",
-            "Only before moving and hit per use: checked in a running game. Attack and the limit of 6: from the game's own description"),
+            "Only before moving, hit and attack per use and the limit of 6: checked in a running game"),
         new("Blessing", "Always on", "Heals allies nearby every turn.",
             "At the start of each turn, each ally in range recovers a random 0 to 3 HP.",
             "Healing amount: read from the game program. Range of 3 hexes: from the game's own description"),

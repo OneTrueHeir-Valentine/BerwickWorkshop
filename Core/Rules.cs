@@ -200,7 +200,7 @@ public static class GameRules
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
-        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates.",
+        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical.",
         ["Knock Away"] = "When the unit attacks, Knock Away activates at a chance of half the unit's weapon level plus the base chance. The game's base is 30. The roll is 0 to 99, so a total of 100 or more always activates.",
         ["Spearbane"] = BaneText("a spear"),
         ["Swordbane"] = BaneText("a sword"),
@@ -219,7 +219,7 @@ public static class GameRules
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit for each use to the unit's next fight; the game gives 10.",
+        ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
@@ -252,7 +252,12 @@ public static class GameRules
         ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes.",
         ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes.",
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes.",
-        ["Celerity"] = "A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
+        ["Miracle"] = "When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
+        ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
+        ["Mug II"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug II starts each map with 2 steals in the game, shared with Steal and Robbery.",
+        ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug II.",
+        ["Maim"] = "Maim activates at a chance of half the weapon level plus this base and doubles the chance that the hit cripples. The game's base is 5, and the skill can be used 5 times per map.",
+        ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
         ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is level 10 or lower. The game adds 20%.",
@@ -283,6 +288,12 @@ public static class GameRules
 
     // An aura's range passed to the map drawing as "addiu t0, zero, range".
     private static RuleSite Drawn(uint address) => new(address, n => 0x24080000u | (uint)n, w => Imm(w, 0x24080000u));
+
+    // Steals per map, stored as "daddiu v1, zero, count << 2".
+    private static GameRule StealCount(int id, string key, string skill, int count, uint address) =>
+        new(id, key, $"{skill} steals per map", "", RuleKind.Limit, 0, 3, count, null,
+            [new RuleSite(address, n => 0x64030000u | (uint)(n << 2), w => (w & 0xFFFF0000u) == 0x64030000u && (w & 0xFFF3u) == 0 ? (int)((w & 0xC) >> 2) : null)], confirmed: false)
+        { Group = skill, Short = "Steals per map", Section = SkillsSection };
 
     private static GameRule AuraRange(int id, string key, string skill, int range, params RuleSite[] sites) =>
         new(id, key, $"{skill} range", "", RuleKind.Limit, 0, 10, range, null, sites, confirmed: true) { Group = skill, Short = "Range (hexes, 0 turns it off)", Section = SkillsSection };
@@ -636,6 +647,44 @@ public static class GameRules
         new GameRule(138, "throwHit", "Throw hit bonus", "", RuleKind.Limit, 0, 100, 10, null,
             [new RuleSite(0x0022C08C, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100)), new RuleSite(0x00389DA0, n => 0x24620000u | (uint)n, w => Imm(w, 0x24620000u, 100))], confirmed: true)
         { Group = "Throw", Short = "Hit bonus", Section = SkillsSection },
+        // Miracle: when a hit would kill, 0x0022B7C0 rolls it again with the attacker's hit lowered (addiu a1, s0, -10).
+        new GameRule(139, "miracleReroll", "Miracle hit reduction", "", RuleKind.Limit, 0, 100, 10, null,
+            [new RuleSite(0x00227FD4, n => 0x26050000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26050000u && -(short)(w & 0xFFFF) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Miracle", Short = "Hit taken off the second roll", Section = SkillsSection },
+        // Mug and Mug II: the chance is level / 10 plus 3, each skill with its own copy.
+        new GameRule(140, "mugChance", "Mug base chance", "", RuleKind.Limit, 0, 100, 3, null,
+            [new RuleSite(0x00227B48, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100))], confirmed: true)
+        { Group = "Mug", Short = "Chance added to level / 10", Section = SkillsSection },
+        new GameRule(141, "mug2Chance", "Mug II base chance", "", RuleKind.Limit, 0, 100, 3, null,
+            [new RuleSite(0x0022DE44, n => 0x24500000u | (uint)n, w => Imm(w, 0x24500000u, 100))], confirmed: true)
+        { Group = "Mug II", Short = "Chance added to level / 10", Section = SkillsSection },
+        // Steals per map: 0x001C3740 sets unit state +0x105 bits 2 and 3 at the start of a map, so 3 is the most.
+        StealCount(142, "stealCount", "Steal", 3, 0x001C386C),
+        StealCount(143, "robberyCount", "Robbery", 3, 0x001C38DC),
+        StealCount(144, "mug2Count", "Mug II", 2, 0x001C38A4),
+        // Maim: uses per map in unit state +0x10C bits 1 to 4; the chance is (weapon level + 10) / 2.
+        new GameRule(145, "maimUses", "Maim uses per map", "", RuleKind.Limit, 0, 15, 5, null,
+            [new RuleSite(0x001C3914, n => 0x64030000u | (uint)(n << 1), w => (w & 0xFFFF0000u) == 0x64030000u && (w & 0xFFE1u) == 0 ? (int)((w & 0x1E) >> 1) : null)], confirmed: false)
+        { Group = "Maim", Short = "Uses per map", Section = SkillsSection },
+        new GameRule(146, "maimChance", "Maim base chance", "", RuleKind.Limit, 0, 50, 5, null,
+            [new RuleSite(0x00226194, n => 0x24430000u | (uint)(n * 2), w => (w & 0xFFFF0000u) == 0x24430000u && (w & 1) == 0 && (w & 0xFFFF) <= 100 ? (int)(w & 0xFFFF) / 2 : null)], confirmed: false)
+        { Group = "Maim", Short = "Chance added to half the weapon level", Section = SkillsSection },
+        // Iaido: after the unit evades, battle flag 0x4000 gives its counter more hit (s0) and critical (s5).
+        new GameRule(147, "iaidoCounterHit", "Iaido counter hit bonus", "", RuleKind.Limit, 0, 100, 33, null,
+            [new RuleSite(0x0022726C, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
+        { Group = "Iaido", Short = "Counter hit bonus", Section = SkillsSection },
+        new GameRule(148, "iaidoCounterCrit", "Iaido counter critical bonus", "", RuleKind.Limit, 0, 100, 3, null,
+            [new RuleSite(0x00227278, n => 0x26B50000u | (uint)n, w => Imm(w, 0x26B50000u, 100))], confirmed: false)
+        { Group = "Iaido", Short = "Counter critical bonus", Section = SkillsSection },
+        // Battle Cry: the count of uses is unit state +0x104 bits 2 to 5. Attack adds 3 per use (0x001B8270); the command menu
+        // and the enemy decisions offer it below 6 uses, and each use keeps the count at 6 or less.
+        Multiplier(149, "battleCryAttack", "Battle Cry", "Attack for each use", 3, [0x001B827C, 0x001B8280], [0x00031040u, 0x00431021u], 2, 0x00621018u, true),
+        new GameRule(150, "battleCryUses", "Battle Cry uses", "", RuleKind.Limit, 1, 15, 6, null,
+            [new RuleSite(0x0038C42C, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 15)),
+             .. new uint[] { 0x002F76E4, 0x002FB434, 0x002FB77C, 0x002FB944, 0x002FBACC, 0x002FC054 }.Select(a => new RuleSite(a, n => 0x28420000u | (uint)n, w => Imm(w, 0x28420000u, 15))),
+             .. new uint[] { 0x001E2E14, 0x002F2480 }.Select(a => new RuleSite(a, n => 0x28410000u | (uint)(n + 1), w => Imm(w, 0x28410000u, 16) is int k and > 0 ? k - 1 : null)),
+             .. new uint[] { 0x001E2E2C, 0x002F2498 }.Select(a => new RuleSite(a, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 15)))], confirmed: true)
+        { Group = "Battle Cry", Short = "Most uses", Section = SkillsSection },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
