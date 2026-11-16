@@ -1268,6 +1268,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             // Quest 6's turn arrivals come from its every-turn event; battle 9 has every-turn arrivals on turns the battle stores itself.
             Equal(true,quest.Arrivals.All(r=>r.EveryTurn));
             Equal(true,library.Reinforcements(9).Any(r=>r.EveryTurn && r.Turn is null && r.Army==67));
+            Equal(true,library.Reinforcements(24).Any(r=>r.Talk==(83,1365)));
         }
     });
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{

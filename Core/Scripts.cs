@@ -251,6 +251,9 @@ public sealed record Reinforcement(int Army, int Script, int Team, int X, int Y,
 
     /// <summary>True when the arrival comes from the battle's event that runs at the start of every turn.</summary>
     public bool EveryTurn { get; init; }
+
+    /// <summary>When a conversation sets the arrival off: the script numbers of the unit who talks (0 for any of yours) and the one talked to.</summary>
+    public (int Speaker, int Listener)? Talk { get; init; }
 }
 
 /// <summary>An army file (udNNN) placed when a battle opens, on a team, at a placement group of the map.</summary>
@@ -432,7 +435,8 @@ public sealed class EventLibrary
     // number (==, >=, >, <=, <, joined with "and"); any other test (an event flag, a unit's state) makes the arrival conditional.
     private const int AppearUnitOld = 0x32A, AppearUnit = 0x32B, And = 8, EqualTo = 0x0F, AtLeast = 0x11, Above = 0x12, AtMost = 0x13, Below = 0x14;
     // Type 1 events belong to spots; each battle has one type 11 event (arguments 0, 1), which runs at the start of every turn.
-    private const int SpotEvent = 1, EveryTurnEvent = 11;
+    // Type 5 events run when one unit talks to another (script numbers; 0 for any of your units).
+    private const int SpotEvent = 1, TalkEvent = 5, EveryTurnEvent = 11;
 
     private readonly record struct ArrivalCondition(int? First, int? Last, bool Other);
 
@@ -451,8 +455,10 @@ public sealed class EventLibrary
             CollectArrivals(number, number, new(null, null, false), turnCommands, found, [], 0);
             var spot = records.FirstOrDefault(r => r.Event == number && r.Type == SpotEvent && r.Args.Length >= 4);
             bool everyTurn = records.Any(r => r.Event == number && r.Type == EveryTurnEvent);
+            var talk = records.FirstOrDefault(r => r.Event == number && r.Type == TalkEvent && r.Args.Length >= 2);
             foreach (var f in found)
-                result.Add((spot is null ? f : f with { Spot = new MapSpot(spot.Args[0], BattleMaps.SpotName(spot.Args[0]), spot.Args[2], spot.Args[3], spot.Args[1], number) }) with { EveryTurn = everyTurn });
+                result.Add((spot is null ? f : f with { Spot = new MapSpot(spot.Args[0], BattleMaps.SpotName(spot.Args[0]), spot.Args[2], spot.Args[3], spot.Args[1], number) })
+                    with { EveryTurn = everyTurn, Talk = talk is null ? null : (talk.Args[0], talk.Args[1]) });
         }
         return result.DistinctBy(r => (r.Army, r.Script, r.Team, r.X, r.Y, r.Turn, r.LastTurn, r.Conditional)).ToList();
     }
