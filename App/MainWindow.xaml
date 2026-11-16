@@ -27,7 +27,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.56.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.57.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -301,9 +301,9 @@
     </Grid>
     <Grid x:Name="EventsPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-     <Border Grid.ColumnSpan="3" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. This page is for reading; script editing is not available yet."/>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+     <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. The numbers in a script can be changed: choose one on the right and choose Edit. The change goes into every copy of the event when you export a disc."/>
      </Border>
      <DockPanel Grid.Row="1">
       <TextBlock DockPanel.Dock="Top" Text="Event number or text to find, then Enter" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
@@ -312,7 +312,17 @@
      </DockPanel>
      <TextBox Grid.Row="1" Grid.Column="2" x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
-     <TextBlock Grid.Row="2" Grid.ColumnSpan="3" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="14">
+      <Grid>
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <DockPanel Margin="0,0,0,8"><Button x:Name="EditScriptNumberButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginScriptNumberEdit" ToolTip="Change this number (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="NUMBERS IN THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+       <ListBox Grid.Row="1" x:Name="ScriptNumberList" SelectionChanged="ScriptNumberSelected" DisplayMemberPath="Text" SelectedValuePath="Value" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Numbers in this event"/>
+       <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
+        <StackPanel Margin="0,0,8,0"><StackPanel x:Name="ScriptNumberFields"/><StackPanel x:Name="ScriptNumberEditor" Visibility="Collapsed"/></StackPanel>
+       </ScrollViewer>
+      </Grid>
+     </Border>
+     <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <Grid x:Name="MapsPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

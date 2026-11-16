@@ -921,7 +921,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
         }
     });
-    Test("Event scripts: every event on both discs reads and parses",()=>{
+    Test("Event scripts: every event on both discs reads, parses and writes back to the same bytes",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
             using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
@@ -931,8 +931,10 @@ foreach(var exportDisc in new[]{jp!,en!})
             int commands=0;
             foreach(int n in library.Numbers)
             {
-                var nodes=ScriptParser.Parse(library.Bytes(n));
+                var bytes=library.Bytes(n);var nodes=ScriptParser.Parse(bytes);
                 Equal(1,nodes.Count);Equal(ScriptParser.Event,nodes[0].Command);commands+=nodes[0].Args[0].Count;
+                // The writer gives back the original bytes for every event.
+                if(!ScriptWriter.Write(nodes).AsSpan().SequenceEqual(bytes))throw new Exception($"Event {n} does not write back to its original bytes.");
             }
             Equal(true,commands>20000);
             string text=library.Text(172);
@@ -940,6 +942,39 @@ foreach(var exportDisc in new[]{jp!,en!})
             var names=library.CommandNames!;
             Equal(0x4EF,names.Count);Equal("SetEventFlag",names[0x77]);Equal("GUnitCalcMercenaryCost",names[0x1C0]);Equal("LaunchMapEvent",names[0x41F]);
             Equal(false,System.Text.RegularExpressions.Regex.IsMatch(text,@"\bcommand\d"));
+        }
+    });
+    Test("Script numbers: listed, edited through a project, written to every copy, and refused when they do not fit",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var archives=new GameArchives(iso);var library=new EventLibrary(archives);
+            // Quest 6's every-turn event brings reinforcements on turns 5 to 8.
+            var bytes=library.Bytes(3276);
+            var numbers=ScriptValues.Numbers(3276,ScriptParser.Parse(bytes),library.CommandNames);
+            var turn=numbers.First(n=>n.Command=="==" && n.Value==5);
+            Equal(true,ScriptValues.Apply(bytes,new Dictionary<int,int>()).AsSpan().SequenceEqual(bytes));
+            var edited=ScriptValues.Apply(bytes,new Dictionary<int,int>{[turn.Index]=3});
+            Equal(3,ScriptValues.Numbers(3276,ScriptParser.Parse(edited))[turn.Index].Value);
+            Throws<EditException>(()=>ScriptValues.Apply(bytes,new Dictionary<int,int>{[numbers.Count]=1}));
+            // Through a session and a project file, then into the disc patches for every copy.
+            var session=new EditSession(disc);
+            int key=ScriptValues.Key(3276,turn.Index);
+            Equal(5,session.Value(EditSession.ScriptValues,key,"value"));
+            Equal(true,session.Apply(EditSession.ScriptValues,key,new Dictionary<string,int>{["value"]=3}));
+            var reopened=EditSession.FromJson(disc,session.ToJson());
+            Equal(3,reopened.Value(EditSession.ScriptValues,key,"value"));
+            var patches=Exporter.PatchesFor(reopened,disc);
+            var copies=EventCopies.Locate(archives,3276);Equal(1,copies.Count);
+            var top=archives.Top(copies[0].Top);long at=archives.TopOffset(copies[0].Top);
+            foreach(var p in patches){Equal(true,p.Offset>=at && p.Offset+p.Bytes.Length<=at+top.Length);p.Bytes.CopyTo(top,(int)(p.Offset-at));}
+            Equal(true,EventCopies.Extract(top,3276,copies[0]).AsSpan().SequenceEqual(edited));
+            // A value that makes the script larger than its space is refused rather than written.
+            var big=ScriptValues.Apply(bytes,numbers.ToDictionary(n=>n.Index,n=>unchecked(n.Value*0x3D2E1A9 ^ 0x5A5A5A5)));
+            Throws<EditException>(()=>EventCopies.CheckFits(archives,3276,big));
+            // Event 602 (stable prices) has three copies; a number there goes to all of them.
+            Equal(3,EventCopies.Locate(archives,602).Count);
         }
     });
     Test("Partners and bags read the same on both discs, and edits are checked",()=>{

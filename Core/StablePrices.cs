@@ -56,52 +56,13 @@ public sealed class ScriptPrices(int eventNumber, string key, string label, stri
     }
 
     /// <summary>Every copy of the event: each top-level archive that holds it directly, and each ev_all.ar.</summary>
-    public IReadOnlyList<StableCopy> Locate(GameArchives archives)
-    {
-        var copies = new List<StableCopy>();
-        for (int i = 0; i < archives.Count; i++)
-        {
-            var header = archives.TopRange(i, 0, 16);
-            if (!Tarc.IsArchive(header)) continue;
-            int count = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(4));
-            int names = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(8));
-            if (count <= 0 || count > 20000 || names <= 0) continue;
-            var list = archives.TopRange(i, names, count * 40);
-            var found = new List<string>();
-            for (int p = 0, k = 0; k < count && p < list.Length; k++)
-            {
-                int end = Array.IndexOf(list, (byte)0, p);
-                if (end < 0) break;
-                found.Add(Encoding.ASCII.GetString(list, p, end - p)); p = end + 1;
-            }
-            if (found.Contains(FileName)) copies.Add(new(i, null));
-            // ev_all.ar holds events 1 to 1000.
-            if (EventNumber <= 1000 && found.Contains("ev_all.ar")) copies.Add(new(i, "ev_all.ar"));
-        }
-        return copies;
-    }
+    public IReadOnlyList<StableCopy> Locate(GameArchives archives) => EventCopies.Locate(archives, EventNumber);
 
     /// <summary>The decoded event from one copy.</summary>
-    public byte[] Extract(byte[] top, StableCopy copy)
-    {
-        var archive = top;
-        if (copy.Parent is { } parent) archive = Tarc.Extract(top, Single(Tarc.Parse(top), parent));
-        return Tarc.Extract(archive, Single(Tarc.Parse(archive), FileName));
-    }
+    public byte[] Extract(byte[] top, StableCopy copy) => EventCopies.Extract(top, EventNumber, copy);
 
     /// <summary>The top-level archive with the event replaced; same length, only the event's bytes and its stored size change.</summary>
-    public byte[] Replace(byte[] top, StableCopy copy, byte[] edited)
-    {
-        if (copy.Parent is not { } parent) return ArchiveEditing.Replace(top, FileName, edited);
-        var archive = Tarc.Extract(top, Single(Tarc.Parse(top), parent));
-        return ArchiveEditing.Replace(top, parent, ArchiveEditing.Replace(archive, FileName, edited));
-    }
-
-    private ArchiveEntry Single(IReadOnlyList<ArchiveEntry> entries, string name)
-    {
-        var matches = entries.Where(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
-        return matches.Count == 1 ? matches[0] : throw new InvalidDataException($"The {description} event could not be found in its archive.");
-    }
+    public byte[] Replace(byte[] top, StableCopy copy, byte[] edited) => EventCopies.Replace(top, EventNumber, copy, edited);
 
     /// <summary>Read all copies, require them to agree, and return the prices and the decoded event.</summary>
     public (IReadOnlyDictionary<int, int> Prices, byte[] Decoded, IReadOnlyList<StableCopy> Copies) Load(GameArchives archives)

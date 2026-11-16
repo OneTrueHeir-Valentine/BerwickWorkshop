@@ -104,6 +104,83 @@ public static class ScriptParser
     }
 }
 
+/// <summary>
+/// Writes script commands back to bytes in the layout <see cref="ScriptParser"/> reads: a number is 12 bytes, a text is its
+/// Shift-JIS bytes with at least one zero after them padded to a multiple of 4 (with that length first), a variable 12 bytes,
+/// an event header has a zero word, then the local count and the body size. Every event on both discs writes back to its
+/// original bytes.
+/// </summary>
+public static class ScriptWriter
+{
+    private static readonly Encoding ShiftJis = CreateShiftJis();
+
+    private static Encoding CreateShiftJis()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(932, EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback);
+    }
+
+    public static byte[] Write(IReadOnlyList<ScriptNode> nodes)
+    {
+        var output = new List<byte>();
+        foreach (var n in nodes) Append(output, n);
+        return output.ToArray();
+    }
+
+    private static void Word(List<byte> output, int value)
+    {
+        Span<byte> b = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(b, value);
+        output.AddRange(b.ToArray());
+    }
+
+    private static void Append(List<byte> output, ScriptNode n)
+    {
+        switch (n.Command)
+        {
+            case ScriptParser.Number:
+                Word(output, 12); Word(output, n.Command); Word(output, n.Value ?? 0);
+                return;
+            case ScriptParser.TextValue:
+            {
+                byte[] text;
+                try { text = ShiftJis.GetBytes(n.Text ?? ""); }
+                catch (EncoderFallbackException) { throw new EditException("A text contains a character the game's text encoding does not have."); }
+                int length = (text.Length + 1 + 3) & ~3;
+                Word(output, 12 + length); Word(output, n.Command); Word(output, length);
+                output.AddRange(text); output.AddRange(new byte[length - text.Length]);
+                return;
+            }
+            case ScriptParser.Variable:
+                Word(output, 12); Word(output, n.Command); Word(output, n.Variable ?? 0);
+                return;
+            case ScriptParser.Assign:
+            {
+                var body = Write(n.Args.Count > 0 ? n.Args[0] : []);
+                Word(output, 16 + body.Length); Word(output, n.Command); Word(output, n.Variable ?? 0); Word(output, body.Length);
+                output.AddRange(body);
+                return;
+            }
+            case ScriptParser.Event:
+            {
+                var body = Write(n.Args.Count > 0 ? n.Args[0] : []);
+                Word(output, 20 + body.Length); Word(output, n.Command); Word(output, 0); Word(output, n.Locals); Word(output, body.Length);
+                output.AddRange(body);
+                return;
+            }
+        }
+        if (n.Data is { } data)
+        {
+            Word(output, 8 + data.Length); Word(output, n.Command); output.AddRange(data);
+            return;
+        }
+        var args = n.Args.Select(a => Write(a)).ToList();
+        Word(output, 8 + 4 * args.Count + args.Sum(a => a.Length)); Word(output, n.Command);
+        foreach (var a in args) Word(output, a.Length);
+        foreach (var a in args) output.AddRange(a);
+    }
+}
+
 /// <summary>Readable text for event scripts.</summary>
 public static class ScriptText
 {

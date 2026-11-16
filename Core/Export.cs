@@ -50,8 +50,15 @@ public static class Exporter
         var patches = new List<DiscPatch>();
         var stable = new Dictionary<int, int>();
         var furniture = new Dictionary<int, int>();
+        var scripts = new Dictionary<int, Dictionary<int, int>>();
         foreach (var (table, id) in session.EditedRecords)
         {
+            if (table == EditSession.ScriptValues)
+            {
+                var (eventNumber, index) = ScriptValues.Split(id);
+                (scripts.TryGetValue(eventNumber, out var numbers) ? numbers : scripts[eventNumber] = [])[index] = session.Value(table, id, ScriptValues.Field.Key);
+                continue;
+            }
             if (table == EditSession.StablePrices)
             {
                 stable[id] = session.Value(table, id, StablePrices.Field.Key);
@@ -109,7 +116,7 @@ public static class Exporter
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
-        if (stable.Count > 0 || furniture.Count > 0)
+        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0)
         {
             // Stable and furniture prices live in compressed event scripts, each stored several times and partly in the same
             // archives; every copy is rewritten in place, one archive at a time.
@@ -119,11 +126,21 @@ public static class Exporter
             var other = new List<(int Top, Func<byte[], byte[]> Edit)>();
             foreach (var (table, prices) in new[] { (StablePrices.Table, stable), (FurniturePrices.Table, furniture) })
             {
-                if (prices.Count == 0) continue;
+                if (prices.Count == 0 && !scripts.ContainsKey(table.EventNumber)) continue;
                 var (original, decoded, copies) = table.Load(archives);
-                events.Add((table, copies, table.Write(decoded, prices)));
+                var written = prices.Count > 0 ? table.Write(decoded, prices) : decoded;
+                // Numbers changed in the same event on the Events page are written on top of the prices.
+                if (scripts.Remove(table.EventNumber, out var numbers)) written = ScriptValues.Apply(written, numbers);
+                events.Add((table, copies, written));
                 // The furniture shop's list writes each price into its own text, so the list is changed too.
                 if (table == FurniturePrices.Table) other.AddRange(FurnitureList.Edits(archives, original, prices));
+            }
+            // Other events edited on the Events page: every copy, each rewritten in place.
+            foreach (var (eventNumber, numbers) in scripts.OrderBy(s => s.Key))
+            {
+                var (decoded, copies) = EventCopies.Load(archives, eventNumber);
+                var edited = ScriptValues.Apply(decoded, numbers);
+                foreach (var copy in copies) other.Add((copy.Top, top => EventCopies.Replace(top, eventNumber, copy, edited)));
             }
             patches.AddRange(ScriptPrices.Combined(archives, events, other));
         }
