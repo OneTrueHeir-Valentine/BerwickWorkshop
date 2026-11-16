@@ -86,27 +86,11 @@ public sealed class ScriptPrices(int eventNumber, string key, string label, stri
     /// <summary>Byte patches for several edited events at once. Events that share an archive are written into it together,
     /// so the archive is rewritten once and the patches never overlap.</summary>
     public static IReadOnlyList<DiscPatch> Combined(GameArchives archives, IReadOnlyList<(ScriptPrices Table, IReadOnlyList<StableCopy> Copies, byte[] Edited)> events,
-        IReadOnlyList<(int Top, Func<byte[], byte[]> Edit)>? other = null)
+        IReadOnlyList<(int Top, Func<byte[], byte[]> Edit)>? other = null, IReadOnlySet<int>? fixedTops = null)
     {
-        var patches = new List<DiscPatch>();
         var edits = events.SelectMany(e => e.Copies.Select(c => (c.Top, Edit: (Func<byte[], byte[]>)(top => e.Table.Replace(top, c, e.Edited)))))
             .Concat(other ?? []);
-        foreach (var group in edits.GroupBy(x => x.Top).OrderBy(g => g.Key))
-        {
-            var original = archives.Top(group.Key);
-            var updated = original;
-            foreach (var (_, edit) in group) updated = edit(updated);
-            if (updated.Length != original.Length) throw new InvalidDataException("An archive changed size.");
-            long at = archives.TopOffset(group.Key);
-            for (int i = 0; i < updated.Length; i++)
-            {
-                if (updated[i] == original[i]) continue;
-                int start = i;
-                while (i < updated.Length && updated[i] != original[i]) i++;
-                patches.Add(new(at + start, updated.AsSpan(start, i - start).ToArray(), original.AsSpan(start, i - start).ToArray()));
-            }
-        }
-        return patches;
+        return ArchiveEditing.Patches(archives, edits, fixedTops ?? new HashSet<int>());
     }
 }
 

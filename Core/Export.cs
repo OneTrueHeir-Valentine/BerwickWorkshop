@@ -142,7 +142,7 @@ public static class Exporter
                 var edited = ScriptValues.Apply(decoded, numbers);
                 foreach (var copy in copies) other.Add((copy.Top, top => EventCopies.Replace(top, eventNumber, copy, edited)));
             }
-            patches.AddRange(ScriptPrices.Combined(archives, events, other));
+            patches.AddRange(ScriptPrices.Combined(archives, events, other, ArchiveEditing.FixedTops(archives, disc.Profile)));
         }
         return patches.AsReadOnly();
     }

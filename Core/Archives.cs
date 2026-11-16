@@ -216,6 +216,50 @@ public sealed class GameArchives
         return iso.ReadRange(data3 + sector * (long)SectorSize + offset, Math.Min(size - (uint)offset, (uint)length), length);
     }
 
+    /// <summary>A top-level archive's index row: its sector in DATA3.DAT and its size.</summary>
+    public (uint Sector, uint Size) Row(int index)
+    {
+        if (index < 0 || index >= Count) throw new ArgumentOutOfRangeException(nameof(index));
+        var row = iso.ReadRange(data4 + IndexStart + index * 12L, 12, 12);
+        return (BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(4)), BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(8)));
+    }
+
+    /// <summary>Where a top-level archive's index row is in the disc image (the sector word is 4 bytes in, the size 8).</summary>
+    public long RowOffset(int index) => data4 + IndexStart + index * 12L;
+
+    public long Data3Offset => data3;
+
+    /// <summary>Raw bytes of DATA3.DAT, including the padding after an archive and the unused space at the end.</summary>
+    public byte[] ReadData3(long position, int length) => iso.ReadRange(data3 + position, length, length);
+    public long Data3Length => iso.Entries.First(e => e.Name.Equals("DATA3.DAT", StringComparison.OrdinalIgnoreCase)).Length;
+    public const int Sector = SectorSize;
+
+    /// <summary>The first sector after every top-level archive; DATA3.DAT is unused from there to its end.</summary>
+    public uint FreeSector()
+    {
+        var rows = iso.ReadRange(data4 + IndexStart, Count * 12, Count * 12);
+        long end = 0;
+        for (int i = 0; i < Count; i++)
+        {
+            uint sector = BinaryPrimitives.ReadUInt32LittleEndian(rows.AsSpan(i * 12 + 4)), size = BinaryPrimitives.ReadUInt32LittleEndian(rows.AsSpan(i * 12 + 8));
+            if (size > 0) end = Math.Max(end, sector * (long)SectorSize + size);
+        }
+        return (uint)((end + SectorSize - 1) / SectorSize);
+    }
+
+    /// <summary>The top-level archive that holds a position in DATA3.DAT, or -1.</summary>
+    public int TopAt(long data3Position)
+    {
+        var rows = iso.ReadRange(data4 + IndexStart, Count * 12, Count * 12);
+        for (int i = 0; i < Count; i++)
+        {
+            long start = BinaryPrimitives.ReadUInt32LittleEndian(rows.AsSpan(i * 12 + 4)) * (long)SectorSize;
+            uint size = BinaryPrimitives.ReadUInt32LittleEndian(rows.AsSpan(i * 12 + 8));
+            if (data3Position >= start && data3Position < start + size) return i;
+        }
+        return -1;
+    }
+
     // The index starts with the folder count and file count, then 20 bytes per folder (its name, NUL-terminated within the first
     // 10 bytes). Each file's first word is its folder number times 2^27 plus the low 27 bits of the hash of its name.
     private const int FolderRecord = 20, FolderName = 10;

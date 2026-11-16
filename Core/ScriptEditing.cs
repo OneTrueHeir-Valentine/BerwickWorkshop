@@ -120,12 +120,15 @@ public static class EventCopies
         return Tarc.Extract(archive, Single(Tarc.Parse(archive), FileName(eventNumber)));
     }
 
-    /// <summary>The top-level archive with the event replaced; same length, only the event's bytes and its stored size change.</summary>
+    /// <summary>
+    /// The top-level archive with the event replaced. When the event fits its space only its bytes and stored size change;
+    /// otherwise the files after it move and the archive becomes longer.
+    /// </summary>
     public static byte[] Replace(byte[] top, int eventNumber, StableCopy copy, byte[] edited)
     {
-        if (copy.Parent is not { } parent) return ArchiveEditing.Replace(top, FileName(eventNumber), edited);
+        if (copy.Parent is not { } parent) return ArchiveEditing.ReplaceOrRepack(top, FileName(eventNumber), edited);
         var archive = Tarc.Extract(top, Single(Tarc.Parse(top), parent));
-        return ArchiveEditing.Replace(top, parent, ArchiveEditing.Replace(archive, FileName(eventNumber), edited));
+        return ArchiveEditing.ReplaceOrRepack(top, parent, ArchiveEditing.ReplaceOrRepack(archive, FileName(eventNumber), edited));
     }
 
     /// <summary>Every copy, read and required to agree, and the decoded event.</summary>
@@ -143,11 +146,12 @@ public static class EventCopies
         return (first!, copies);
     }
 
-    /// <summary>Throws an <see cref="EditException"/> when the edited event does not fit the space of one of its copies.</summary>
-    public static void CheckFits(GameArchives archives, int eventNumber, byte[] edited)
-    {
-        foreach (var copy in Locate(archives, eventNumber)) Replace(archives.Top(copy.Top), eventNumber, copy, edited);
-    }
+    /// <summary>
+    /// Throws an <see cref="EditException"/> when the edited event cannot be written: an archive holding the game's base data
+    /// (fixedTops) can only grow up to its next sector.
+    /// </summary>
+    public static void CheckFits(GameArchives archives, int eventNumber, byte[] edited, IReadOnlySet<int> fixedTops) =>
+        ArchiveEditing.Patches(archives, Locate(archives, eventNumber).Select(copy => (copy.Top, (Func<byte[], byte[]>)(top => Replace(top, eventNumber, copy, edited)))), fixedTops);
 
     private static ArchiveEntry Single(IReadOnlyList<ArchiveEntry> entries, string name)
     {

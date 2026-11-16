@@ -944,7 +944,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,System.Text.RegularExpressions.Regex.IsMatch(text,@"\bcommand\d"));
         }
     });
-    Test("Script numbers: listed, edited through a project, written to every copy, and refused when they do not fit",()=>{
+    Test("Script numbers: listed, edited through a project and written to every copy",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
             using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
@@ -970,11 +970,58 @@ foreach(var exportDisc in new[]{jp!,en!})
             var top=archives.Top(copies[0].Top);long at=archives.TopOffset(copies[0].Top);
             foreach(var p in patches){Equal(true,p.Offset>=at && p.Offset+p.Bytes.Length<=at+top.Length);p.Bytes.CopyTo(top,(int)(p.Offset-at));}
             Equal(true,EventCopies.Extract(top,3276,copies[0]).AsSpan().SequenceEqual(edited));
-            // A value that makes the script larger than its space is refused rather than written.
+            // A value that makes the script larger than its space now moves the files after it instead of being refused.
             var big=ScriptValues.Apply(bytes,numbers.ToDictionary(n=>n.Index,n=>unchecked(n.Value*0x3D2E1A9 ^ 0x5A5A5A5)));
-            Throws<EditException>(()=>EventCopies.CheckFits(archives,3276,big));
+            EventCopies.CheckFits(archives,3276,big,ArchiveEditing.FixedTops(archives,disc.Profile));
             // Event 602 (stable prices) has three copies; a number there goes to all of them.
             Equal(3,EventCopies.Locate(archives,602).Count);
+        }
+    });
+    Test("Archives: every archive holding events lays out again to the same bytes, grows in place or moves, and keeps every other file",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var archives=new GameArchives(iso);var library=new EventLibrary(archives);
+            // The layout rule holds for every archive with events (and ev_all.ar inside top 14): laying one out again with its own bytes changes nothing.
+            var tops=library.Numbers.Select(library.TopOf).Append(14).Distinct().ToList();
+            foreach(int t in tops)
+            {
+                var top=archives.Top(t);var entries=Tarc.Parse(top);
+                Equal(true,ArchiveEditing.Relayout(top,entries,0,top.AsSpan(entries[0].Offset,entries[0].Size)).AsSpan().SequenceEqual(top));
+            }
+            var top14=archives.Top(14);var evAll=Tarc.Extract(top14,Tarc.Parse(top14).Single(e=>e.Name=="ev_all.ar"));var evEntries=Tarc.Parse(evAll);
+            Equal(true,ArchiveEditing.Relayout(evAll,evEntries,5,evAll.AsSpan(evEntries[5].Offset,evEntries[5].Size)).AsSpan().SequenceEqual(evAll));
+            // The tables read at fixed places sit in archives that are never moved.
+            var fixedTops=ArchiveEditing.FixedTops(archives,disc.Profile);
+            Equal(true,fixedTops.Contains(14));Equal(4,fixedTops.Count);
+            // Grow quest 6's first event far past its space: the files after it move, every one still reads the same.
+            int quest=library.TopOf(3276);var original=archives.Top(quest);var first=Tarc.Parse(original)[0];
+            var bigger=new byte[Tarc.Extract(original,first).Length+600];new Random(7).NextBytes(bigger);
+            var grown=ArchiveEditing.Repack(original,first.Name,bigger);
+            Equal(true,grown.Length>original.Length);
+            foreach(var e in Tarc.Parse(original).Skip(1))Equal(true,Tarc.Extract(grown,Tarc.Parse(grown).Single(x=>x.Name==e.Name)).AsSpan().SequenceEqual(Tarc.Extract(original,e)));
+            Equal(true,Tarc.Extract(grown,Tarc.Parse(grown)[0]).AsSpan().SequenceEqual(bigger));
+            // Within its sector the archive grows in place and its index size changes; past it, it moves to the free end of DATA3.DAT.
+            var (sector,size)=archives.Row(quest);long capacity=(size+2047)/2048*2048;
+            var small=ArchiveEditing.Patches(archives,[(quest,(Func<byte[],byte[]>)(t=>{var r=new byte[size+1];t.CopyTo(r,0);return r;}))],fixedTops);
+            if(size+1<=capacity){Equal(true,small.Any(p=>p.Offset==archives.RowOffset(quest)+8));Equal(true,small.All(p=>p.Offset<archives.Data3Offset+(sector+capacity/2048)*2048 || p.Offset>=archives.RowOffset(0)));}
+            var moved=ArchiveEditing.Patches(archives,[(quest,(Func<byte[],byte[]>)(_=>grown.Length>capacity?grown:[..grown,..new byte[capacity]]))],fixedTops);
+            var row=moved.Single(p=>p.Offset==archives.RowOffset(quest)+4);
+            uint newSector=BitConverter.ToUInt32(row.Bytes,0);
+            Equal(archives.FreeSector(),newSector);
+            // The free end is one repeated filler byte: zero on the English disc, 0x80 on the Japanese one.
+            var filler=iso.ReadRange(archives.Data3Offset+newSector*2048L,65536,65536);
+            Equal(true,filler.All(b=>b==filler[0]));Equal(disc==en?(byte)0:(byte)0x80,filler[0]);
+            Equal(true,moved.Any(p=>p.Offset==archives.Data3Offset+newSector*2048L && p.Expected!.All(b=>b==filler[0])));
+            // Two events in one archive: the first rewritten in place (shorter, leaving a gap), then the second grown past its space.
+            int a1=Tarc.Parse(original).Count;
+            var shrunk=ArchiveEditing.Replace(original,Tarc.Parse(original)[1].Name,new byte[8]);
+            var both=ArchiveEditing.Repack(shrunk,Tarc.Parse(original)[2].Name,bigger);
+            Equal(true,Tarc.Extract(both,Tarc.Parse(both)[1]).AsSpan().SequenceEqual(new byte[8]));Equal(true,Tarc.Extract(both,Tarc.Parse(both)[2]).AsSpan().SequenceEqual(bigger));
+            foreach(var e in Tarc.Parse(original).Skip(3))Equal(true,Tarc.Extract(both,Tarc.Parse(both).Single(x=>x.Name==e.Name)).AsSpan().SequenceEqual(Tarc.Extract(original,e)));
+            // An archive with the base data cannot move.
+            Throws<EditException>(()=>ArchiveEditing.Patches(archives,[(14,(Func<byte[],byte[]>)(t=>[..t,..new byte[4096]]))],fixedTops));
         }
     });
     Test("Partners and bags read the same on both discs, and edits are checked",()=>{
