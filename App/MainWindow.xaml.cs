@@ -539,7 +539,13 @@ public partial class MainWindow : Window
         var noItems=new Dictionary<int,string>();var taken=new Dictionary<(int,int),int>();
         foreach(var r in map.Arrivals)
         {
-            if(!armies.TryGetValue(r.Army,out var army))continue;
+            if(!armies.TryGetValue(r.Army,out var army))
+            {
+                // Army file 001 holds the recruitable characters (edited on the Characters page), who join some battles this way.
+                var character=r.Army==StartingCharacters?primary.Characters.FirstOrDefault(c=>primary.UnitBytes.TryGetValue(c.Id,out var bytes) && ArmyData.ScriptNumber(bytes.Span)==r.Script):null;
+                if(character is not null)result.Add((r,character.Name,$"{character.Name}, {(classLookup.TryGetValue(character.ClassId,out var ck)?ck.Name:$"Class 0x{character.ClassId:X2}")} level {character.Level} (recruitable character)"));
+                continue;
+            }
             var matches=army.Units.Where(u=>ArmyData.ScriptNumber(ArmyBytes(u))==r.Script).ToList();
             if(matches.Count==0)continue;
             int n=taken.TryGetValue((r.Army,r.Script),out var c)?c:0;taken[(r.Army,r.Script)]=n+1;
@@ -549,6 +555,7 @@ public partial class MainWindow : Window
         }
         return result;
     }
+    private const int StartingCharacters=1;
     // When an arrival happens, as the script decides it: the turns it compares, the spot whose command sets it off, and whether
     // it also depends on something else (an event flag, a unit's state).
     private static string When(Reinforcement r)
