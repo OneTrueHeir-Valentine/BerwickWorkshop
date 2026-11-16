@@ -220,6 +220,9 @@ public static class GameRules
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
+        ["Blessing"] = "At the start of each turn, each ally within range recovers a random amount of HP from 0 up to the most healing. The game's range is 3 hexes and the most healing 3.",
+        ["Horse Lover"] = "After each chapter, the unit's horse recovers this much HP, up to its maximum. The game's value is 20.",
+        ["Scotopic"] = "Adds to the unit's vision range, which matters on maps with fog. The game adds 1.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
@@ -229,9 +232,9 @@ public static class GameRules
         ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3.",
         ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
-        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
-        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
-        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn.",
+        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7.",
+        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple Shot strikes three times in the game; it can be set from 1 to 7.",
+        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7.",
         ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game.",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -300,6 +303,11 @@ public static class GameRules
 
     private static GameRule AuraRange(int id, string key, string skill, int range, bool confirmed, params RuleSite[] sites) =>
         new(id, key, $"{skill} range", "", RuleKind.Limit, 0, 10, range, null, sites, confirmed: confirmed) { Group = skill, Short = "Range (hexes, 0 turns it off)", Section = SkillsSection };
+
+    private static GameRule Strikes(int id, string key, string skill, int count, uint address, bool confirmed = false) =>
+        new(id, key, $"{skill} strikes", "", RuleKind.Limit, 1, 7, count, null,
+            [new RuleSite(address, n => 0x24030000u | (uint)n, w => Imm(w, 0x24030000u, 7))], confirmed: confirmed)
+        { Group = skill, Short = "Strikes", Section = SkillsSection };
 
     private static GameRule WordSets(int id, string key, string name, string group, string shortName, int normal, string[] choices, uint[] addresses, uint[][] words, bool confirmed = true) =>
         new(id, key, name, "", RuleKind.Choice, 0, choices.Length - 1, normal, choices,
@@ -692,7 +700,7 @@ public static class GameRules
         AuraRange(151, "provokeRange", "Provoke", 5, Below(0x001BFED0)),
         // Flourish sets unit state bit 0x1000: the injury roll adds 33 (0x00228A48) and the fight halves attack (0x0022C354).
         new GameRule(152, "flourishInjury", "Flourish injury bonus", "", RuleKind.Limit, 0, 100, 33, null,
-            [new RuleSite(0x00228A48, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
+            [new RuleSite(0x00228A48, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: true)
         { Group = "Flourish", Short = "Injury chance bonus", Section = SkillsSection },
         WordSets(153, "flourishAttack", "Flourish attack", "Flourish", "Attack", 0, ["Halved", "Not halved"],
             [0x0022C358], [[0x1040000Du], [0x1000000Du]]),
@@ -708,6 +716,24 @@ public static class GameRules
         new GameRule(157, "injuryKnife", "Injury knife bonus", "", RuleKind.Limit, 0, 100, 6, null,
             [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
         { Group = InjuryGroup, Short = "Knife bonus" },
+        // Blessing at each turn start (0x001CEEE0): allies passing the check 0x001BF830 (within 3 hexes) recover random 0 to 3 HP.
+        AuraRange(158, "blessingRange", "Blessing", 3, false, Below(0x001BF8F0)),
+        new GameRule(159, "blessingHeal", "Blessing most healing", "", RuleKind.Limit, 0, 30, 3, null,
+            [new RuleSite(0x001CEF34, n => 0x24060000u | (uint)n, w => Imm(w, 0x24060000u, 30))], confirmed: false)
+        { Group = "Blessing", Short = "Most HP healed", Section = SkillsSection },
+        // Horse Lover (0x001729E0): the horse's HP rises by 20 after each chapter, up to its maximum.
+        new GameRule(160, "horseLoverHeal", "Horse Lover recovery", "", RuleKind.Limit, 0, 100, 20, null,
+            [new RuleSite(0x00172A98, n => 0x24A40000u | (uint)n, w => Imm(w, 0x24A40000u, 100))], confirmed: false)
+        { Group = "Horse Lover", Short = "Horse HP recovered", Section = SkillsSection },
+        // Scotopic (0x00176B50): vision range plus 1.
+        new GameRule(161, "scotopicVision", "Scotopic vision bonus", "", RuleKind.Limit, 0, 5, 1, null,
+            [new RuleSite(0x00176C58, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 5))], confirmed: false)
+        { Group = "Scotopic", Short = "Vision bonus", Section = SkillsSection },
+        // Strike counts set in the fight from the command bits: Astra 5 (0x00226AB4), Triple Shot 3 (0x00226B00), Double Shot 2 (0x00226B50).
+        // Weapon effects already give up to 7 strikes, so 7 is the top.
+        Strikes(162, "astraStrikes", "Astra", 5, 0x00226AB4),
+        Strikes(163, "tripleShotStrikes", "Triple Shot", 3, 0x00226B00),
+        Strikes(164, "doubleShotStrikes", "Double Shot", 2, 0x00226B50, true),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
