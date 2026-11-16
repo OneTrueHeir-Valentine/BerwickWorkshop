@@ -731,8 +731,8 @@ public static class GameRules
         { Group = "Scotopic", Short = "Vision bonus", Section = SkillsSection },
         // Strike counts set in the fight from the command bits: Astra 5 (0x00226AB4), Triple Shot 3 (0x00226B00), Double Shot 2 (0x00226B50).
         // Weapon effects already give up to 7 strikes, so 7 is the top.
-        Strikes(162, "astraStrikes", "Astra", 5, 0x00226AB4),
-        Strikes(163, "tripleShotStrikes", "Triple Shot", 3, 0x00226B00),
+        Strikes(162, "astraStrikes", "Astra", 5, 0x00226AB4, true),
+        Strikes(163, "tripleShotStrikes", "Triple Shot", 3, 0x00226B00, true),
         Strikes(164, "doubleShotStrikes", "Double Shot", 2, 0x00226B50, true),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
