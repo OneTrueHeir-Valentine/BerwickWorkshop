@@ -27,7 +27,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.59.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.60.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -303,15 +303,25 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. The numbers in a script can be changed on the Numbers tab, and its lines added, copied, removed or moved on the Lines tab. Changes go into every copy of the event when you export a disc."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The game's event scripts, shown as readable commands: story scenes, map events and base events. Values are numbers, text or local values (v0, v1 and so on); if and else show the branches. Commands carry the names the game itself gives them. The numbers in a script can be changed on the Numbers tab, its lines added, copied, removed or moved on the Lines tab, and the whole script edited as text with Edit text. Changes go into every copy of the event when you export a disc."/>
      </Border>
      <DockPanel Grid.Row="1">
       <TextBlock DockPanel.Dock="Top" Text="Event number or text to find, then Enter" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
       <TextBox x:Name="EventSearch" DockPanel.Dock="Top" Padding="8,6,8,6" Margin="0,0,0,8" KeyDown="EventSearchKey" ToolTip="Type an event number, or text to find in every event, then press Enter" AutomationProperties.Name="Find an event"/>
       <ListBox x:Name="EventList" SelectionChanged="EventSelected" BorderBrush="{StaticResource Line}"/>
      </DockPanel>
-     <TextBox Grid.Row="1" Grid.Column="2" x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
-              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
+     <DockPanel Grid.Row="1" Grid.Column="2">
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Button x:Name="EditTextButton" Content="Edit text" Style="{StaticResource SmallButton}" Click="BeginTextEdit" ToolTip="Change the script as text" IsEnabled="False"/>
+        <Button x:Name="CancelTextButton" Content="Cancel" Style="{StaticResource SmallButton}" Click="CancelTextEdit" Margin="6,0,0,0" Visibility="Collapsed"/>
+        <Button x:Name="ApplyTextButton" Content="Apply text" Style="{StaticResource SmallButton}" Click="ApplyTextEdit" Margin="6,0,0,0" Visibility="Collapsed" Background="{StaticResource Accent}" Foreground="White" BorderBrush="{StaticResource Accent}"/>
+       </StackPanel>
+       <TextBlock x:Name="EventTextNote" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,12,0"/>
+      </DockPanel>
+      <TextBox x:Name="EventText" IsReadOnly="True" FontFamily="Consolas" FontSize="13" Background="White" BorderBrush="{StaticResource Line}" Padding="10,8,10,8"
+               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
+     </DockPanel>
      <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="10">
       <TabControl x:Name="ScriptTabs" BorderThickness="0" Padding="4,8,4,4">
        <TabItem Header="Numbers">

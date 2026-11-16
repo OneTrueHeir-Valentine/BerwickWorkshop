@@ -258,7 +258,8 @@ public static class ScriptText
                 Line(sb, depth, $"if {Inline(n.Args[0], names) ?? "(condition)"}");
                 if (Inline(n.Args[0], names) is null) foreach (var s in n.Args[0]) Statement(s, depth + 2, sb, names);
                 foreach (var s in n.Args[1]) Statement(s, depth + 1, sb, names);
-                if (n.Args.Count == 3 && n.Args[2].Count > 0)
+                // An empty else is shown too, so the text reads back to the same script.
+                if (n.Args.Count == 3)
                 {
                     Line(sb, depth, "else");
                     foreach (var s in n.Args[2]) Statement(s, depth + 1, sb, names);
@@ -281,13 +282,22 @@ public static class ScriptText
         Line(sb, depth, ")");
     }
 
+    /// <summary>A text in double quotes, with backslash, quote, line breaks and tabs written as \\, \", \r, \n and \t.</summary>
+    public static string Quote(string text)
+    {
+        var sb = new StringBuilder("\"");
+        foreach (char c in text)
+            sb.Append(c switch { '\\' => "\\\\", '"' => "\\\"", '\r' => "\\r", '\n' => "\\n", '\t' => "\\t", _ => c.ToString() });
+        return sb.Append('"').ToString();
+    }
+
     private static string? Inline(IReadOnlyList<ScriptNode> block, IReadOnlyList<string>? names) =>
         block.Count == 0 ? "nothing" : block.Count == 1 ? Expression(block[0], names) : null;
 
     private static string? Expression(ScriptNode n, IReadOnlyList<string>? names)
     {
         if (n.Value is int v) return v.ToString();
-        if (n.Text is { } t) return "\"" + t.Replace("\r", "").Replace("\n", "\\n") + "\"";
+        if (n.Text is { } t) return Quote(t);
         if (n.Command == ScriptParser.Variable) return $"v{n.Variable}";
         if (n.Command is ScriptParser.Assign or ScriptParser.Event or ScriptParser.If or ScriptParser.While || n.Data is not null) return null;
         if (Operators.TryGetValue(n.Command, out var op) && n.Args.Count == 2 && Inline(n.Args[0], names) is { } left && Inline(n.Args[1], names) is { } right)
@@ -295,7 +305,8 @@ public static class ScriptText
             string text = $"({left} {op} {right})";
             return text.Length <= 100 ? text : null;
         }
-        if (n.Command == 0x15 && n.Args.Count == 1 && Inline(n.Args[0], names) is { } neg) return $"-{neg}";
+        // Minus applied to a plain number is shown as -(5), so it reads back differently from the number -5.
+        if (n.Command == 0x15 && n.Args.Count == 1 && Inline(n.Args[0], names) is { } neg) return neg.Length > 0 && (char.IsAsciiDigit(neg[0]) || neg[0] == '-') ? $"-({neg})" : $"-{neg}";
         if (n.Command == 0x16 && n.Args.Count == 1 && Inline(n.Args[0], names) is { } inner) return $"not {inner}";
         if (n.Command == ScriptParser.Break && n.Args.Count == 0) return "break";
         if (n.Command == ScriptParser.RunEvent && n.Args.Count == 1 && Inline(n.Args[0], names) is { } ev) return $"run event {ev}";

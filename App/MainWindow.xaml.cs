@@ -592,7 +592,7 @@ public partial class MainWindow : Window
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
@@ -655,8 +655,11 @@ public partial class MainWindow : Window
             });
             if(events!=library || EventList.SelectedValue is not int now || now!=number)return;
             double offset=EventText.VerticalOffset;
-            EventText.Text=text;
-            if(scrollHome)EventText.ScrollToHome();else EventText.ScrollToVerticalOffset(offset);
+            if(!textEditing)
+            {
+                EventText.Text=text;
+                if(scrollHome)EventText.ScrollToHome();else EventText.ScrollToVerticalOffset(offset);
+            }
             int? selected=ScriptNumberList.SelectedValue as int?;
             scriptNumbers=numbers.ToList();
             ScriptNumberList.ItemsSource=numbers.Select(n=>new Choice(ScriptValues.Key(number,n.Index),
@@ -673,6 +676,7 @@ public partial class MainWindow : Window
             }
             else if(line is int keep && keep>=0)ScriptLineList.SelectedIndex=Math.Min(keep,lines.Count-1);
             ShowLineNotes(number);
+            UpdateTextButtons(number);
         }
         catch(InvalidDataException){EventText.Text="This event could not be read.";ScriptNumberList.ItemsSource=null;scriptNumbers=[];}
         UpdateEditButtons();
@@ -699,6 +703,61 @@ public partial class MainWindow : Window
         AddPair(ScriptNumberFields,"Value",n.Value.ToString());
         if(replaced)AddText(ScriptNumberFields,"The lines of this event were changed, so a changed number is kept as part of its new script.");
         else if(session is not null)AddChangeList(ScriptNumberFields,ch=>ch.Table==EditSession.ScriptValues && ch.Id==key,()=>session.Revert(EditSession.ScriptValues,key));
+    }
+    private bool textEditing;
+    private void UpdateTextButtons(int number)
+    {
+        EditTextButton.IsEnabled=session is not null && editing is null && !textEditing && number is not (602 or 727);
+        EditTextButton.ToolTip=number is 602 or 727?"This event holds the shop's prices, which are changed on their own pages.":"Change the script as text";
+        if(!textEditing)EventTextNote.Text=session?.HasScript(number)==true?"This event is changed in this project.":"";
+    }
+    private void BeginTextEdit(object sender,RoutedEventArgs e)
+    {
+        if(session is null || EventList.SelectedValue is not int number || number is 602 or 727)return;
+        if(editing is not null)EndEdit();
+        textEditing=true;AddLinePanel.Visibility=Visibility.Collapsed;
+        EventText.IsReadOnly=false;EventText.AcceptsReturn=true;EventText.AcceptsTab=true;EventText.Background=new SolidColorBrush(Color.FromRgb(255,253,245));
+        EventList.IsEnabled=false;EventSearch.IsEnabled=false;ScriptTabs.IsEnabled=false;
+        EditTextButton.Visibility=Visibility.Collapsed;CancelTextButton.Visibility=Visibility.Visible;ApplyTextButton.Visibility=Visibility.Visible;
+        EventTextNote.Foreground=(Brush)FindResource("Muted");
+        EventTextNote.Text="Edit the script, keeping four spaces of indent for each level, then choose Apply text.";
+        EventText.Focus();
+    }
+    private void EndTextEdit()
+    {
+        textEditing=false;
+        EventText.IsReadOnly=true;EventText.AcceptsReturn=false;EventText.AcceptsTab=false;EventText.Background=Brushes.White;
+        EventList.IsEnabled=true;EventSearch.IsEnabled=true;ScriptTabs.IsEnabled=true;
+        EditTextButton.Visibility=Visibility.Visible;CancelTextButton.Visibility=Visibility.Collapsed;ApplyTextButton.Visibility=Visibility.Collapsed;
+        EventTextNote.Foreground=(Brush)FindResource("Muted");EventTextNote.Text="";
+    }
+    private void CancelTextEdit(object sender,RoutedEventArgs e)
+    {
+        EndTextEdit();
+        if(events is { } library && EventList.SelectedValue is int number)_=ShowEvent(library,number,scrollHome:false);
+        Status.Text="Text edit canceled.";
+    }
+    private void ApplyTextEdit(object sender,RoutedEventArgs e)
+    {
+        if(session is null || events is not { } library || EventList.SelectedValue is not int number)return;
+        try
+        {
+            var bytes=ScriptWriter.Write(ScriptCompiler.Compile(EventText.Text,library.CommandNames));
+            CheckEventFits(library,number,bytes);
+            bool changed=session.SetScript(number,bytes);
+            EndTextEdit();RefreshDocument();
+            Status.Text=changed?"Script updated. Save the project to keep your changes.":"The script is the same as before.";
+        }
+        catch(EditException ex)
+        {
+            EventTextNote.Foreground=new SolidColorBrush(Color.FromRgb(154,59,46));EventTextNote.Text=ex.Message;
+            // Put the cursor on the line the message names.
+            var m=System.Text.RegularExpressions.Regex.Match(ex.Message,@"^Line (\d+):");
+            if(m.Success && int.TryParse(m.Groups[1].Value,out int line) && line-1<EventText.LineCount)
+            {
+                EventText.Focus();EventText.CaretIndex=EventText.GetCharacterIndexFromLineIndex(line-1);EventText.ScrollToLine(line-1);
+            }
+        }
     }
     private List<ScriptLine> scriptLines=[];
     private int? lineEvent;
@@ -2186,7 +2245,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
-            ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Changing lines changes what the game does, so test the exported disc."),
+            ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Live game","The Live game page changes the game while it runs in PCSX2, which is useful for trying a change without playing up to it. Turn on PINE in PCSX2 (Settings, Advanced, slot 28011), start the game from the same edition as the opened disc, and choose Connect. The page lists the units on the current map; select one to change its class, level, current HP, stat bonuses, weapon levels, personal skills and items, then choose Apply to the game. Try this project's rules writes every rule you changed into the running game, so you can test it before exporting. To test on a map you have not reached, choose a battle under Next sortie loads (listed by their titles, in English on both editions) and Send sorties there while the game is at the base, then start any mission or quest: the game loads the chosen battle with its own map, units and events. Use each sortie's own battle puts the missions back. Undo all changes puts back everything the page changed. Nothing on the disc or in your saves changes, and loading a save state also undoes it. Berwick Workshop connects only to PCSX2 on this computer, and only when you choose Connect."),

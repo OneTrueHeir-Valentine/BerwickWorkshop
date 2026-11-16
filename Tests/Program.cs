@@ -921,7 +921,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
         }
     });
-    Test("Event scripts: every event on both discs reads, parses and writes back to the same bytes",()=>{
+    Test("Event scripts: every event on both discs reads, parses, writes back and compiles from its text to the same bytes",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
             using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
@@ -935,6 +935,12 @@ foreach(var exportDisc in new[]{jp!,en!})
                 Equal(1,nodes.Count);Equal(ScriptParser.Event,nodes[0].Command);commands+=nodes[0].Args[0].Count;
                 // The writer gives back the original bytes for every event.
                 if(!ScriptWriter.Write(nodes).AsSpan().SequenceEqual(bytes))throw new Exception($"Event {n} does not write back to its original bytes.");
+                // The text the Events page shows compiles back to the same bytes.
+                string shown=ScriptText.Format(nodes,library.CommandNames);
+                byte[] compiled;
+                try{compiled=ScriptWriter.Write(ScriptCompiler.Compile(shown,library.CommandNames));}
+                catch(EditException ex){throw new Exception($"Event {n} text does not compile: {ex.Message}");}
+                if(!compiled.AsSpan().SequenceEqual(bytes))throw new Exception($"Event {n} text compiles to different bytes.");
             }
             Equal(true,commands>20000);
             string text=library.Text(172);
@@ -976,6 +982,32 @@ foreach(var exportDisc in new[]{jp!,en!})
             // Event 602 (stable prices) has three copies; a number there goes to all of them.
             Equal(3,EventCopies.Locate(archives,602).Count);
         }
+    });
+    Test("Script text: an edited text compiles to the changed script, and mistakes are reported with their line",()=>{
+        using var stream=new FileStream(en!.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+        using var iso=new IsoImage(stream);
+        var library=new EventLibrary(new GameArchives(iso));var names=library.CommandNames;
+        var bytes=library.Bytes(3276);
+        string text=ScriptText.Format(ScriptParser.Parse(bytes),names);
+        // Change a turn and add a line in the text.
+        string changed=text.Replace("if (v0 == 5)","if (v0 == 3)").Replace("        run event 3277","        run event 3277\r\n        AppearUnit(5, \"ud370\", 1, 5, 21, 5, 19, 0)");
+        var compiled=ScriptWriter.Write(ScriptCompiler.Compile(changed,names));
+        Equal(true,ScriptText.Format(ScriptParser.Parse(compiled),names)==changed);
+        var expected=ScriptLines.InsertAfter(ScriptValues.Apply(bytes,new Dictionary<int,int>{[ScriptValues.Numbers(3276,ScriptParser.Parse(bytes)).First(n=>n.Command=="==" && n.Value==5).Index]=3}),
+            ScriptLines.Lines(ScriptParser.Parse(bytes),names).First(l=>l.Text=="run event 3277").Path,ScriptLines.Command(0x32B,"5, \"ud370\", 1, 5, 21, 5, 19, 0"));
+        Equal(true,compiled.AsSpan().SequenceEqual(expected));
+        // Texts keep quotes and line breaks; minus on a plain number reads back differently from a negative number.
+        var quoted=new ScriptNode{Command=ScriptParser.Event,Locals=0,Args=[[new ScriptNode{Command=0x77,Args=[[new ScriptNode{Command=ScriptParser.TextValue,Text="a \"b\"\r\nc\\d"}],[new ScriptNode{Command=0x15,Args=[[new ScriptNode{Command=1,Value=5}]]}],[new ScriptNode{Command=1,Value=-5}]]}]]};
+        var quotedBytes=ScriptWriter.Write([quoted]);
+        Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(quotedBytes),names),names)).AsSpan().SequenceEqual(quotedBytes));
+        // Mistakes name their line.
+        string Problem(string t){try{ScriptCompiler.Compile(t,names);return "";}catch(EditException e){return e.Message;}}
+        Equal(true,Problem("event (0 local values)\r\n   SetEventFlag(1, 1)").StartsWith("Line 2:"));
+        Equal(true,Problem("event (0 local values)\r\n    NoSuchCommand(1)").Contains("no command named NoSuchCommand"));
+        Equal(true,Problem("event (0 local values)\r\n    SetEventFlag(\"open, 1)").StartsWith("Line 2:"));
+        Equal(true,Problem("event (0 local values)\r\n    SetEventFlag(1, 1)\r\n        wait 5 frames").StartsWith("Line 3:"));
+        Equal(true,Problem("event (0 local values)\r\n    if (v0 = 1)\r\n        break").StartsWith("Line 2:"));
+        Equal("",Problem("event (0 local values)\r\n    SetEventFlag(1, 1)\r\n    wait 5 frames"));
     });
     Test("Script lines: listed, duplicated, removed, moved and added, kept in a project and written to the disc",()=>{
         foreach(var disc in new[]{jp!,en!})
