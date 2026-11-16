@@ -560,7 +560,7 @@ public partial class MainWindow : Window
     // it also depends on something else (an event flag, a unit's state).
     private static string When(Reinforcement r)
     {
-        string text=r.Turn is not int first?(r.Spot is { } spot?(spot.Name=="Event"?$"when a unit sets off the spot at {spot.X}, {spot.Y}":$"when a unit uses {spot.Name} at {spot.X}, {spot.Y}"):"when an event in the battle happens")
+        string text=r.Turn is not int first?(r.Spot is { } spot?(spot.Name=="Event"?$"when a unit sets off the spot at {spot.X}, {spot.Y}":$"when a unit uses {spot.Name} at {spot.X}, {spot.Y}"):r.EveryTurn?"at the start of a turn, when the battle's conditions are met":"when an event in the battle happens")
             :r.LastTurn==first?$"on turn {first}":r.LastTurn is int last?(first<=1?$"each turn up to turn {last}":$"each turn from turn {first} to {last}"):$"each turn from turn {first}";
         if(r.Turn is not null && r.Spot is { } at)text+=$", when a unit uses {(at.Name=="Event"?"the spot":at.Name)} at {at.X}, {at.Y}";
         return r.Conditional && r.Spot is null && r.Turn is not null?text+", under conditions the battle checks":text;
