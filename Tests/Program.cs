@@ -983,6 +983,39 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(3,EventCopies.Locate(archives,602).Count);
         }
     });
+    Test("Shops: every shop and its items on both discs, map shops named by their battle, and items changed, removed and added",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var library=new EventLibrary(new GameArchives(iso));
+            var shops=Shops.Read(library);
+            Equal(true,shops.Count>=20);
+            // The base's sword shop (event 549) and shield shop (event 546, three ways of selling).
+            var shields=shops.Single(s=>s.Event==546);Equal(0,shields.Battle);
+            Equal("347,369,382",string.Join(",",shields.Items.Where(i=>i.Sale==ShopSale.Always).Select(i=>i.Item)));
+            Equal(true,shields.Items.Any(i=>i.Sale==ShopSale.Stock && i.Item==331 && i.Extra==174));
+            Equal(true,shields.Items.Any(i=>i.Sale==ShopSale.Special && i.Item==335 && i.Extra==3523));
+            // Map shops are reached from their spot: battle 112's weapon shop is event 3405.
+            var weapons=shops.Single(s=>s.Event==3405);Equal((112,"Weapon shop"),(weapons.Battle,weapons.Spot));
+            Equal(true,shops.Count(s=>s.Battle>0)>=8);
+            // Every item's number and line are where the editors expect them.
+            foreach(var shop in shops)
+            {
+                var bytes=library.Bytes(shop.Event);var numbers=ScriptValues.Numbers(shop.Event,ScriptParser.Parse(bytes));
+                foreach(var item in shop.Items)Equal(item.Item,numbers[item.NumberIndex].Value);
+                var fewer=Shops.Items(ScriptParser.Parse(ScriptLines.Remove(bytes,shop.Items[0].Path)));
+                Equal(shop.Items.Count-1,fewer.Count);
+            }
+            // Change, add and remove in the shield shop's script.
+            var script=library.Bytes(546);
+            var changed=ScriptValues.Apply(script,new Dictionary<int,int>{[shields.Items[0].NumberIndex]=0x0A0});
+            Equal(0x0A0,Shops.Items(ScriptParser.Parse(changed))[0].Item);
+            var added=ScriptLines.InsertAfter(script,shields.Items[^1].Path,ScriptLines.Command(Shops.AddItem,"160"));
+            var after=Shops.Items(ScriptParser.Parse(added));
+            Equal(shields.Items.Count+1,after.Count);Equal((160,ShopSale.Always),(after[^1].Item,after[^1].Sale));
+        }
+    });
     Test("Script text: an edited text compiles to the changed script, and mistakes are reported with their line",()=>{
         using var stream=new FileStream(en!.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
         using var iso=new IsoImage(stream);

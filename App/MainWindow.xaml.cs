@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Live, Skills, Rules, Maps, Events, Mechanics, Disc }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -162,11 +162,13 @@ public partial class MainWindow : Window
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
+        ShopsNav.IsEnabled=primary.Supported;
         LiveNav.IsEnabled=primary.Supported;
         RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;
         PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
         if(view==View.Events && events is { } library && EventList.SelectedValue is int shown)_=ShowEvent(library,shown,scrollHome:false);
+        if(shops is not null)ApplyShopList();
     }
     private void PopulateDiscDetails()
     {
@@ -279,6 +281,7 @@ public partial class MainWindow : Window
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowArmies(object sender,RoutedEventArgs e) { view=View.Armies;UpdatePage(); }
     private void ShowFurniture(object sender,RoutedEventArgs e) { view=View.Furniture;UpdatePage(); }
+    private void ShowShops(object sender,RoutedEventArgs e) { view=View.Shops;UpdatePage();_=OpenShops(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
     private void ShowTerrain(object sender,RoutedEventArgs e) { view=View.Terrain;UpdatePage(); }
@@ -287,6 +290,162 @@ public partial class MainWindow : Window
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowEvents(object sender,RoutedEventArgs e) { view=View.Events;UpdatePage();_=OpenEvents(); }
     private void ShowMaps(object sender,RoutedEventArgs e) { view=View.Maps;UpdatePage();_=OpenMaps(); }
+
+    // Shops: read from the event scripts through the event library; each item change is a script change in the project.
+    private List<Shop>? shops;
+    private string? shopsPath;
+    private Dictionary<int,string> shopBattleNames=[];
+    private sealed record ShopRow(int Event,string Name,string Where,int Count,bool Edited){public string EditedText=>Edited?"Edited":"";}
+    private async Task OpenShops()
+    {
+        if(primary is null || !primary.Supported)return;
+        if(shopsPath==primary.Path && shops is not null)return;
+        await OpenEvents();
+        if(events is not { } library || primary is null)return;
+        string path=primary.Path;var exeEntry=primary.ExecutableFile!;
+        ShopCount.Text="Reading the shops...";
+        try
+        {
+            var (list,names)=await Task.Run(()=>
+            {
+                byte[] exe;
+                using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read))
+                using(var iso=new IsoImage(stream)) exe=iso.ReadRange(exeEntry.Offset,(int)exeEntry.Length,(int)exeEntry.Length);
+                lock(library)
+                {
+                    var titles=LiveGame.Battles(exe,ArmyData.LoadBattleTitles(library.Archives)).GroupBy(b=>b.Battle).ToDictionary(g=>g.Key,g=>g.First().Text);
+                    return (Shops.Read(library).ToList(),titles);
+                }
+            });
+            if(events!=library)return;
+            shops=list;shopBattleNames=names;shopsPath=path;
+            ApplyShopList();
+        }
+        catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException){ShopCount.Text="The shops could not be read from this disc.";}
+    }
+    // What a shop sells, in words, for the shops at the base (named by their goods).
+    private static readonly Dictionary<string,string> GoodsNames=new()
+    {
+        ["Knife"]="knives",["Sword"]="swords",["Blade"]="blades",["Mace"]="maces",["Spear"]="spears",["Lance"]="lances",["Fork"]="forks",["Axe"]="axes",
+        ["Bow"]="bows",["Crossbow"]="crossbows",["Ballista"]="ballistae",["Fire"]="fire tomes",["Thunder"]="thunder tomes",["Wind"]="wind tomes",
+        ["Holy"]="holy tomes",["Dark"]="dark tomes",["Healing"]="healing staves",["Dark healing"]="dark staves",["Small shield"]="small shields",
+        ["Medium shield"]="medium shields",["Large shield"]="large shields",["Arrow"]="arrows",["Bolt"]="bolts",["Accessory"]="accessories",["Consumable"]="items",
+    };
+    private (string Name,string Where) ShopTitle(Shop shop,IReadOnlyList<ShopItem> items)
+    {
+        if(shop.Battle>0)return (shop.Spot,shopBattleNames.TryGetValue(shop.Battle,out var b)?b:$"Battle {shop.Battle}");
+        var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
+        var goods=items.Where(i=>catalog.ContainsKey(i.Item)).GroupBy(i=>catalog[i.Item].Category).OrderByDescending(g=>g.Count()).Select(g=>GoodsNames.TryGetValue(g.Key,out var n)?n:g.Key.ToLowerInvariant()).Take(3).ToList();
+        string list=goods.Count switch {0=>"Goods",1=>goods[0],2=>$"{goods[0]} and {goods[1]}",_=>$"{goods[0]}, {goods[1]} and {goods[2]}"};
+        return (char.ToUpperInvariant(list[0])+list[1..],"At the base");
+    }
+    private IReadOnlyList<ShopItem> ShopItems(Shop shop)=>session is not null && (session.HasScript(shop.Event) || ScriptChanges(shop.Event).Count>0)
+        ?Shops.Items(ScriptParser.Parse(session.EventScript(shop.Event)!)):shop.Items;
+    private void ApplyShopList()
+    {
+        if(shops is null || primary is null)return;
+        int? selected=(ShopGrid.SelectedItem as ShopRow)?.Event;
+        var rows=shops.Select(s=>{var items=ShopItems(s);var (name,where)=ShopTitle(s,items);return new ShopRow(s.Event,name,where,items.Count,session is not null && (session.HasScript(s.Event) || ScriptChanges(s.Event).Count>0));})
+            .OrderBy(r=>r.Where=="At the base"?0:1).ThenBy(r=>r.Where).ThenBy(r=>r.Name).ToList();
+        ShopGrid.ItemsSource=rows;
+        ShopCount.Text=$"{rows.Count} shops, {rows.Count(r=>r.Where=="At the base")} at the base";
+        if(rows.Count>0)ShopGrid.SelectedItem=rows.FirstOrDefault(r=>r.Event==selected)??rows[0];
+    }
+    private Shop? SelectedShop=>ShopGrid.SelectedItem is ShopRow row?shops?.FirstOrDefault(s=>s.Event==row.Event):null;
+    private List<ShopItem> shownShopItems=[];
+    private void ShopSelected(object sender,SelectionChangedEventArgs e)
+    {
+        ShopItemPicker.Visibility=Visibility.Collapsed;
+        if(SelectedShop is not { } shop || ShopGrid.SelectedItem is not ShopRow row){ShopName.Text="Select a shop";ShopWhere.Text="";ShopItemList.ItemsSource=null;UpdateShopButtons();return;}
+        int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
+        var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
+        shownShopItems=ShopItems(shop).ToList();
+        ShopName.Text=row.Name;ShopWhere.Text=$"{row.Where} · event {shop.Event}";
+        ShopItemList.ItemsSource=shownShopItems.Select((it,i)=>new Choice(i,$"{(catalog.TryGetValue(it.Item,out var item)?item.DisplayName:$"Item 0x{it.Item:X3}")}{it.Sale switch {ShopSale.Stock=>"  (stock)",ShopSale.Special=>"  (special)",_=>""}}")).ToList();
+        if(keep is int k && k<shownShopItems.Count)ShopItemList.SelectedIndex=k;
+        ShopNotes.Children.Clear();
+        if(session?.HasScript(shop.Event)==true || ScriptChanges(shop.Event).Count>0)
+        {
+            AddText(ShopNotes,"This shop is changed in this project.");
+            var restore=new Button {Content="Restore this shop",Style=(Style)FindResource("SmallButton"),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,4,0,0)};
+            restore.Click+=(_,_)=>
+            {
+                var records=session!.EditedRecords.Where(r=>r.Table==EditSession.Scripts && r.Id==shop.Event || r.Table==EditSession.ScriptValues && ScriptValues.Split(r.Id).Event==shop.Event).ToArray();
+                session.Revert(records);RefreshDocument();Status.Text="Shop restored. Save the project to keep this change.";
+            };
+            ShopNotes.Children.Add(restore);
+        }
+        UpdateShopButtons();ShopItemSelected(this,null!);
+    }
+    private void ShopItemSelected(object sender,SelectionChangedEventArgs e)
+    {
+        UpdateShopButtons();
+        if(ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count){ShopItemNote.Text="";return;}
+        var it=shownShopItems[ShopItemList.SelectedIndex];
+        var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
+        string price=catalog.TryGetValue(it.Item,out var item)?$"Base price {item.Price:N0}. ":"";
+        ShopItemNote.Text=price+it.Sale switch
+        {
+            ShopSale.Stock=>$"Sold from a stock that refills over time (stock {it.Extra}). A changed item keeps the stock of the one it replaces.",
+            ShopSale.Special=>$"A special purchase: buying it sets off event {it.Extra}.",
+            _=>"Always for sale.",
+        };
+    }
+    private void UpdateShopButtons()
+    {
+        bool can=session is not null && editing is null && SelectedShop is not null;
+        bool item=can && ShopItemList.SelectedIndex>=0 && ShopItemList.SelectedIndex<shownShopItems.Count;
+        ChangeShopItemButton.IsEnabled=item;RemoveShopItemButton.IsEnabled=item && shownShopItems.Count>1;AddShopItemButton.IsEnabled=can && shownShopItems.Count>0;
+    }
+    private bool shopAdding;
+    private void BeginChangeShopItem(object sender,RoutedEventArgs e)=>OpenShopPicker(adding:false);
+    private void BeginAddShopItem(object sender,RoutedEventArgs e)=>OpenShopPicker(adding:true);
+    private void OpenShopPicker(bool adding)
+    {
+        if(SelectedShop is null)return;
+        shopAdding=adding;
+        ShopPickerLabel.Text=adding?"Item to add (always for sale, after the last item)":"Sell this item instead";
+        ShopItemChoice.ItemsSource=ItemChoices().Where(c=>c.Value!=0).ToList();
+        if(!adding && ShopItemList.SelectedIndex>=0 && ShopItemList.SelectedIndex<shownShopItems.Count)ShopItemChoice.SelectedValue=shownShopItems[ShopItemList.SelectedIndex].Item;
+        ShopPickerError.Visibility=Visibility.Collapsed;ShopItemPicker.Visibility=Visibility.Visible;ShopItemChoice.Focus();
+    }
+    private void CancelShopPicker(object sender,RoutedEventArgs e){ShopItemPicker.Visibility=Visibility.Collapsed;}
+    // Changes a shop's script as one undoable step, after checking it still fits the disc.
+    private bool ChangeShop(Shop shop,Func<byte[],byte[]> change,string done,Action<string>? fail=null)
+    {
+        if(session is null || events is not { } library)return false;
+        try
+        {
+            var updated=change(session.EventScript(shop.Event)!);
+            CheckEventFits(library,shop.Event,updated);
+            if(!session.SetScript(shop.Event,updated)){Status.Text="Nothing was changed.";return false;}
+        }
+        catch(EditException ex){if(fail is not null)fail(ex.Message);else Status.Text=ex.Message;return false;}
+        RefreshDocument();Status.Text=done+" Save the project to keep your changes.";
+        return true;
+    }
+    private void ApplyShopPicker(object sender,RoutedEventArgs e)
+    {
+        if(SelectedShop is not { } shop || session is null)return;
+        void Fail(string message){ShopPickerError.Text=message;ShopPickerError.Visibility=Visibility.Visible;}
+        if(ShopItemChoice.SelectedValue is not int item){Fail("Choose an item from the list.");return;}
+        if(shopAdding)
+        {
+            var last=shownShopItems[^1];
+            if(ChangeShop(shop,b=>ScriptLines.InsertAfter(b,last.Path,ScriptLines.Command(Shops.AddItem,item.ToString())),"Item added.",Fail))ShopItemPicker.Visibility=Visibility.Collapsed;
+            return;
+        }
+        if(ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count)return;
+        var it=shownShopItems[ShopItemList.SelectedIndex];
+        if(it.Item==item){ShopItemPicker.Visibility=Visibility.Collapsed;return;}
+        if(ChangeShop(shop,b=>ScriptValues.Apply(b,new Dictionary<int,int>{[it.NumberIndex]=item}),"Item changed.",Fail))ShopItemPicker.Visibility=Visibility.Collapsed;
+    }
+    private void RemoveShopItem(object sender,RoutedEventArgs e)
+    {
+        if(SelectedShop is not { } shop || ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count)return;
+        var it=shownShopItems[ShopItemList.SelectedIndex];
+        ChangeShop(shop,b=>ScriptLines.Remove(b,it.Path),"Item removed.");
+    }
 
     // Maps: each battle's terrain and spots, read through the event library (which keeps the disc open).
     private string? mapsPath;
@@ -592,7 +751,7 @@ public partial class MainWindow : Window
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
@@ -885,13 +1044,14 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ArmyPage.Visibility=view==View.Armies && supported?Visibility.Visible:Visibility.Collapsed;
         FurniturePage.Visibility=view==View.Furniture && supported?Visibility.Visible:Visibility.Collapsed;
+        ShopsPage.Visibility=view==View.Shops && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
@@ -908,6 +1068,7 @@ public partial class MainWindow : Window
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ArmiesNav.Background=view==View.Armies?active:Brushes.Transparent;
         FurnitureNav.Background=view==View.Furniture?active:Brushes.Transparent;
+        ShopsNav.Background=view==View.Shops?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
@@ -2241,6 +2402,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Where the game's events show which battle places an army, its name says so, for example Army 371 (Quest 6: Cruel Brothers), and searching for a mission or quest title lists its armies. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
+            ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc."),
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Battle Cry's hit for each use, Evasion's avoid, the move change of Celerity and Slow Start II, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold and Watchful's range."),

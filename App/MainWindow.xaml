@@ -14,6 +14,7 @@
      <Button x:Name="MovementNav" Content="Mo_vement" Style="{StaticResource NavButton}" Click="ShowMovement" IsEnabled="False"/>
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
      <Button x:Name="FurnitureNav" Content="_Furniture" Style="{StaticResource NavButton}" Click="ShowFurniture" IsEnabled="False"/>
+     <Button x:Name="ShopsNav" Content="_Shops" Style="{StaticResource NavButton}" Click="ShowShops" IsEnabled="False"/>
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
      <Button x:Name="MapsNav" Content="Ma_ps" Style="{StaticResource NavButton}" Click="ShowMaps" IsEnabled="False"/>
@@ -27,7 +28,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.60.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.61.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -274,6 +275,49 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="2" x:Name="TerrainCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="ShopsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="What each shop sells: the shops at the base and the shops on battle maps. An item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop to change, add or remove its items; the changes go into the shop's script when you export a disc. The stable and the furniture shop have their own pages."/></Border>
+     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <DataGrid x:Name="ShopGrid" SelectionChanged="ShopSelected" AutomationProperties.Name="Shops">
+        <DataGrid.Columns>
+         <DataGridTextColumn Header="Shop" Binding="{Binding Name}" Width="*" MinWidth="160"/>
+         <DataGridTextColumn Header="Where" Binding="{Binding Where}" Width="1.3*" MinWidth="160"/>
+         <DataGridTextColumn Header="Items" Binding="{Binding Count}" Width="60" MinWidth="50"/>
+         <DataGridTextColumn Header="Status" Binding="{Binding EditedText}" Width="70" MinWidth="70"/>
+        </DataGrid.Columns>
+       </DataGrid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock Text="SHOP" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,10"/>
+        <StackPanel Grid.Row="1"><TextBlock x:Name="ShopName" Text="Select a shop" FontFamily="Georgia" FontSize="20" TextWrapping="Wrap"/><TextBlock x:Name="ShopWhere" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,10"/></StackPanel>
+        <ListBox Grid.Row="2" x:Name="ShopItemList" SelectionChanged="ShopItemSelected" DisplayMemberPath="Text" SelectedValuePath="Value" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Items in this shop"/>
+        <StackPanel Grid.Row="3" Margin="0,10,0,0">
+         <TextBlock x:Name="ShopItemNote" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+         <WrapPanel>
+          <Button x:Name="ChangeShopItemButton" Content="Change item" Style="{StaticResource SmallButton}" Click="BeginChangeShopItem" Margin="0,0,6,6" IsEnabled="False"/>
+          <Button x:Name="AddShopItemButton" Content="Add item" Style="{StaticResource SmallButton}" Click="BeginAddShopItem" Margin="0,0,6,6" IsEnabled="False"/>
+          <Button x:Name="RemoveShopItemButton" Content="Remove item" Style="{StaticResource SmallButton}" Click="RemoveShopItem" Margin="0,0,6,6" IsEnabled="False"/>
+         </WrapPanel>
+         <StackPanel x:Name="ShopItemPicker" Visibility="Collapsed" Margin="0,4,0,0">
+          <TextBlock x:Name="ShopPickerLabel" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,4"/>
+          <ComboBox x:Name="ShopItemChoice" IsEditable="True" IsTextSearchEnabled="True" DisplayMemberPath="Text" SelectedValuePath="Value" Margin="0,0,0,6" AutomationProperties.Name="Item"/>
+          <TextBlock x:Name="ShopPickerError" Foreground="#9A3B2E" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,6" Visibility="Collapsed"/>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+           <Button Content="Cancel" Style="{StaticResource SmallButton}" Click="CancelShopPicker" Margin="0,0,6,0"/>
+           <Button Content="Apply" Style="{StaticResource SmallButton}" Click="ApplyShopPicker" Background="{StaticResource Accent}" Foreground="White" BorderBrush="{StaticResource Accent}"/>
+          </StackPanel>
+         </StackPanel>
+         <StackPanel x:Name="ShopNotes" Margin="0,6,0,0"/>
+        </StackPanel>
+       </Grid>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="2" x:Name="ShopCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <Grid x:Name="FurniturePage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
