@@ -178,6 +178,12 @@ PCSX2 link and PNACH, saves, patch packs, audio, maps and events, and Berwick sp
 
 Stable-price research is complete at the static level: event 602 supplies both menu and purchase amounts, with 11 horse prices and three identical compressed copies per edition. See `RESEARCH.md`. Next implementation step is a safe compressed-event writer with all-copy verification, then a controlled in-game test. Changing item base prices does not change stable prices. Other open town data includes furniture prices, mercenary fees, supports and bag contents.
 
+### Horses (planned next)
+How horses work is known and was checked in a running game (see `RESEARCH.md`, Horses). Planned, in this order:
+1. Live page horse editor: show each unit's horse and its HP; give, change or remove a horse. Giving a horse writes the horse item into the unit, sets the horse's HP from the item and clears the dismounted flag, so the unit can choose Mount; removing one should first dismount the unit.
+2. Characters page: show and edit each character's starting horse (disc record +0x4C). Needs a new game to check before it is offered.
+3. Mechanics help: mounting is a menu command, which terrain blocks it, horse HP from the horse item, and the mounted and dismounted class pairs.
+
 ## Rules that apply to every milestone
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.
 - Offsets are per edition. Never reuse a Japanese address on English or the reverse.

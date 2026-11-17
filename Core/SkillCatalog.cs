@@ -156,7 +156,7 @@ public static class SkillCatalog
         new("Hurry", "Always on", "Moves one hex farther, but only to wait.",
             "Instead of a normal move the unit can move 1 farther, after which its only command is Wait.", Game),
         new("Lance", "Always on", "Can use lances.",
-            "Adds lances to the weapons the unit's class allows. The game's description adds that it works only while mounted, that lances cannot be countered and cannot counter, and that skills that work on counterattacks do nothing in a lance attack.",
+            "Adds lances to the weapons the unit's class allows. The game's description adds that it works only while mounted, that lances cannot be countered and cannot counter, and that skills that work on counterattacks do nothing in a lance attack. A class that normally has no lances, such as the Spear Knight, has no lance artwork: in the animation the unit attacks with an empty hand (checked in a running game).",
             "Weapon type: read from the game program. The rest: from the game's own description"),
         new("Blade", "Always on", "Can use blades.", "Adds blades to the weapons the unit's class allows.", Program),
         new("Cavalry", "Always on", "Gets the benefits of a horse.", "Only while mounted. The game moves the skill together with the horse when horses change hands, so losing the horse loses the skill too.",
