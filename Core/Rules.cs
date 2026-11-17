@@ -925,6 +925,11 @@ public static class GameRules
         WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
             [0x0017E760], [[0x14400003u], [0u]]),
         SlowStartPenalty(),
+        // Partner bonuses count partners closer than 3 hexes (slti at, s1, 3 at 0x001B8530).
+        new GameRule(202, "partnerRange", "Partner range",
+            "A unit gets the hit and critical bonuses of its partners (set on the Characters page) while a partner is within this many hexes. The game uses 2.",
+            RuleKind.Limit, 1, 10, 2, null,
+            [new RuleSite(0x001B8530, n => 0x2A210000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x2A210000u && (w & 0xFFFF) is >= 2 and <= 11 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true),
         // A unit that took damage (battle +0x48 bit 0x800) stops counterattacking unless it has Counter (0x002268EC);
         // Always skips to the next step without the Counter message.
         WordSets(201, "counterAfterDamage", "Counterattacks after taking damage", "Counter", "Without Counter", 0, ["Stop", "Keep countering"],
