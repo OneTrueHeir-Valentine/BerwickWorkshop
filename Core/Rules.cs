@@ -215,7 +215,7 @@ public static class GameRules
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
-        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical.",
+        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
         ["Knock Away"] = "When the unit attacks, Knock Away activates at a chance of half the unit's weapon level plus the base chance. The game's base is 30. The roll is 0 to 99, so a total of 100 or more always activates.",
         ["Spearbane"] = BaneText("a spear"),
         ["Swordbane"] = BaneText("a sword"),
@@ -232,7 +232,8 @@ public static class GameRules
         ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
         ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move. The first hit has double attack and the unit's own defenses drop to 0. Attack set to Not doubled keeps the normal attack; Own defense set to Kept leaves the unit its defenses. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move. Until its next turn, attacks on the unit can be blocked: the chance is the axe level plus the block bonus, and a block takes the axe's Might off the hit. The game's block bonus is 25.",
+        ["Hunter"] = "With a bow, crossbow or ballista, an enemy standing in forest gets no avoid from the terrain. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
+        ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move. Until its next turn, attacks on the unit can be blocked: the chance is the axe level plus the block bonus, and a block takes the axe's Might off the hit. The game's block bonus is 25. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon. With another weapon the block takes that weapon's Might off the hit.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
         ["Blessing"] = "At the start of each turn, each ally within range recovers a random amount of HP from 0 up to the most healing. The game's range is 3 hexes and the most healing 3.",
@@ -333,6 +334,44 @@ public static class GameRules
         return WordSets(id, key, name, group, "Weapon", 0, [game, .. WeaponTypeChoices, "Any weapon"],
             Enumerable.Range(0, n).Select(i => start + (uint)(4 * i)).ToArray(), sets.ToArray());
     }
+
+    // A skill's own weapon check: one or more blocks, each rewritten for a weapon type (built by typed) or made to always pass (any).
+    private static GameRule SkillWeapon(int id, string key, string name, string group, string game, (uint Start, uint[] Original, Func<uint, uint[]> Typed, uint[] Any)[] blocks, bool confirmed = false)
+    {
+        var addresses = blocks.SelectMany(b => b.Original.Select((_, i) => b.Start + (uint)(4 * i))).ToArray();
+        var sets = new List<uint[]> { blocks.SelectMany(b => b.Original).ToArray() };
+        for (uint type = 0; type < WeaponTypeChoices.Length; type++) sets.Add(blocks.SelectMany(b => b.Typed(type)).ToArray());
+        sets.Add(blocks.SelectMany(b => b.Any).ToArray());
+        return WordSets(id, key, name, group, "Weapon", 0, [game, .. WeaponTypeChoices, "Any weapon"], addresses, sets.ToArray(), confirmed);
+    }
+
+    private const uint JalItemType = 0x0C05BA08u;          // jal 0x0016E820
+    private static uint XoriV0(uint type) => 0x38420000u | type;
+    private static uint BneV0(uint at, uint target) => Branch(0x14400000u, at, target);
+
+    // "jal check; lw a0, 8(s2); beq v0, zero, fail; nop" becomes "jal item type; lw a0, 8(s2); xori v0, v0, type; bne v0, zero, fail".
+    private static (uint, uint[], Func<uint, uint[]>, uint[]) FightCheck(uint start, uint check, uint failBranch, uint fail) =>
+        (start, [check, 0x8E440008u, failBranch, 0u], t => [JalItemType, 0x8E440008u, XoriV0(t), BneV0(start + 12, fail)], [check, 0x8E440008u, 0u, 0u]);
+
+    private static GameRule IaidoWeapon() => SkillWeapon(186, "iaidoWeapon", "Iaido weapon", "Iaido", "Sword or blade",
+        [FightCheck(0x00229E50, 0x0C05B89Cu, 0x10400019u, 0x00229EC0)], confirmed: true);
+
+    private static GameRule HunterWeapon() => SkillWeapon(187, "hunterWeapon", "Hunter weapon", "Hunter", "Bow, crossbow or ballista",
+        [FightCheck(0x0022BFA0, 0x0C05B928u, 0x1040000Du, 0x0022BFE0)]);
+
+    // Axe Guard checks for an axe in the fight (0x0022A3F8), the command menu (0x0038B94C) and enemy decisions (0x003077D4).
+    private static GameRule AxeGuardWeapon() => SkillWeapon(188, "axeGuardWeapon", "Axe Guard weapon", "Axe Guard", "Axe",
+    [
+        (0x0022A3F4, [0u, 0x0C05B85Cu, 0x8E440008u, 0x10400025u, 0u, 0x0C05B38Cu, 0x8E440008u, 0x14400021u, 0u],
+            t => [0x8E440008u, JalItemType, 0u, XoriV0(t), BneV0(0x0022A404, 0x0022A498), 0u, 0x0C05B38Cu, 0x8E440008u, BneV0(0x0022A414, 0x0022A498)],
+            [0u, 0x0C05B85Cu, 0x8E440008u, 0u, 0u, 0x0C05B38Cu, 0x8E440008u, 0x14400021u, 0u]),
+        (0x0038B94C, [0x0C05B85Cu, 0x0040202Du, 0x10400006u, 0x3C060039u, 0x0280202Du, 0x24050275u, 0x0C08C6F0u, 0x24C6EBC0u, 0u],
+            t => [JalItemType, 0x0040202Du, XoriV0(t), BneV0(0x0038B958, 0x0038B970), 0x3C060039u, 0x0280202Du, 0x24050275u, 0x0C08C6F0u, 0x24C6EBC0u],
+            [0x0C05B85Cu, 0x0040202Du, 0u, 0x3C060039u, 0x0280202Du, 0x24050275u, 0x0C08C6F0u, 0x24C6EBC0u, 0u]),
+        (0x003077C8, [0x0200202Du, 0x0C05E14Cu, 0u, 0x0C05B85Cu, 0x0040202Du, 0x10400008u, 0x0220202Du],
+            t => [0x0C05E14Cu, 0x0200202Du, JalItemType, 0x0040202Du, XoriV0(t), BneV0(0x003077DC, 0x00307800), 0x0220202Du],
+            [0x0200202Du, 0x0C05E14Cu, 0u, 0x0C05B85Cu, 0x0040202Du, 0u, 0x0220202Du]),
+    ]);
 
     // A negated immediate of 0 to max (an addiu that subtracts), or null.
     private static int? Minus(uint word, uint upper, int max) => (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
@@ -842,6 +881,9 @@ public static class GameRules
             [0x0C05B94Cu, 0u, 0x24030001u, 0x10430003u, 0u, 0x100000DBu, 0x0000102Du]),
         WeaponNeed(185, "flourishWeapon", "Flourish and Desperation weapon", "Flourish", "Physical weapon", 0x001BEB04, 0x001BEB20,
             [0x0C05B94Cu, 0u, 0x24030001u, 0x14430003u, 0u, 0x100000CFu, 0x0000102Du]),
+        IaidoWeapon(),
+        HunterWeapon(),
+        AxeGuardWeapon(),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
