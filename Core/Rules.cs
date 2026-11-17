@@ -115,6 +115,21 @@ public static class GameRules
     public static int RangeHigh(int setting) => setting % 256;
 
     private const uint A1 = 5, A2 = 6;
+    // Focus Chant (battle +0x4C bit 2) raises attack by a random 10 to 30 percent (0x002271B0).
+    private static GameRule FocusChantAttack() => new(168, "focusChantAttack", "Focus Chant attack bonus",
+        "When a unit attacks using Focus Chant, its attack rises by a random percentage between these two values, both included. The game uses 10% to 30%. The low value cannot be higher than the high value.",
+        RuleKind.Range, 0, RangeSetting(100, 100), RangeSetting(10, 30), null,
+        [new RuleSite(0x002271B4, s => 0x24000000u | A1 << 16 | (uint)RangeLow(s), w => null),
+         new RuleSite(0x002271BC, s => 0x24000000u | A2 << 16 | (uint)RangeHigh(s), w => null)], confirmed: false,
+        decode: words =>
+        {
+            uint lowPrefix = 0x24000000u | A1 << 16, highPrefix = 0x24000000u | A2 << 16;
+            if ((words[0] & 0xFFFF0000u) != lowPrefix || (words[1] & 0xFFFF0000u) != highPrefix) return null;
+            int low = (int)(words[0] & 0xFFFF), high = (int)(words[1] & 0xFFFF);
+            return low <= high && high <= 100 ? RangeSetting(low, high) : null;
+        },
+        check: s => RangeHigh(s) > 100 ? "The Focus Chant attack bonus can be at most 100%." : RangeLow(s) > RangeHigh(s) ? "The low value of the Focus Chant attack bonus cannot be higher than the high value." : null);
+
     private static GameRule CriticalDamage() => new(13, "criticalBonus", "Critical hit bonus damage",
         "A critical hit adds a random amount between these two values to the damage, both included. The game uses 10 to 20. The low value cannot be higher than the high value.",
         RuleKind.Range, 0, RangeSetting(99, 99), RangeSetting(10, 20), null,
@@ -215,9 +230,9 @@ public static class GameRules
         ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Steal"] = "In the game, Steal, Robbery and Mug II share one count per map: 3 steals, or 2 for a unit with Mug II, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
-        ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move. The first hit has double attack and the unit's own defenses drop to 0. Attack set to Not doubled keeps the normal attack; Own defense set to Kept leaves the unit its defenses.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move. Until its next turn, attacks on the unit can be blocked: the chance is the axe level plus the block bonus, and a block takes the axe's Might off the hit. The game's block bonus is 25.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
         ["Blessing"] = "At the start of each turn, each ally within range recovers a random amount of HP from 0 up to the most healing. The game's range is 3 hexes and the most healing 3.",
@@ -235,7 +250,7 @@ public static class GameRules
         ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7.",
         ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple Shot strikes three times in the game; it can be set from 1 to 7.",
         ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7.",
-        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game.",
+        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page).",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -734,6 +749,16 @@ public static class GameRules
         Strikes(162, "astraStrikes", "Astra", 5, 0x00226AB4, true),
         Strikes(163, "tripleShotStrikes", "Triple Shot", 3, 0x00226B00, true),
         Strikes(164, "doubleShotStrikes", "Double Shot", 2, 0x00226B50, true),
+        // Axe Guard block chance: the block bonus plus the axe level plus 25 (0x0022A434); a block takes the axe's Might off the hit.
+        new GameRule(165, "axeGuardChance", "Axe Guard block bonus", "", RuleKind.Limit, 0, 100, 25, null,
+            [new RuleSite(0x0022A434, n => 0x24440000u | (uint)n, w => Imm(w, 0x24440000u, 100))], confirmed: false)
+        { Group = "Axe Guard", Short = "Block chance bonus", Section = SkillsSection },
+        // Pulverize (battle +0x4C bit 0x2000): battle setup doubles attack (0x0022C110 to 0x0022C130) and zeroes the user's defenses (0x0022C150 to 0x0022C158).
+        WordSets(166, "pulverizeAttack", "Pulverize attack", "Pulverize", "Attack", 0, ["Doubled", "Not doubled"],
+            [0x0022C110], [[0x10400009u], [0x10000009u]]),
+        WordSets(167, "pulverizeDefense", "Pulverize defense", "Pulverize", "Own defense", 0, ["Drops to 0", "Kept"],
+            [0x0022C150, 0x0022C154, 0x0022C158], [[0xAE600068u, 0xAE60006Cu, 0xAE600070u], [0u, 0u, 0u]]),
+        FocusChantAttack(),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
