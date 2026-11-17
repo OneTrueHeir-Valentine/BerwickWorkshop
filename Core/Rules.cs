@@ -254,7 +254,8 @@ public static class GameRules
         ["Triple-Shot"] = "In the game, Triple-Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple-Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple-Shot strikes three times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
         ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page). Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
-        ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
+        ["Canto"] = "In the game, Canto is not offered after a fight in which the unit took damage; this can be changed so it is offered anyway.",
+        ["Guard"] = "While a unit guards, the game halves its own defense and avoid; this can be changed so they are kept. In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -945,6 +946,13 @@ public static class GameRules
         new GameRule(207, "deathmatchRounds", "Deathmatch rounds", "", RuleKind.Limit, 1, 20, 5, null,
             [new RuleSite(0x003F730C, n => 0x24100000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24100000u && (w & 0xFFFF) is >= 1 and <= 20 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Deathmatch", Short = "Rounds", Section = SkillsSection },
+        // Canto after a fight: the menu (0x00388450) skips Canto when state +0x58 bit 0x02000000 is set (0x00388480); the fight results
+        // (0x0022CCC0) set that bit when a strike did damage to the unit (battle flag 0x10000).
+        WordSets(208, "cantoAfterDamage", "Canto after taking damage", "Canto", "After taking damage", 0, ["Not offered", "Offered"],
+            [0x00388480], [[0x14400065u], [0u]], confirmed: false),
+        // Guard: the avoid hooks (0x001B7A90, 0x001B7BE0, 0x001B7CD0) and the defense hook (0x001B8140) halve the value while the unit guards (state +0x58 bit 0x4000).
+        WordSets(209, "guardHalving", "Guard's own defense and avoid", "Guard", "Own defense and avoid", 0, ["Halved", "Kept"],
+            [0x001B7B9C, 0x001B7C8C, 0x001B7DD4, 0x001B81E4], [[0x10400006u, 0x10400006u, 0x10400006u, 0x10400006u], [0x10000006u, 0x10000006u, 0x10000006u, 0x10000006u]]),
         // Robbery after a kill (0x003F9960): a percent roll below 25 (0x003F99B8), then the range below 2 (0x003F99C0).
         new GameRule(204, "robberyChance", "Robbery chance", "", RuleKind.Limit, 0, 100, 25, null,
             [new RuleSite(0x003F99B8, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 100))], confirmed: true)
