@@ -231,3 +231,4 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - No public decompilation, symbol map or disassembly notes for `SLPS_254.97` were found.
 - No English-edition addresses were published anywhere, but the code locations above are identical in the English executable.
 - Nothing found on how the game finds its DATA3 tables (needed to grow tables).
+- Skill names (English v2.3, from the game's short skill texts, checked against a status screen): Triple-Shot, Huntsman, Horse-Lover, Mug+, Lethargy (-1 move), Pitchfork, Double-Shot, Leader, Slow Start (-1 move under level 15). Notes above written before this use the older names Hunter, Slow Start (now Lethargy), Slow Start II (now Slow Start), Commander II (now Leader), Mug II (now Mug+) and Fork (now Pitchfork).

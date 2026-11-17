@@ -111,7 +111,7 @@ public static class ItemEncoder
         (2, "Strikes twice"), (3, "Strikes three times"), (4, "Strikes four times"), (10, "Ignores defense"), (12, "Ignores shields"),
         (13, "Ignores armor"), (14, "Ignores horse defense"), (20, "No counterattack"), (21, "Not usable after moving"), (60, "Can be thrown"),
         (27, "Drains HP"), (58, "Adds level to damage"), (56, "Cannot kill"), (84, "Cannot attack fliers"), (16, "Miracle"), (17, "Renewal"),
-        (45, "Grants Hide"), (46, "Grants Overwatch"), (47, "Grants Parry"), (81, "Grants Horse Lover"), (66, "Move +1"),
+        (45, "Grants Hide"), (46, "Grants Overwatch"), (47, "Grants Parry"), (81, "Grants Horse-Lover"), (66, "Move +1"),
         (19, "Uses instead of durability"), (34, "Unbreakable"), (86, "Restores uses"), (32, "Personal weapon"), (30, "Infantry only"), (1, "Women only"),
         (29, "General only"), (26, "Gigas Knight only"), (69, "Paladin only"), (72, "Assassin only"), (79, "Black Rider only"), (80, "Apostle only"),
     ];

@@ -227,17 +227,17 @@ public static class GameRules
         ["Sunder"] = "When the unit attacks using Sunder, its critical chance rises by this bonus for that attack. The game's bonus is 25. " + "In the game, Sunder can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. In the game the enemy always hits a unit using Desperation. Own defense set to Kept leaves the unit its defenses. The weapon it needs is set on the Flourish card. Lance attacks cannot be countered, so Desperation is never offered with a lance.",
         ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
-        ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation. The same weapon setting covers Double Shot and Triple Shot.",
-        ["Steal"] = "In the game, Steal, Robbery and Mug II share one count per map: 3 steals, or 2 for a unit with Mug II, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation. The same weapon setting covers Double-Shot and Triple-Shot.",
+        ["Steal"] = "In the game, Steal, Robbery and Mug+ share one count per map: 3 steals, or 2 for a unit with Mug+, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
         ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move. The first hit has double attack and the unit's own defenses drop to 0. Attack set to Not doubled keeps the normal attack; Own defense set to Kept leaves the unit its defenses. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Hunter"] = "With a bow, crossbow or ballista, an enemy standing in forest gets no avoid from the terrain. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
+        ["Huntsman"] = "With a bow, crossbow or ballista, an enemy standing in forest gets no avoid from the terrain. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move. Until its next turn, attacks on the unit can be blocked: the chance is the axe level plus the block bonus, and a block takes the axe's Might off the hit. The game's block bonus is 25. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation. With another weapon the block takes that weapon's Might off the hit.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Battle Cry"] = "In the game, Battle Cry can only be chosen before the unit moves. Allowed also offers it after a move. Each use adds the hit and attack for each use to the unit's next fight; the game gives 10 hit and 3 attack. It can be used up to the most uses before a fight; the game allows 6.",
         ["Blessing"] = "At the start of each turn, each ally within range recovers a random amount of HP from 0 up to the most healing. The game's range is 3 hexes and the most healing 3.",
-        ["Horse Lover"] = "After each chapter, the unit's horse recovers this much HP, up to its maximum. The game's value is 20.",
+        ["Horse-Lover"] = "After each chapter, the unit's horse recovers this much HP, up to its maximum. The game's value is 20.",
         ["Scotopic"] = "Adds to the unit's vision range, which matters on maps with fog. The game adds 1.",
         ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
@@ -250,8 +250,8 @@ public static class GameRules
         ["Vantage"] = "When attacked, a unit with Vantage strikes first if its attack speed beats the attacker's and its weapon can reach. Attack speed set to Any speed drops the speed check.",
         ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
-        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
-        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple Shot strikes three times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
+        ["Double-Shot"] = "In the game, Double-Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double-Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double-Shot strikes two times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
+        ["Triple-Shot"] = "In the game, Triple-Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple-Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple-Shot strikes three times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
         ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page). Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -270,24 +270,24 @@ public static class GameRules
         ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3, and the range is 5 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within range (3 hexes in the game). The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16. Partner set to Not needed gives a unit with Supporter the bonuses on its own.",
-        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Leader"] = "Each ally within range gets this much avoid for every unit with Leader near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         [InjuryGroup] = "When a hit lands, the target may be crippled. The chance is the base, plus the knife bonus when the attacker uses a knife, plus Flourish and item bonuses, rolled against 0 to 99. Units with Robust or Robust+ are never crippled. The game's base is 3 and the knife bonus 6.",
         ["Miracle"] ="When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
         ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
-        ["Mug II"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug II starts each map with 2 steals in the game, shared with Steal and Robbery.",
-        ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug II.",
+        ["Mug+"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug+ starts each map with 2 steals in the game, shared with Steal and Robbery.",
+        ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug+.",
         ["Maim"] = "Maim activates at a chance of half the weapon level plus this base and doubles the chance that the hit cripples. The game's base is 5, and the skill can be used 5 times per map.",
         ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1. Mounted units set to Bonus too gives it to mounted units as well.",
-        ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
+        ["Slow Start"] = "A unit with Slow Start takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is at or below the highest level. The game adds 20% up to level 10.",
         ["Vengeful"] = "After taking damage while holding an axe, the unit rolls a chance for each point of damage taken. On success it counters with double hit and its attack raised by the damage. The game uses 3% for each point and needs an axe; Any weapon lets it work with every weapon.",
         ["Adept"] = "Adept needs at least the attack speed set here. Its chance is attack speed minus that value, plus half of the weapon level plus the bonus. On success the unit strikes more than once. The game needs speed 5, adds 10 before halving and strikes twice.",
         ["Expert"] = "When the game checks whether a unit's level is high enough to use an item safely and get its bonuses, Expert counts the item's rank this much lower, never below 1. The game uses 7.",
         ["Climber"] = "On a cliff a unit's avoid drops to 0, unless it has Climber. Kept lets every unit keep its avoid on cliffs, so Climber no longer matters.",
-        ["Slow Start"] = "When a unit with Slow Start begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
+        ["Lethargy"] = "When a unit with Lethargy begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -353,7 +353,7 @@ public static class GameRules
             ["Others, each adds", "Others, counted once", "Itself too, each adds", "Itself too, counted once"],
             [selfSkip, add], [[selfWord, 0x26100001u], [selfWord, 0x24100001u], [0u, 0x26100001u], [0u, 0x24100001u]]);
 
-    // Slow Start: after the skill check, "addiu rN, zero, 10" is the move taken off at the start of a move, in tenths of a hex,
+    // Lethargy: after the skill check, "addiu rN, zero, 10" is the move taken off at the start of a move, in tenths of a hex,
     // in the player's moves and the enemy's move planning (26 places, each with its own register).
     private static readonly (uint Address, uint Upper)[] SlowStartSites =
     [
@@ -365,10 +365,10 @@ public static class GameRules
         (0x00309008, 0x24110000u),
     ];
 
-    private static GameRule SlowStartPenalty() => new(198, "slowStartPenalty", "Slow Start move penalty", "", RuleKind.Limit, 0, 5, 1, null,
+    private static GameRule SlowStartPenalty() => new(198, "slowStartPenalty", "Lethargy move penalty", "", RuleKind.Limit, 0, 5, 1, null,
         SlowStartSites.Select(s => new RuleSite(s.Address, n => s.Upper | (uint)(n * 10),
             w => (w & 0xFFFF0000u) == s.Upper && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) / 10 : null)).ToArray(), confirmed: false)
-        { Group = "Slow Start", Short = "Hexes taken off", Section = SkillsSection };
+        { Group = "Lethargy", Short = "Hexes taken off", Section = SkillsSection };
 
     private const uint JalItemType = 0x0C05BA08u;          // jal 0x0016E820
     private static uint XoriV0(uint type) => 0x38420000u | type;
@@ -381,7 +381,7 @@ public static class GameRules
     private static GameRule IaidoWeapon() => SkillWeapon(186, "iaidoWeapon", "Iaido weapon", "Iaido", "Sword or blade",
         [FightCheck(0x00229E50, 0x0C05B89Cu, 0x10400019u, 0x00229EC0)], confirmed: true);
 
-    private static GameRule HunterWeapon() => SkillWeapon(187, "hunterWeapon", "Hunter weapon", "Hunter", "Bow, crossbow or ballista",
+    private static GameRule HunterWeapon() => SkillWeapon(187, "hunterWeapon", "Huntsman weapon", "Huntsman", "Bow, crossbow or ballista",
         [FightCheck(0x0022BFA0, 0x0C05B928u, 0x1040000Du, 0x0022BFE0)], confirmed: true);
 
     // Axe Guard checks for an axe in the fight (0x0022A3F8), the command menu (0x0038B94C) and enemy decisions (0x003077D4).
@@ -640,8 +640,8 @@ public static class GameRules
         MoveBlocked(71, "evasionAfterMoving", "Evasion", 0x0038C280, 0x30624283u),
         MoveBlocked(72, "silenceAfterMoving", "Silence", 0x0038C2E0, 0x30624283u),
         MoveBlocked(73, "imbueAfterMoving", "Imbue", 0x0038C340, 0x30624283u),
-        MoveOpen(74, "doubleShotAfterMoving", "Double Shot", 0x0038BB98, 0x30424282u),
-        MoveOpen(75, "tripleShotAfterMoving", "Triple Shot", 0x0038BC58, 0x30424282u),
+        MoveOpen(74, "doubleShotAfterMoving", "Double-Shot", 0x0038BB98, 0x30424282u),
+        MoveOpen(75, "tripleShotAfterMoving", "Triple-Shot", 0x0038BC58, 0x30424282u),
         MoveOpen(76, "astraAfterMoving", "Astra", 0x0038BEB8, 0x30424282u),
         MoveOpen(77, "focusChantAfterMoving", "Focus Chant", 0x0038BF78, 0x30424282u),
         MoveOpen(78, "guardAfterMoving", "Guard", 0x0038C0C8, 0x30420002u),
@@ -654,8 +654,8 @@ public static class GameRules
         MoveWeapon(85, "deathmatchAfterMoving", "Deathmatch", 0x0038C97C, 0x0038C9C0, 0x0038CA00),
         Wait(86, "astraWait", "Astra", 0x001C355C, 6, true, 0x0022D4B8),
         Wait(87, "focusChantWait", "Focus Chant", 0x001C357C, 6, true, 0x0022D4DC),
-        Wait(88, "tripleShotWait", "Triple Shot", 0x001C359C, 4, true, 0x0022D500),
-        Wait(89, "doubleShotWait", "Double Shot", 0x001C35BC, 3, true, 0x0022D494),
+        Wait(88, "tripleShotWait", "Triple-Shot", 0x001C359C, 4, true, 0x0022D500),
+        Wait(89, "doubleShotWait", "Double-Shot", 0x001C35BC, 3, true, 0x0022D494),
         Wait(90, "evasionWait", "Evasion", 0x001C35FC, 4),
         Wait(91, "imbueWait", "Imbue", 0x001C361C, 3),
         Wait(92, "flourishWait", "Flourish", 0x001C363C, 3, true, 0x0022D544),
@@ -707,20 +707,20 @@ public static class GameRules
             [new RuleSite(0x001B7A20, s => s == 0 ? 0x0000102Du : 0x00021000u | (uint)(s - 1) << 6,
                 w => w == 0x0000102Du ? 0 : (w & ~0x7C0u) == 0x00021000u && (w >> 6 & 31) <= 4 ? (int)(w >> 6 & 31) + 1 : null)], confirmed: true)
         { Group = "Supporter", Short = "Critical", Section = SkillsSection },
-        Multiplier(116, "commanderIIAvoid", "Commander II", "Avoid for each ally with it", 5, [0x001B7EFC, 0x001B7F04], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
+        Multiplier(116, "commanderIIAvoid", "Leader", "Avoid for each ally with it", 5, [0x001B7EFC, 0x001B7F04], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
         Multiplier(117, "protectorDefense", "Protector", "Defense for each ally with it", 5, [0x001B8188, 0x001B8190], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
         Multiplier(118, "resistorResistance", "Resistor", "Resistance for each ally with it", 5, [0x001B80E0, 0x001B80E8], [0x00021880u, 0x00621021u], 3, 0x00431018u, true),
         Multiplier(119, "battleCryHit", "Battle Cry", "Hit for each use", 10, [0x001B8068, 0x001B806C, 0x001B8070], [0x00031080u, 0x00431021u, 0x00021040u], 2, 0x00621018u, true),
         new GameRule(120, "evasionAvoid", "Evasion avoid bonus", "", RuleKind.Limit, 0, 200, 50, null,
             [new RuleSite(0x001B7F44, n => 0x26310000u | (uint)n, w => (w & 0xFFFF0000u) == 0x26310000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Evasion", Short = "Avoid", Section = SkillsSection },
-        // Move is counted in tenths: Slow Start II takes 10 off (addiu s0,s0,-10 at 0x0017E6A0), Celerity adds 10 (0x0017E768).
+        // Move is counted in tenths: Slow Start takes 10 off (addiu s0,s0,-10 at 0x0017E6A0), Celerity adds 10 (0x0017E768).
         new GameRule(121, "celerityMove", "Celerity move bonus", "", RuleKind.Limit, 0, 3, 1, null,
             [new RuleSite(0x0017E768, n => 0x26100000u | (uint)(n * 10), w => (w & 0xFFFF0000u) == 0x26100000u && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 30 ? (int)(w & 0xFFFF) / 10 : null)], confirmed: true)
         { Group = "Celerity", Short = "Move bonus", Section = SkillsSection },
-        new GameRule(122, "slowStartMove", "Slow Start II move penalty", "", RuleKind.Limit, 0, 3, 1, null,
+        new GameRule(122, "slowStartMove", "Slow Start move penalty", "", RuleKind.Limit, 0, 3, 1, null,
             [new RuleSite(0x0017E6A0, n => 0x26100000u | (uint)(-n * 10 & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26100000u && -(short)(w & 0xFFFF) is var v && v % 10 == 0 && v is >= 0 and <= 30 ? v / 10 : null)], confirmed: true)
-        { Group = "Slow Start II", Short = "Move penalty", Section = SkillsSection },
+        { Group = "Slow Start", Short = "Move penalty", Section = SkillsSection },
         // Camouflage multiplies terrain avoid by 3 and halves it (rounded toward zero) in the forecast hooks (0x001B7B74, 0x001B7DAC,
         // one per difficulty) and in battle (0x0022C040); terrain avoid is always even, so every choice is exact.
         WordSets(123, "camouflageAvoid", "Camouflage terrain avoid", "Camouflage", "Terrain avoid", 1,
@@ -763,7 +763,7 @@ public static class GameRules
         // The map shows the area with 0x001B2780, which takes the range in t0, while game option 0x0052C000 is 0.
         AuraRange(130, "commanderRange", "Commander", 3, new RuleSite(0x001B90D0, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u)),
             new RuleSite(0x001B2640, n => 0x24480000u | (uint)n, w => Imm(w, 0x24480000u))),
-        AuraRange(131, "commander2Range", "Commander II", 3, new RuleSite(0x001B8EF0, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u))),
+        AuraRange(131, "commander2Range", "Leader", 3, new RuleSite(0x001B8EF0, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u))),
         AuraRange(132, "safeZoneRange", "Safe Zone", 3, Below(0x001B8D10), Drawn(0x001B26E4)),
         AuraRange(133, "charismaRange", "Charisma", 5, Below(0x001B8B90), Drawn(0x001B274C)),
         AuraRange(134, "supporterRange", "Supporter", 3, Below(0x001B8710), Drawn(0x001B2714)),
@@ -783,17 +783,17 @@ public static class GameRules
         new GameRule(139, "miracleReroll", "Miracle hit reduction", "", RuleKind.Limit, 0, 100, 10, null,
             [new RuleSite(0x00227FD4, n => 0x26050000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26050000u && -(short)(w & 0xFFFF) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: false)
         { Group = "Miracle", Short = "Hit taken off the second roll", Section = SkillsSection },
-        // Mug and Mug II: the chance is level / 10 plus 3, each skill with its own copy.
+        // Mug and Mug+: the chance is level / 10 plus 3, each skill with its own copy.
         new GameRule(140, "mugChance", "Mug base chance", "", RuleKind.Limit, 0, 100, 3, null,
             [new RuleSite(0x00227B48, n => 0x24420000u | (uint)n, w => Imm(w, 0x24420000u, 100))], confirmed: true)
         { Group = "Mug", Short = "Chance added to level / 10", Section = SkillsSection },
-        new GameRule(141, "mug2Chance", "Mug II base chance", "", RuleKind.Limit, 0, 100, 3, null,
+        new GameRule(141, "mug2Chance", "Mug+ base chance", "", RuleKind.Limit, 0, 100, 3, null,
             [new RuleSite(0x0022DE44, n => 0x24500000u | (uint)n, w => Imm(w, 0x24500000u, 100))], confirmed: true)
-        { Group = "Mug II", Short = "Chance added to level / 10", Section = SkillsSection },
+        { Group = "Mug+", Short = "Chance added to level / 10", Section = SkillsSection },
         // Steals per map: 0x001C3740 sets unit state +0x105 bits 2 and 3 at the start of a map, so 3 is the most.
         StealCount(142, "stealCount", "Steal", 3, 0x001C386C),
         StealCount(143, "robberyCount", "Robbery", 3, 0x001C38DC),
-        StealCount(144, "mug2Count", "Mug II", 2, 0x001C38A4),
+        StealCount(144, "mug2Count", "Mug+", 2, 0x001C38A4),
         // Maim: uses per map in unit state +0x10C bits 1 to 4; the chance is (weapon level + 10) / 2.
         new GameRule(145, "maimUses", "Maim uses per map", "", RuleKind.Limit, 0, 15, 5, null,
             [new RuleSite(0x001C3914, n => 0x64030000u | (uint)(n << 1), w => (w & 0xFFFF0000u) == 0x64030000u && (w & 0xFFE1u) == 0 ? (int)((w & 0x1E) >> 1) : null)], confirmed: false)
@@ -842,19 +842,19 @@ public static class GameRules
         new GameRule(159, "blessingHeal", "Blessing most healing", "", RuleKind.Limit, 0, 30, 3, null,
             [new RuleSite(0x001CEF34, n => 0x24060000u | (uint)n, w => Imm(w, 0x24060000u, 30))], confirmed: true)
         { Group = "Blessing", Short = "Most HP healed", Section = SkillsSection },
-        // Horse Lover (0x001729E0): the horse's HP rises by 20 after each chapter, up to its maximum.
-        new GameRule(160, "horseLoverHeal", "Horse Lover recovery", "", RuleKind.Limit, 0, 100, 20, null,
+        // Horse-Lover (0x001729E0): the horse's HP rises by 20 after each chapter, up to its maximum.
+        new GameRule(160, "horseLoverHeal", "Horse-Lover recovery", "", RuleKind.Limit, 0, 100, 20, null,
             [new RuleSite(0x00172A98, n => 0x24A40000u | (uint)n, w => Imm(w, 0x24A40000u, 100))], confirmed: false)
-        { Group = "Horse Lover", Short = "Horse HP recovered", Section = SkillsSection },
+        { Group = "Horse-Lover", Short = "Horse HP recovered", Section = SkillsSection },
         // Scotopic (0x00176B50): vision range plus 1.
         new GameRule(161, "scotopicVision", "Scotopic vision bonus", "", RuleKind.Limit, 0, 5, 1, null,
             [new RuleSite(0x00176C58, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 5))], confirmed: false)
         { Group = "Scotopic", Short = "Vision bonus", Section = SkillsSection },
-        // Strike counts set in the fight from the command bits: Astra 5 (0x00226AB4), Triple Shot 3 (0x00226B00), Double Shot 2 (0x00226B50).
+        // Strike counts set in the fight from the command bits: Astra 5 (0x00226AB4), Triple-Shot 3 (0x00226B00), Double-Shot 2 (0x00226B50).
         // Weapon effects already give up to 7 strikes, so 7 is the top.
         Strikes(162, "astraStrikes", "Astra", 5, 0x00226AB4, true),
-        Strikes(163, "tripleShotStrikes", "Triple Shot", 3, 0x00226B00, true),
-        Strikes(164, "doubleShotStrikes", "Double Shot", 2, 0x00226B50, true),
+        Strikes(163, "tripleShotStrikes", "Triple-Shot", 3, 0x00226B00, true),
+        Strikes(164, "doubleShotStrikes", "Double-Shot", 2, 0x00226B50, true),
         // Axe Guard block chance: the block bonus plus the axe level plus 25 (0x0022A434); a block takes the axe's Might off the hit.
         new GameRule(165, "axeGuardChance", "Axe Guard block bonus", "", RuleKind.Limit, 0, 100, 25, null,
             [new RuleSite(0x0022A434, n => 0x24440000u | (uint)n, w => Imm(w, 0x24440000u, 100))], confirmed: true)
@@ -900,7 +900,7 @@ public static class GameRules
         // Weapons a command can attack with, checked by command state bit in 0x001BE800 (menu, targeting and forecast).
         WeaponNeed(179, "aimWeapon", "Aim weapon", "Aim", "Bow, crossbow or ballista", 0x001BE9BC, 0x001BE9D8,
             [0x0C05B928u, 0u, 0x14400004u, 0u, 0x10000122u, 0x0000102Du, 0u]),
-        WeaponNeed(180, "bowShotsWeapon", "Deadeye, Double Shot and Triple Shot weapon", "Deadeye", "Bow", 0x001BE9F4, 0x001BEA10,
+        WeaponNeed(180, "bowShotsWeapon", "Deadeye, Double-Shot and Triple-Shot weapon", "Deadeye", "Bow", 0x001BE9F4, 0x001BEA10,
             [0x0C05BA08u, 0u, 0x24030008u, 0x10430003u, 0u, 0x10000113u, 0x0000102Du]),
         WeaponNeed(181, "pulverizeWeapon", "Pulverize weapon", "Pulverize", "Axe or blade", 0x001BEA24, 0x001BEA50,
             [0x0C05B85Cu, 0u, 0x14400008u, 0x0280202Du, 0x0C05B87Cu, 0u, 0x14400004u, 0u, 0x10000104u, 0x0000102Du]),
@@ -914,7 +914,7 @@ public static class GameRules
             [0x0C05B94Cu, 0u, 0x24030001u, 0x14430003u, 0u, 0x100000CFu, 0x0000102Du]),
         // Aura counts: each holder in range adds one (addiu s0, s0, 1), and distance 0, the unit itself, is skipped (beq s3, zero).
         AuraCount(190, "commanderCount", "Commander", 0x001B90E0, 0x12600003u, 0x001B90E8),
-        AuraCount(191, "commander2Count", "Commander II", 0x001B8F00, 0x12600003u, 0x001B8F08),
+        AuraCount(191, "commander2Count", "Leader", 0x001B8F00, 0x12600003u, 0x001B8F08),
         AuraCount(192, "safeZoneCount", "Safe Zone", 0x001B8D1C, 0x12600002u, 0x001B8D24),
         AuraCount(193, "charismaCount", "Charisma", 0x001B8B9C, 0x12600002u, 0x001B8BA4),
         AuraCount(194, "resistorCount", "Resistor", 0x001B8A1C, 0x12600002u, 0x001B8A24),

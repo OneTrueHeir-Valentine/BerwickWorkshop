@@ -58,17 +58,17 @@ public static class CharacterDecoder
     // Order of the personal skill bitfield. Empty strings are unused bits.
     public static readonly string[] SkillBits =
     [
-        "Locktouch", "Canto", "Overwatch", "Watchful", "Triple Shot", "Counter", "Shieldfaire", "Mercy",
+        "Locktouch", "Canto", "Overwatch", "Watchful", "Triple-Shot", "Counter", "Shieldfaire", "Mercy",
         "Adept", "Vantage", "Vengeful", "Spearbane", "Provoke", "Safe Zone", "Guard", "Astra",
         "Arrowbane", "Commander", "Paragon", "Fortune", "Obfuscate", "Steal", "Silence", "Hateful", "Battle Cry",
         "Blessing", "Sunder", "Charisma", "Acrobat", "Evasion", "", "", "Axe Guard",
-        "Deadeye", "Hunter", "Aim", "Swimmer", "Resistor", "Search", "One-Two", "Deathmatch",
+        "Deadeye", "Huntsman", "Aim", "Swimmer", "Resistor", "Search", "One-Two", "Deathmatch",
         "Swap Horse", "Throw", "Parry", "Prepared", "Robust", "Vulnerable", "Focus Chant", "Our Bond",
-        "Horse Lover", "Robbery", "Despoil", "Knock Away", "Iaido", "Pulverize", "Mug II", "Miracle",
+        "Horse-Lover", "Robbery", "Despoil", "Knock Away", "Iaido", "Pulverize", "Mug+", "Miracle",
         "Armsthrift", "Hide", "Hurry", "Lance", "Blade", "", "", "Cavalry", "Celerity",
         "Swordbane", "Axebane", "Limited", "Convert", "Expert", "Magicbane", "Mug", "Versatile",
-        "Slow Start", "Fork", "Pursuit", "Double Shot", "Commander II", "Return", "Camouflage", "Scotopic",
-        "Supporter", "Climber", "Windsweep", "Desperation", "Flourish", "Slow Start II", "Robust+",
+        "Lethargy", "Pitchfork", "Pursuit", "Double-Shot", "Leader", "Return", "Camouflage", "Scotopic",
+        "Supporter", "Climber", "Windsweep", "Desperation", "Flourish", "Slow Start", "Robust+",
         "Imbue", "Critical", "Protector", "Debility", "Maim", "", "",
     ];
 
