@@ -365,7 +365,7 @@ public static class GameRules
 
     private static GameRule SlowStartPenalty() => new(198, "slowStartPenalty", "Slow Start move penalty", "", RuleKind.Limit, 0, 5, 1, null,
         SlowStartSites.Select(s => new RuleSite(s.Address, n => s.Upper | (uint)(n * 10),
-            w => (w & 0xFFFF0000u) == s.Upper && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) / 10 : null)).ToArray(), confirmed: true)
+            w => (w & 0xFFFF0000u) == s.Upper && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) / 10 : null)).ToArray(), confirmed: false)
         { Group = "Slow Start", Short = "Hexes taken off", Section = SkillsSection };
 
     private const uint JalItemType = 0x0C05BA08u;          // jal 0x0016E820
