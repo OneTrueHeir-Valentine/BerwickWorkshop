@@ -264,20 +264,20 @@ public static class GameRules
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses. Mag on the status screen is the Mind stat itself, not magic defense. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
         [HitCriticalGroup] = "Hit is the weapon's accuracy plus the unit's weapon level plus bonuses from items, food and skills; the target's avoid is then taken off. Critical is the weapon's critical plus the weapon level above a threshold (the game uses 50, so most units get nothing from it) plus bonuses, and a unit with the Critical skill also adds its level; the target's critical evade is taken off. The weapon level used is the unit's level in the weapon's type, at most the class's limit. Hit adds and Critical adds can use a stat instead (with its equipment and skill bonuses) or nothing.",
         [DamageGroup] = "Damage is attack minus defense minus any block reduction (a shield's Might on a successful block, or a guard skill). If that is 0 or less the hit does no damage in the game; it can be set to deal 1 instead. A critical hit then adds its bonus damage on top. Knives leave the attack stat out and add a random amount from 0 up to Strength in battle instead, so their damage varies from hit to hit. Which stat knives add, and whether they add a random part of it or all of it, can be changed; knives also ignore the target's Defense.",
-        ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10, and the range is 3 hexes.",
-        ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each, and the range is 3 hexes.",
-        ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3, and the range is 5 hexes.",
-        ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within range (3 hexes in the game). The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16.",
-        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes.",
-        ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes.",
-        ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes.",
+        ["Commander"] = "Each ally within range gets this much hit for every unit with Commander near it. The game gives 10, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Safe Zone"] = "Each ally within range gets this much hit and avoid for every unit with Safe Zone near it. The game gives 15 of each, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Charisma"] = "Each ally within range gets this much hit for every unit with Charisma near it. The game gives 3, and the range is 5 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Supporter"] = "A unit with Supporter gets these bonuses while an ally with Supporter is within range (3 hexes in the game). The game gives 20 hit and 4 critical; the critical bonus can be 0, 1, 2, 4, 8 or 16. Partner set to Not needed gives a unit with Supporter the bonuses on its own.",
+        ["Commander II"] = "Each ally within range gets this much avoid for every unit with Commander II near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Protector"] = "Each ally within range gets this much defense for every unit with Protector near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
+        ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         [InjuryGroup] = "When a hit lands, the target may be crippled. The chance is the base, plus the knife bonus when the attacker uses a knife, plus Flourish and item bonuses, rolled against 0 to 99. Units with Robust or Robust+ are never crippled. The game's base is 3 and the knife bonus 6.",
         ["Miracle"] ="When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
         ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
         ["Mug II"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug II starts each map with 2 steals in the game, shared with Steal and Robbery.",
         ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug II.",
         ["Maim"] = "Maim activates at a chance of half the weapon level plus this base and doubles the chance that the hit cripples. The game's base is 5, and the skill can be used 5 times per map.",
-        ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
+        ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1. Mounted units set to Bonus too gives it to mounted units as well.",
         ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
         ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is at or below the highest level. The game adds 20% up to level 10.",
@@ -344,6 +344,11 @@ public static class GameRules
         sets.Add(blocks.SelectMany(b => b.Any).ToArray());
         return WordSets(id, key, name, group, "Weapon", 0, [game, .. WeaponTypeChoices, "Any weapon"], addresses, sets.ToArray(), confirmed);
     }
+
+    private static GameRule AuraCount(int id, string key, string skill, uint selfSkip, uint selfWord, uint add) =>
+        WordSets(id, key, $"{skill} holders", skill, "Who counts", 0,
+            ["Others, each adds", "Others, counted once", "Itself too, each adds", "Itself too, counted once"],
+            [selfSkip, add], [[selfWord, 0x26100001u], [selfWord, 0x24100001u], [0u, 0x26100001u], [0u, 0x24100001u]]);
 
     private const uint JalItemType = 0x0C05BA08u;          // jal 0x0016E820
     private static uint XoriV0(uint type) => 0x38420000u | type;
@@ -881,6 +886,18 @@ public static class GameRules
             [0x0C05B94Cu, 0u, 0x24030001u, 0x10430003u, 0u, 0x100000DBu, 0x0000102Du]),
         WeaponNeed(185, "flourishWeapon", "Flourish and Desperation weapon", "Flourish", "Physical weapon", 0x001BEB04, 0x001BEB20,
             [0x0C05B94Cu, 0u, 0x24030001u, 0x14430003u, 0u, 0x100000CFu, 0x0000102Du]),
+        // Aura counts: each holder in range adds one (addiu s0, s0, 1), and distance 0, the unit itself, is skipped (beq s3, zero).
+        AuraCount(190, "commanderCount", "Commander", 0x001B90E0, 0x12600003u, 0x001B90E8),
+        AuraCount(191, "commander2Count", "Commander II", 0x001B8F00, 0x12600003u, 0x001B8F08),
+        AuraCount(192, "safeZoneCount", "Safe Zone", 0x001B8D1C, 0x12600002u, 0x001B8D24),
+        AuraCount(193, "charismaCount", "Charisma", 0x001B8B9C, 0x12600002u, 0x001B8BA4),
+        AuraCount(194, "resistorCount", "Resistor", 0x001B8A1C, 0x12600002u, 0x001B8A24),
+        AuraCount(195, "protectorCount", "Protector", 0x001B889C, 0x12600002u, 0x001B88A4),
+        WordSets(196, "supporterSelf", "Supporter partner", "Supporter", "Partner", 0, ["Another unit with Supporter", "Not needed"],
+            [0x001B871C], [[0x12600002u], [0u]]),
+        // Celerity skips every class in the mounted class list (branch at 0x0017E760).
+        WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
+            [0x0017E760], [[0x14400003u], [0u]], confirmed: false),
         IaidoWeapon(),
         HunterWeapon(),
         AxeGuardWeapon(),
