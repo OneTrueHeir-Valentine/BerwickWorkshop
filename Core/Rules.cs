@@ -245,7 +245,8 @@ public static class GameRules
         ["One-Two"] = "After use, One-Two can be chosen again this many of the unit's turns later. The game's wait is 6.",
         ["Camouflage"] = "A unit with Camouflage multiplies the avoid it gets from terrain. The game uses one and a half times.",
         ["Armsthrift"] = "Every use of a weapon has a chance to cost no durability. Armsthrift adds this much to that chance; the game adds 20.",
-        ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3.",
+        ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3. The range for units without Watchful is also the view they refresh in fog after acting; the game uses 1.",
+        ["Vantage"] = "When attacked, a unit with Vantage strikes first if its attack speed beats the attacker's and its weapon can reach. Attack speed set to Any speed drops the speed check.",
         ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
         ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
@@ -923,6 +924,14 @@ public static class GameRules
         WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
             [0x0017E760], [[0x14400003u], [0u]]),
         SlowStartPenalty(),
+        // Vantage only strikes first when the attack speed comparison passes (branch at 0x00226518).
+        WordSets(199, "vantageSpeed", "Vantage speed check", "Vantage", "Attack speed", 0, ["Must beat the attacker", "Any speed"],
+            [0x00226518], [[0x14200003u], [0x10000003u]]),
+        // Units without Watchful uncover hidden enemies (0x001BDF40) and refresh the map view (0x001ACF44) from 1 hex.
+        new GameRule(200, "uncoverRange", "Uncover range without Watchful", "", RuleKind.Limit, 1, 10, 1, null,
+            [new RuleSite(0x001BDF40, n => 0x24030000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24030000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null),
+             new RuleSite(0x001ACF44, n => 0x241E0000u | (uint)n, w => (w & 0xFFFF0000u) == 0x241E0000u && (w & 0xFFFF) is >= 1 and <= 10 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Watchful", Short = "Range for units without it", Section = SkillsSection },
         IaidoWeapon(),
         HunterWeapon(),
         AxeGuardWeapon(),
