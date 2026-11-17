@@ -277,7 +277,7 @@ public static class GameRules
         ["Miracle"] ="When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
         ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
         ["Mug+"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug+ starts each map with 2 steals in the game, shared with Steal and Robbery.",
-        ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug+.",
+        ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. In the game the chance is 25% and the enemy must be at range 0 or 1; both can be changed. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug+.",
         ["Maim"] = "Maim activates at a chance of half the weapon level plus this base and doubles the chance that the hit cripples. The game's base is 5, and the skill can be used 5 times per map.",
         ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1. Mounted units set to Bonus too gives it to mounted units as well.",
         ["Slow Start"] = "A unit with Slow Start takes this many hexes off its move, mounted or on foot. The game takes 1.",
@@ -936,6 +936,13 @@ public static class GameRules
             "A unit gets the hit and critical bonuses of its partners (set on the Characters page) while a partner is within this many hexes. The game uses 2.",
             RuleKind.Limit, 1, 10, 2, null,
             [new RuleSite(0x001B8530, n => 0x2A210000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x2A210000u && (w & 0xFFFF) is >= 2 and <= 11 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true),
+        // Robbery after a kill (0x003F9960): a percent roll below 25 (0x003F99B8), then the range below 2 (0x003F99C0).
+        new GameRule(204, "robberyChance", "Robbery chance", "", RuleKind.Limit, 0, 100, 25, null,
+            [new RuleSite(0x003F99B8, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 100))], confirmed: true)
+        { Group = "Robbery", Short = "Chance", Section = SkillsSection },
+        new GameRule(205, "robberyRange", "Robbery range", "", RuleKind.Limit, 0, 10, 1, null,
+            [new RuleSite(0x003F99C0, n => 0x2A010000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x2A010000u && (w & 0xFFFF) is >= 1 and <= 11 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true)
+        { Group = "Robbery", Short = "Highest range", Section = SkillsSection },
         // A unit that took damage (battle +0x48 bit 0x800) stops counterattacking unless it has Counter (0x002268EC);
         // Always skips to the next step without the Counter message.
         WordSets(201, "counterAfterDamage", "Counterattacks after taking damage", "Counter", "Without Counter", 0, ["Stop", "Keep countering"],
