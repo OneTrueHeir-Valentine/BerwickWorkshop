@@ -838,9 +838,9 @@ public static class GameRules
             [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
         { Group = InjuryGroup, Short = "Knife bonus" },
         // Blessing at each turn start (0x001CEEE0): allies passing the check 0x001BF830 (within 3 hexes) recover random 0 to 3 HP.
-        AuraRange(158, "blessingRange", "Blessing", 3, false, Below(0x001BF8F0)),
+        AuraRange(158, "blessingRange", "Blessing", 3, true, Below(0x001BF8F0)),
         new GameRule(159, "blessingHeal", "Blessing most healing", "", RuleKind.Limit, 0, 30, 3, null,
-            [new RuleSite(0x001CEF34, n => 0x24060000u | (uint)n, w => Imm(w, 0x24060000u, 30))], confirmed: false)
+            [new RuleSite(0x001CEF34, n => 0x24060000u | (uint)n, w => Imm(w, 0x24060000u, 30))], confirmed: true)
         { Group = "Blessing", Short = "Most HP healed", Section = SkillsSection },
         // Horse Lover (0x001729E0): the horse's HP rises by 20 after each chapter, up to its maximum.
         new GameRule(160, "horseLoverHeal", "Horse Lover recovery", "", RuleKind.Limit, 0, 100, 20, null,
