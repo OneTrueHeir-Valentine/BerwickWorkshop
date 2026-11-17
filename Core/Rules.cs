@@ -120,7 +120,7 @@ public static class GameRules
         "When a unit attacks using Focus Chant, its attack rises by a random percentage between these two values, both included. The game uses 10% to 30%. The low value cannot be higher than the high value.",
         RuleKind.Range, 0, RangeSetting(100, 100), RangeSetting(10, 30), null,
         [new RuleSite(0x002271B4, s => 0x24000000u | A1 << 16 | (uint)RangeLow(s), w => null),
-         new RuleSite(0x002271BC, s => 0x24000000u | A2 << 16 | (uint)RangeHigh(s), w => null)], confirmed: false,
+         new RuleSite(0x002271BC, s => 0x24000000u | A2 << 16 | (uint)RangeHigh(s), w => null)], confirmed: true,
         decode: words =>
         {
             uint lowPrefix = 0x24000000u | A1 << 16, highPrefix = 0x24000000u | A2 << 16;
@@ -283,6 +283,7 @@ public static class GameRules
         ["Vengeful"] = "After taking damage while holding an axe, the unit rolls a chance for each point of damage taken. On success it counters with double hit and its attack raised by the damage. The game uses 3% for each point and needs an axe; Any weapon lets it work with every weapon.",
         ["Adept"] = "Adept needs at least the attack speed set here. Its chance is attack speed minus that value, plus half of the weapon level plus the bonus. On success the unit strikes more than once. The game needs speed 5, adds 10 before halving and strikes twice.",
         ["Expert"] = "When the game checks whether a unit's level is high enough to use an item safely and get its bonuses, Expert counts the item's rank this much lower, never below 1. The game uses 7.",
+        ["Climber"] = "On a cliff a unit's avoid drops to 0, unless it has Climber. Kept lets every unit keep its avoid on cliffs, so Climber no longer matters.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -758,7 +759,7 @@ public static class GameRules
         Strikes(164, "doubleShotStrikes", "Double Shot", 2, 0x00226B50, true),
         // Axe Guard block chance: the block bonus plus the axe level plus 25 (0x0022A434); a block takes the axe's Might off the hit.
         new GameRule(165, "axeGuardChance", "Axe Guard block bonus", "", RuleKind.Limit, 0, 100, 25, null,
-            [new RuleSite(0x0022A434, n => 0x24440000u | (uint)n, w => Imm(w, 0x24440000u, 100))], confirmed: false)
+            [new RuleSite(0x0022A434, n => 0x24440000u | (uint)n, w => Imm(w, 0x24440000u, 100))], confirmed: true)
         { Group = "Axe Guard", Short = "Block chance bonus", Section = SkillsSection },
         // Pulverize (battle +0x4C bit 0x2000): battle setup doubles attack (0x0022C110 to 0x0022C130) and zeroes the user's defenses (0x0022C150 to 0x0022C158).
         WordSets(166, "pulverizeAttack", "Pulverize attack", "Pulverize", "Attack", 0, ["Doubled", "Not doubled"],
@@ -768,9 +769,9 @@ public static class GameRules
         FocusChantAttack(),
         // Vengeful (skill bit 0x400) in the fight: needs an axe (type 7, 0x0022688C); chance is damage taken times 3 (0x002268A0, 0x002268A8).
         WordSets(169, "vengefulChance", "Vengeful chance", "Vengeful", "Chance for each point of damage taken", 2, ["1%", "2%", "3%", "4%", "5%"],
-            [0x002268A0, 0x002268A8], [[0x00052000u, 0x00808821u], [0x00052040u, 0x00808821u], [0x00052040u, 0x00858821u], [0x00052080u, 0x00808821u], [0x00052080u, 0x00858821u]], confirmed: false),
+            [0x002268A0, 0x002268A8], [[0x00052000u, 0x00808821u], [0x00052040u, 0x00808821u], [0x00052040u, 0x00858821u], [0x00052080u, 0x00808821u], [0x00052080u, 0x00858821u]], confirmed: true),
         WordSets(170, "vengefulWeapon", "Vengeful weapon", "Vengeful", "Weapon", 0, ["Axe only", "Any weapon"],
-            [0x0022688C], [[0x14430014u], [0u]], confirmed: false),
+            [0x0022688C], [[0x14430014u], [0u]], confirmed: true),
         // Adept (skill bit 0x100): needs attack speed 5 (0x00226BA8), chance adds (weapon level + 10) / 2 (0x00226C3C), strikes 2 (0x00226C8C).
         new GameRule(171, "adeptSpeed", "Adept speed needed", "", RuleKind.Limit, 0, 20, 5, null,
             [new RuleSite(0x00226BA8, n => 0x24550000u | (uint)(-n & 0xFFFF), w => Minus(w, 0x24550000u, 20))], confirmed: true)
@@ -779,7 +780,7 @@ public static class GameRules
             [new RuleSite(0x00226C3C, n => 0x24430000u | (uint)n, w => Imm(w, 0x24430000u, 200))], confirmed: true)
         { Group = "Adept", Short = "Added to the weapon level before halving", Section = SkillsSection },
         new GameRule(173, "adeptStrikes", "Adept strikes", "", RuleKind.Limit, 1, 7, 2, null,
-            [new RuleSite(0x00226C8C, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 7))], confirmed: false)
+            [new RuleSite(0x00226C8C, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 7))], confirmed: true)
         { Group = "Adept", Short = "Strikes", Section = SkillsSection },
         // Paragon only counts at level 10 or lower: slti at, v0, 11 in the skill check (0x0017D484).
         new GameRule(174, "paragonLevel", "Paragon highest level", "", RuleKind.Limit, 0, 63, 10, null,
@@ -795,6 +796,9 @@ public static class GameRules
         new GameRule(177, "limitedLevel", "Limited level", "", RuleKind.Limit, 1, 99, 50, null,
             [new RuleSite(0x0017A5D0, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 99))], confirmed: true)
         { Group = "Limited", Short = "Level needed above that rank", Section = SkillsSection },
+        // On terrain with flag 0x400 (cliffs) avoid becomes 0 unless the unit has Climber: forecast 0x001B7E74, fight 0x0022C3A8.
+        WordSets(178, "cliffAvoid", "Avoid on cliffs", "Climber", "Avoid on cliffs without Climber", 0, ["Drops to 0", "Kept"],
+            [0x001B7E74, 0x0022C3A8], [[0x10400010u, 0x10400007u], [0x10000010u, 0x10000007u]], confirmed: false),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
