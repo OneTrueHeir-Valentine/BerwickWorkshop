@@ -915,7 +915,7 @@ public static class GameRules
             [0x001B871C], [[0x12600002u], [0u]]),
         // Celerity skips every class in the mounted class list (branch at 0x0017E760).
         WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
-            [0x0017E760], [[0x14400003u], [0u]], confirmed: false),
+            [0x0017E760], [[0x14400003u], [0u]]),
         SlowStartPenalty(),
         IaidoWeapon(),
         HunterWeapon(),
