@@ -882,7 +882,7 @@ public static class GameRules
         { Group = "Adept", Short = "Strikes", Section = SkillsSection },
         // Paragon only counts at level 10 or lower: slti at, v0, 11 in the skill check (0x0017D484).
         new GameRule(174, "paragonLevel", "Paragon highest level", "", RuleKind.Limit, 0, 63, 10, null,
-            [new RuleSite(0x0017D484, n => 0x28410000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 64 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: false)
+            [new RuleSite(0x0017D484, n => 0x28410000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 64 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true)
         { Group = "Paragon", Short = "Highest level", Section = SkillsSection },
         // Item level check 0x0017A240: Limited makes ranks above 3 (0x0017A5C8) need level 50 (0x0017A5D0); Expert takes 7 off the rank (0x0017A604).
         new GameRule(175, "expertRank", "Expert rank reduction", "", RuleKind.Limit, 0, 20, 7, null,
