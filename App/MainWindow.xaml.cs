@@ -568,7 +568,7 @@ public partial class MainWindow : Window
             {
                 int kind=map.KindAt(x,y);
                 if(kind==BattleMaps.Border)continue;
-                string name=TerrainData.TerrainNames[kind];used.Add(name);
+                string name=TerrainData.TerrainGroups[kind];used.Add(name);
                 double cx=x*w+w/2,cy=y*h+h/2+((x&1)==1?h/2:0);
                 Color fill=colors?(TerrainColors.TryGetValue(name,out var c)?c:Colors.LightGray):Colors.Transparent;
                 if(colors&&art)fill.A=120;
@@ -665,7 +665,7 @@ public partial class MainWindow : Window
         if(armyLabels.Count==0)AddText(MapDetails,"Not known");else foreach(var l in armyLabels)AddText(MapDetails,l);
         }
         AddSection(MapDetails,"Terrain");
-        foreach(var name in TerrainData.TerrainNames.Distinct().Where(used.Contains))
+        foreach(var name in TerrainData.TerrainGroups.Distinct().Where(used.Contains))
         {
             var line=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,4)};
             line.Children.Add(new Border {Width=14,Height=14,Background=new SolidColorBrush(TerrainColors.TryGetValue(name,out var c)?c:Colors.LightGray),BorderBrush=new SolidColorBrush(Color.FromArgb(90,0,0,0)),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,8,0)});
@@ -1577,7 +1577,7 @@ public partial class MainWindow : Window
         int hidden=0;
         for(int t=0;t<TerrainData.Terrains;t++)
         {
-            if(TerrainData.TerrainNames[t]=="Blocked" && m.Costs[t]==TerrainData.Blocked){hidden++;continue;}
+            if(TerrainData.TerrainGroups[t]=="Blocked" && m.Costs[t]==TerrainData.Blocked){hidden++;continue;}
             AddPair(MovementFields,TerrainData.TerrainLabel(t),m.Cost(t));
         }
         if(hidden>0) AddText(MovementFields,$"Walls and doors ({hidden} kinds) cannot be entered. Edit to open them up.");

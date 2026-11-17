@@ -1,0 +1,984 @@
+class,1,Lord
+class,2,Lord
+class,3,Knight Lord
+class,4,Knight Lord
+class,5,Chosen One
+class,6,Spearman
+class,7,Spear Rider
+class,8,Spear Rider
+class,9,Imp. Spearman
+class,10,Imp. Spear Rider
+class,11,Imp. Spear Rider
+class,12,Farmer
+class,13,Verian Knight
+class,14,Verian Knight
+class,15,Verian Knight
+class,16,Verian Knight
+class,17,--
+class,18,Swordfighter
+class,19,Lady Knight
+class,20,Lady Knight
+class,21,Imp. Knight
+class,22,Imp. Knight
+class,23,Arrow Knight
+class,24,Arrow Knight
+class,25,Lance Knight
+class,26,Lance Knight
+class,27,Lance Knight
+class,28,Lance Knight
+class,29,Guardian
+class,30,Veteran Knight
+class,31,Veteran Knight
+class,32,Imp. Paladin
+class,33,Imp. Paladin
+class,34,Paladin
+class,35,Paladin
+class,36,Paladin
+class,37,Paladin
+class,38,Duke Knight
+class,39,Duke Knight
+class,40,Black Rider
+class,41,Black Rider
+class,42,--
+class,43,--
+class,44,High Knight
+class,45,High Knight
+class,46,High Knight
+class,47,High Knight
+class,48,Fencer
+class,49,General
+class,50,Wyvern Knight
+class,51,Wyvern Knight
+class,52,Wyvern Knight
+class,53,Wyvern Knight
+class,54,Wyvern Lord
+class,55,Wyvern Lord
+class,56,--
+class,57,--
+class,58,--
+class,59,--
+class,60,Axeman
+class,61,Imp. Axeman
+class,62,Axe Guard
+class,63,Armor Knight
+class,64,Gigas Knight
+class,65,Bowman
+class,66,Bow Rider
+class,67,Bow Rider
+class,68,Gunner
+class,69,Heavy Gunner
+class,70,Imp. Bowman
+class,71,Imp. Bow Rider
+class,72,Imp. Bow Rider
+class,73,Imp. Gunner
+class,74,Imp. Heavy Gunner
+class,75,Marksman
+class,76,Imp. Marksman
+class,77,Engineer
+class,78,Transporter
+class,79,Mercenary
+class,80,Highlander
+class,81,Hero
+class,82,Ranger
+class,83,Sniper
+class,84,Myrmidon
+class,85,Swordmaster
+class,86,Warrior
+class,87,Burglar
+class,88,Thief
+class,89,--
+class,90,--
+class,91,Grassrunner
+class,92,Grassrunner
+class,93,Hunter
+class,94,Chief
+class,95,Brigand
+class,96,--
+class,97,Corsair
+class,98,--
+class,99,Ruffian
+class,100,Ruffian
+class,101,Pickpocket
+class,102,--
+class,103,Outlaw
+class,104,Assassin
+class,105,Rogue
+class,106,--
+class,107,Civilian
+class,108,Civilian
+class,109,Civilian
+class,110,Friar
+class,111,Bishop
+class,112,Priest
+class,113,Cleric
+class,114,Priestess
+class,115,Acolyte
+class,116,Thunder Mage
+class,117,Wind Mage
+class,118,Thunder Sage
+class,119,Wind Sage
+class,120,--
+class,121,Flame Fencer
+class,122,War Monk
+class,123,--
+class,124,--
+class,125,Shining Knight
+class,126,Shining Knight
+class,127,Shining Knight
+class,128,Shining Knight
+class,129,Raze Monk
+class,130,Raze Priest
+class,131,Raze Bishop
+class,132,--
+class,133,Dark Master
+class,134,Ballistician
+class,135,Raze War Monk
+class,136,Rogue Guard
+class,137,Rogue Archer
+class,138,Rogue Gunner
+class,139,Rogue Warrior
+class,140,Snow Bandit
+class,141,Barbarian
+class,142,Duke
+class,143,--
+class,144,--
+class,145,Scoundrel
+class,146,Flamewyrm
+class,147,Icewyrm
+class,148,Raze War Monk
+class,149,--
+class,150,Spear Knight
+class,151,Spear Knight
+class,152,Levinwyrm
+class,153,Wyvern
+class,154,Berserker
+class,155,Failed Poet
+class,156,Civilian
+class,157,Cavalier
+class,158,Cavalier
+class,159,Paladin
+class,160,Paladin
+class,161,Chevalière
+class,162,Chevalière
+class,163,Axe Soldier
+class,164,Axe Sergeant
+class,165,Structure
+class,166,Item Convoy
+class,167,Man
+class,168,Man
+class,169,Man
+class,170,Man
+class,171,Man
+class,172,Man
+class,173,Man
+class,174,Boy
+class,175,Boy
+class,176,Boy
+class,177,Man
+class,178,Man
+class,179,Man
+class,180,Old Man
+class,181,Woman
+class,182,Woman
+class,183,Woman
+class,184,Woman
+class,185,Woman
+class,186,Woman
+class,187,Woman
+class,188,Girl
+class,189,Girl
+class,190,Girl
+class,191,Woman
+class,192,Woman
+class,193,Woman
+class,194,Old Woman
+class,195,Woman
+class,196,Woman
+class,197,Noblewoman
+class,198,Noblewoman
+class,199,Old Woman
+class,200,Girl
+class,201,Girl
+class,202,Secretary
+class,203,Horse
+class,204,Horse
+class,205,Horse
+class,206,Horse
+class,207,Horse
+class,208,Horse
+class,209,Shopkeeper
+class,210,Shopkeeper XL
+class,211,Matron
+class,212,Elder
+class,213,Gentleman
+class,214,Gentlewoman
+class,215,Young Man
+class,216,Young Lady
+class,217,Princess
+class,218,--
+class,219,--
+class,220,--
+class,221,--
+class,222,--
+class,223,Horseman
+class,224,Horseman
+class,225,Bow Knight
+class,226,Bow Knight
+class,227,High Hunter
+class,228,Axefighter
+class,229,Pirate
+class,230,Sword Knight
+class,231,Sword Knight
+class,232,Raze Bishop
+class,233,Apostle
+class,234,King
+class,235,Aristocrat
+class,236,Raze Monk
+class,237,--
+class,238,--
+class,239,Captain
+class,240,Huntress
+class,241,Alchemist
+class,242,Wyvern Knight
+class,243,Wyvern Knight
+class,244,Court Priest
+item,1,Dagger
+item,2,Poison Knife
+item,3,Kris
+item,4,Vespa
+item,5,Crotalus
+item,6,Tempest Knife
+item,7,Dart
+item,8,Seax
+item,9,Killer Knife
+item,10,Shieldknife
+item,11,Thief's Knife
+item,12,Main Gauche
+item,13,Swordbreaker
+item,14,Stun Knife
+item,15,Throwing Knife
+item,16,Letter Opener
+item,17,Air Knife
+item,18,Sleep Knife
+item,19,Blood Knife
+item,20,Carnwenhau
+item,21,Bolt Knife
+item,22,Assassin's Knife
+item,23,(DUMMY Knife)
+item,24,(DUMMY Knife)
+item,25,(DUMMY Knife)
+item,26,(DUMMY Knife)
+item,27,(DUMMY Knife)
+item,28,(DUMMY Knife)
+item,29,(DUMMY Knife)
+item,30,(DUMMY Knife)
+item,31,(DUMMY Knife)
+item,32,Broken Knife
+item,33,Shortsword
+item,34,Bronze Sword
+item,35,Longsword
+item,36,Knight Sword
+item,37,Broadsword
+item,38,Holy Mace
+item,39,Lady Sword
+item,40,Altium Sword
+item,41,Mithril Sword
+item,42,Rapier
+item,43,Estoc
+item,44,Flame Sword
+item,45,Levin Sword
+item,46,Cutlass
+item,47,Scimitar
+item,48,Shamshir
+item,49,Holy Sword
+item,50,Bastard Sword
+item,51,Zweihander
+item,52,Greatsword
+item,53,(Claymore)
+item,54,Killing Edge
+item,55,Brymranger
+item,56,Vajra
+item,57,Gram
+item,58,Vritra
+item,59,Balmung
+item,60,(Epee)
+item,61,Raze Étoile
+item,62,Nothung
+item,63,Verian Sword
+item,64,Imperial Sword
+item,65,Poison Mace
+item,66,Cutlass+
+item,67,Iron Club
+item,68,Old Imp. Sword
+item,69,Albatross
+item,70,Zanbato
+item,71,Scimitar+
+item,72,Saber
+item,73,Wind Edge
+item,74,Dark Mace
+item,75,Balmung
+item,76,Balmung
+item,77,(DUMMY Sword)
+item,78,(DUMMY Sword)
+item,79,(DUMMY Sword)
+item,80,(DUMMY Sword)
+item,81,(DUMMY Sword)
+item,82,(DUMMY Sword)
+item,83,(DUMMY Sword)
+item,84,(DUMMY Sword)
+item,85,(DUMMY Sword)
+item,86,(DUMMY Sword)
+item,87,(DUMMY Sword)
+item,88,(DUMMY Sword)
+item,89,Infernal Edge
+item,90,Colichemarde
+item,91,Grimhild
+item,92,Harperia
+item,93,Adrasteia
+item,94,Broken Mace
+item,95,Broken Blade
+item,96,Broken Sword
+item,97,Pilum
+item,98,Verutum
+item,99,Javelin
+item,100,Iron Spear
+item,101,Steel Spear
+item,102,Longspear
+item,103,Mithril Spear
+item,104,Doru
+item,105,Glaive
+item,106,Iron Lance
+item,107,Oxtongue
+item,108,Xyston
+item,109,Fauchard
+item,110,Killer Spear
+item,111,Drakelance
+item,112,(Glass Spear)
+item,113,Wind Spear
+item,114,Swift Spear
+item,115,Pike
+item,116,Euthyphro
+item,117,Verian Spear
+item,118,Imperial Spear
+item,119,Partisan
+item,120,Pitchfork
+item,121,Military Fork
+item,122,Firebrand
+item,123,Harpoon
+item,124,Old Imp. Spear
+item,125,Gore Fork
+item,126,Slim Spear
+item,127,Prototype Spear
+item,128,(DUMMY Spear)
+item,129,(DUMMY Spear)
+item,130,(DUMMY Spear)
+item,131,(DUMMY Spear)
+item,132,(DUMMY Spear)
+item,133,(DUMMY Spear)
+item,134,(DUMMY Spear)
+item,135,(DUMMY Spear)
+item,136,(DUMMY Fork)
+item,137,(DUMMY Lance)
+item,138,Broken Fork
+item,139,Greatlance
+item,140,(Altium Lance)
+item,141,Angon
+item,142,Brionac
+item,143,Broken Lance
+item,144,Broken Spear
+item,145,Hand Axe
+item,146,Francisca
+item,147,Hatchet
+item,148,Tomahawk
+item,149,Bolt Axe
+item,150,Iron Axe
+item,151,Log Splitter
+item,152,Bandit Axe
+item,153,Broadaxe
+item,154,Battleaxe
+item,155,Killer Axe
+item,156,War Pick
+item,157,Mithril Axe
+item,158,Poleax
+item,159,Hammer
+item,160,Breaker Axe
+item,161,Greataxe
+item,162,Königswolf
+item,163,Shieldaxe
+item,164,Gigas Axe
+item,165,Verian Axe
+item,166,Imperial Axe
+item,167,Barbaric Axe
+item,168,Crooked Axe
+item,169,Bhuj
+item,170,Battle Saw
+item,171,Old Imp. Axe
+item,172,Dark Axe
+item,173,Volcano Axe
+item,174,Glacier Axe
+item,175,Nimbus Axe
+item,176,Pickaxe
+item,177,(DUMMY Axe)
+item,178,(DUMMY Axe)
+item,179,(DUMMY Axe)
+item,180,(DUMMY Axe)
+item,181,(DUMMY Axe)
+item,182,(DUMMY Axe)
+item,183,(DUMMY Axe)
+item,184,(DUMMY Axe)
+item,185,Pulverizer
+item,186,(DUMMY Axe)
+item,187,(DUMMY Axe)
+item,188,Tabarzin
+item,189,Mjöllnir
+item,190,(Bronze Axe)
+item,191,Gullveig
+item,192,Broken Axe
+item,193,Iron Bow
+item,194,Shortbow
+item,195,Longbow
+item,196,Composite Bow
+item,197,Strongbow
+item,198,Killer Bow
+item,199,Greatbow
+item,200,Pascanion
+item,201,Verian Bow
+item,202,Imperial Bow
+item,203,Serenia Bow
+item,204,Bronze Bow
+item,205,Old Imp. Bow
+item,206,Swift Bow
+item,207,Apollyon
+item,208,Triple-Fire Bow
+item,209,Pascanion
+item,210,(DUMMY Bow)
+item,211,(DUMMY Bow)
+item,212,(DUMMY Bow)
+item,213,(DUMMY Bow)
+item,214,Apeiron
+item,215,Rossweisse
+item,216,Broken Bow
+item,217,Iron Crossbow
+item,218,Gastraphetes
+item,219,Heavy Crossbow
+item,220,Arbalest
+item,221,Brave Crossbow
+item,222,Chu-ko-nu
+item,223,Rapid Crossbow
+item,224,Killer Crossbow
+item,225,Verian Crossbow
+item,226,Imperial Crossbow
+item,227,Bowgun
+item,228,Old Imp. Crossbow
+item,229,Hawkeye
+item,230,(DUMMY Crossbow)
+item,231,(DUMMY Crossbow)
+item,232,(DUMMY Crossbow)
+item,233,(DUMMY Crossbow)
+item,234,(DUMMY Crossbow)
+item,235,(DUMMY Crossbow)
+item,236,(DUMMY Crossbow)
+item,237,(DUMMY Crossbow)
+item,238,(DUMMY Crossbow)
+item,239,Ollerus
+item,240,Broken Crossbow
+item,241,Bronze Ballista
+item,242,Iron Ballista
+item,243,Steel Ballista
+item,244,Springald
+item,245,Old Ballista
+item,246,Scorpio
+item,247,Prototype Scorpio
+item,248,Prototype Springald
+item,249,(DUMMY Ballista)
+item,250,(DUMMY Ballista)
+item,251,(DUMMY Ballista)
+item,252,Broken Ballista
+item,253,Fire
+item,254,Hellfire
+item,255,Earthblaze
+item,256,Pallas Leia
+item,257,Flametongue
+item,258,Blazetongue
+item,259,(DUMMY Fire)
+item,260,Broken Orb
+item,261,Thunder
+item,262,Lightning
+item,263,Dire Thunder
+item,264,Pallas Serenia
+item,265,(Thalavin)
+item,266,(Sparktongue)
+item,267,Stormtongue
+item,268,Broken Orb
+item,269,Airblade
+item,270,Blizzard
+item,271,Pallas Riana
+item,272,Windstorm
+item,273,Icetongue
+item,274,Windtongue
+item,275,Sandstorm
+item,276,Broken Orb
+item,277,Scylla
+item,278,Nosferatu
+item,279,Tumahann
+item,280,Swarm
+item,281,(Blink)
+item,282,Kishar's Wrath
+item,283,Wormwood
+item,284,(DUMMY Dark)
+item,285,Darkmend
+item,286,Sleep
+item,287,Berserk
+item,288,Nosferatu+
+item,289,(DUMMY Dark)
+item,290,(DUMMY Dark)
+item,291,(DUMMY Dark)
+item,292,(DUMMY Dark)
+item,293,(DUMMY Dark)
+item,294,(DUMMY Dark)
+item,295,Broken Orb
+item,296,Broken Orb
+item,297,Heal
+item,298,Physic
+item,299,Fortify
+item,300,Awaken
+item,301,Pacify
+item,302,Mend
+item,303,Rehabilitate
+item,304,Escape
+item,305,Detoxify
+item,306,Holy
+item,307,(Aura)
+item,308,(Recover)
+item,309,Soothe
+item,310,Starlight
+item,311,(DUMMY Light)
+item,312,(DUMMY Light)
+item,313,(DUMMY Light)
+item,314,(DUMMY Light)
+item,315,(DUMMY Light)
+item,316,(DUMMY Light)
+item,317,(Barrier)
+item,318,(Silence)
+item,319,(Again)
+item,320,(Hammerne)
+item,321,(Warp)
+item,322,(Ensorcel?)
+item,323,(Empower?)
+item,324,(Enarmor?)
+item,325,(Shine)
+item,326,(DUMMY Light)
+item,327,Broken Orb
+item,328,Broken Orb
+item,329,Verian SShd
+item,330,Imp. Soldier SShd
+item,331,Buckler
+item,332,Aspis
+item,333,Metal Shield
+item,334,Mithril Shield
+item,335,Lady Shield
+item,336,Round Shield
+item,337,Shining Shield
+item,338,Perseid
+item,339,Old Imp. SShd
+item,340,Fire Shield
+item,341,Wind Shield
+item,342,Thunder Shield
+item,343,Light Shield
+item,344,Dark Shield
+item,345,Imp. Soldier SShd+
+item,346,Imp. Officer SShd
+item,347,Leather SShd
+item,348,Imp. Knight SShd
+item,349,Vollenden
+item,350,Prototype SShd
+item,351,(DUMMY Shield)
+item,352,Aiantos
+item,353,Verian MShd
+item,354,Imp. Soldier MShd
+item,355,Kiteshield
+item,356,Square Shield
+item,357,Knight Shield
+item,358,(Lady MShd)
+item,359,Limit Shield
+item,360,Paladin Shield
+item,361,Wyrmskin Shield
+item,362,Black Shield
+item,363,Blazing Shield
+item,364,Gale Shield
+item,365,Lightning Shield
+item,366,Radiant Shield
+item,367,Shadow Shield
+item,368,Imp. Soldier MShd+
+item,369,Leather MShd
+item,370,Imp. Officer MShd
+item,371,Imp. Knight MShd
+item,372,(DUMMY Shield)
+item,373,(DUMMY Shield)
+item,374,(DUMMY Shield)
+item,375,(DUMMY Shield)
+item,376,Hestia
+item,377,Verian LShd
+item,378,Imp. Soldier LShd
+item,379,Wide Shield
+item,380,Iron Shield
+item,381,(Iuppiter)
+item,382,Leather LShd
+item,383,Greatshield
+item,384,General Shield
+item,385,Kojin Shield
+item,386,Fujin Shield
+item,387,Raijin Shield
+item,388,Amaterasu Shield
+item,389,(Tsukuyomi Shield)
+item,390,Imp. Soldier LShd+
+item,391,Imp. Officer LShd
+item,392,Imp. Knight LShd
+item,393,(DUMMY Shield)
+item,394,(DUMMY Shield)
+item,395,(DUMMY Shield)
+item,396,(DUMMY Shield)
+item,397,(DUMMY Shield)
+item,398,Broken Shield
+item,399,Broken Shield
+item,400,Broken Shield
+item,401,Wooden Arrow
+item,402,Bronze Arrow
+item,403,Iron Arrow
+item,404,Imperial Arrow
+item,405,Imperial Arrow+
+item,406,Steel Arrow
+item,407,Mithril Arrow
+item,408,Killer Arrow
+item,409,Sleep Arrow
+item,410,Poison Arrow
+item,411,Raijin Arrow
+item,412,Broadhead Arrow
+item,413,Sniper Arrow
+item,414,Bodkin Arrow
+item,415,Breaker Arrow
+item,416,Standard Bolt
+item,417,Old Bolt
+item,418,Stone Arrow
+item,419,Ember Arrow
+item,420,Freeze Arrow
+item,421,Iron Arrow+
+item,422,Steel Arrow+
+item,423,Bronze Arrow+
+item,424,(Arrow++)
+item,425,New-Type Bolt
+item,426,(DUMMY Arrow)
+item,427,(DUMMY Arrow)
+item,428,(Special Bolt)
+item,429,Eagle Brace
+item,430,Spirit Brace
+item,431,Feather Brace
+item,432,Guard Brace
+item,433,Muscle Brace
+item,434,Fortune Charm
+item,435,Miracle Charm
+item,436,(Growth Charm)
+item,437,Health Charm
+item,438,Thief's Charm
+item,439,Dusk Charm
+item,440,Vanish Charm
+item,441,Dawn Charm
+item,442,Giant's Brace
+item,443,Pegasus Brace
+item,444,Blessed Brace
+item,445,Divine Brace
+item,446,Tiger Brace
+item,447,Phoenix Brace
+item,448,Gambler's Brace
+item,449,Peerless Brace
+item,450,(Invincibility Charm)
+item,451,Fire Ring
+item,452,Wind Ring
+item,453,Thunder Ring
+item,454,Light Ring
+item,455,Dark Ring
+item,456,Fire Scale
+item,457,Ice Scale
+item,458,Thunder Scale
+item,459,Wyvern Scale
+item,460,Thor's Scale
+item,461,Vulnerary
+item,462,Concoction
+item,463,Elixir
+item,464,Treasure
+item,465,Door Key
+item,466,Liquid Strength
+item,467,Liquid Defense
+item,468,Liquid Speed
+item,469,Liquid Vitality
+item,470,Liquid Magic
+item,471,Panacea
+item,472,(DUMMY Item)
+item,473,Antitoxin
+item,474,Bag
+item,475,(Robust Manual)
+item,476,(Panacea)
+item,477,Repairstone
+item,478,(Repairstone)
+item,479,Smelling Salts
+item,480,Sedative
+item,481,(Perfume)
+item,482,(Horse Amulet)
+item,483,(Lady Amulet)
+item,484,(DUMMY Item)
+item,485,(DUMMY Item)
+item,486,(Cast-Iron Guard)
+item,487,Gold Coin
+item,488,Silver Coin
+item,489,(DUMMY Item)
+item,490,Beryl Ring
+item,491,Pajuta Bundle
+item,492,Barker's Poetry
+item,493,Knit Cap
+item,494,Raijin Arrowheads
+item,495,Decorative Box
+item,496,Woman's Portrait
+item,497,Escapestone
+item,498,Vanishstone
+item,499,Tulsa Circlet
+item,500,(DUMMY Item)
+item,501,(DUMMY Item)
+item,502,(DUMMY Item)
+item,503,(DUMMY Item)
+item,504,(DUMMY Item)
+item,505,Bridge Plans
+item,506,Pickaxe
+item,507,(DUMMY Item)
+item,508,(DUMMY Item)
+item,509,(Obfuscate Manual)
+item,510,Armsthrift Manual
+item,511,(Leader Manual)
+item,512,(Quality Herbs)
+item,513,(DUMMY Item)
+item,514,(DUMMY Item)
+item,515,Broken Lyre
+item,516,(Bag II)
+item,517,Thin Horse
+item,518,Plain Horse
+item,519,Spry Horse
+item,520,Tough Horse
+item,521,Strong Horse
+item,522,Ishs Stallion
+item,523,Sinon Stallion
+item,524,Liga Destrier
+item,525,Liga Courser
+item,526,Morach Horse
+item,527,Ishs Courser
+item,528,Tico
+item,529,(DUMMY Horse)
+item,530,(DUMMY Horse)
+item,531,(DUMMY Horse)
+item,532,Dead Horse
+item,533,Sun Shard
+item,534,Zerika Steel
+item,535,Flame Dust
+item,536,Mithril Sheet
+item,537,(Yutona Steel)
+item,538,Eye of Balor
+item,539,Wolf Pelt
+item,540,Argentum
+item,541,(Jasper)
+item,542,Sinon Steel
+item,543,Gurras Steel
+item,544,(Deer Pelt)
+item,545,Meteoric Iron
+item,546,Ash Wood
+item,547,Nottos Iron
+item,548,Linden Wood
+item,549,(Angul Iron v1)
+item,550,Amalgam
+item,551,Obsidian
+item,552,Pantaz Steel
+item,553,Lion Pelt
+item,554,Antelope Pelt
+item,555,(Angul Iron v2)
+item,556,Storm Shard
+item,557,Jugud Wood
+item,558,Gale Shard
+item,559,Bull Pelt
+item,560,Sapphire
+item,561,Mithril Dust
+item,562,Tiger Pelt
+item,563,Garnet
+item,564,Simurgh Down
+item,565,Boar Pelt
+item,566,(Aquamarine)
+item,567,Lapis Lazuli
+item,568,Lightstone
+item,569,Soma
+item,570,Pajuta Grass
+item,571,(Glowstone)
+item,572,Yew Wood
+item,573,(Tulsa Yarn)
+item,574,(Seguria Copper)
+item,575,Ariadne Thread
+item,576,Winch
+item,577,(Winch v2)
+item,578,(Steel Chain)
+item,579,Steel Wire
+item,580,(Pine Wood)
+item,581,Ancient Amulet
+item,582,Surab Fluid
+item,583,(Amber)
+item,584,Platinum
+item,585,Opal
+item,586,Ruby
+item,587,Gold Dust
+item,588,Amber
+item,589,Wyvern Pearl
+item,590,(Mithril Ore)
+item,591,(DUMMY Material)
+item,592,(DUMMY Material)
+item,593,(DUMMY Material)
+item,594,(DUMMY Material)
+item,595,(DUMMY Material)
+item,596,(DUMMY Material)
+item,597,(DUMMY Material)
+item,598,(DUMMY Material)
+item,599,(DUMMY Material)
+item,600,(DUMMY Material)
+item,601,(DUMMY Material)
+item,602,(DUMMY Material)
+item,603,(DUMMY Material)
+item,604,(DUMMY Material)
+item,605,(DUMMY Material)
+item,606,(DUMMY Material)
+item,607,(DUMMY Material)
+item,608,(DUMMY Material)
+item,609,(DUMMY Material)
+item,610,(DUMMY Item)
+item,611,(DUMMY Item)
+item,612,Stolen Horse
+item,613,Thin Horse
+item,614,Plain Horse
+item,615,Spry Horse
+item,616,Tough Horse
+item,617,Strong Horse
+item,618,Ishs Stallion
+item,619,Sinon Stallion
+item,620,Liga Destrier
+item,621,Liga Courser
+item,622,Morach Horse
+item,623,Ishs Courser
+item,624,Foal
+item,625,(DUMMY Horse)
+item,626,(DUMMY Horse)
+item,627,(DUMMY Horse)
+item,628,(DUMMY Horse)
+item,629,Food
+item,630,(DUMMY Item)
+item,631,(DUMMY Item)
+item,632,Sacrifice
+item,633,Prisoner
+item,634,Throne Key
+item,635,Prison Key
+item,636,(DUMMY Item)
+item,637,(DUMMY Item)
+item,638,(DUMMY Item)
+item,639,(DUMMY Item)
+item,640,(Seer's Focus)
+item,641,Djinn Ring
+item,642,Lullaby Lyre
+item,643,(DUMMY Fire)
+item,644,(DUMMY Wind)
+item,645,(DUMMY Wind)
+item,646,(DUMMY Thunder)
+item,647,(DUMMY Item)
+item,648,(DUMMY Item)
+item,649,(DUMMY Item)
+item,650,(DUMMY Item)
+item,651,(DUMMY Item)
+item,652,(DUMMY Item)
+item,653,(DUMMY Item)
+item,654,(DUMMY Item)
+item,655,(DUMMY Item)
+item,656,(DUMMY Item)
+item,657,(DUMMY Item)
+item,658,(DUMMY Item)
+item,659,(DUMMY Item)
+item,660,(DUMMY Item)
+item,661,(DUMMY Item)
+item,662,(DUMMY Item)
+movetype,1,Cav
+movetype,2,LtCav
+movetype,3,Fly
+movetype,4,Knt
+movetype,5,Armor
+movetype,6,Inf
+movetype,7,Thief
+movetype,8,Comm
+movetype,9,Spec
+movetype,10,Snowy
+movetype,11,Cler+
+movetype,12,LtInf
+movetype,13,Cler
+movetype,14,EX
+terrain,0,Plains
+terrain,1,Grass
+terrain,2,Wilds
+terrain,3,Sand
+terrain,4,Forest
+terrain,5,Thicket
+terrain,6,Mountains
+terrain,7,Peak
+terrain,8,River
+terrain,9,Shoal
+terrain,10,Water
+terrain,11,-
+terrain,12,Cave
+terrain,13,Cave Interior
+terrain,14,Flag
+terrain,15,B
+terrain,16,Castle Walls
+terrain,17,Castle Walls
+terrain,18,City
+terrain,19,Inner Wall
+terrain,20,Gate
+terrain,21,Fort
+terrain,22,Castle
+terrain,23,Ruins
+terrain,24,Bridge
+terrain,25,Drawbridge
+terrain,26,-
+terrain,27,Door
+terrain,28,Stairs
+terrain,29,Temple
+terrain,30,Inner Floor
+terrain,31,Healstone
+terrain,32,Throne
+terrain,33,-
+terrain,34,Barrier
+terrain,35,Cliff
+terrain,36,House
+terrain,37,Road
+terrain,38,Beacon
+terrain,39,Building
+terrain,40,Guard Tower
+terrain,41,Outer Floor
+terrain,42,Iron Gate
+terrain,43,Iron Door
+terrain,44,Bulwark
+terrain,45,Church
+terrain,46,Shop
+terrain,47,Inn
+terrain,48,Snowy Road
+terrain,49,Snowy Plains
+terrain,50,Snowy Woods
+terrain,51,Swamp
+terrain,52,Grove
+terrain,53,Prison
+terrain,54,Abbey
+terrain,55,House
+terrain,56,Plains
+terrain,57,Door+
+terrain,58,Road
+terrain,59,-
+terrain,60,-
+terrain,61,Healstone
+terrain,62,Healstone
+terrain,63,-

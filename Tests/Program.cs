@@ -114,7 +114,7 @@ Test("Class names read naturally",()=>{
     Equal("Wyvern Knight (Larentia) (mounted)",ClassDecoder.DisplayName("WyvernKnightLarentia_R"));Equal("Chevalier (mounted)",ClassDecoder.DisplayName("Chevalire_R"));
     Equal("Verian Knight 2",ClassDecoder.DisplayName("VerianKnight2"));
 });
-Test("Class list has one entry per ID",()=>{var l=ClassDecoder.LoadList();Equal(l.Count,l.Select(c=>c.Id).Distinct().Count());Equal("Thief (male)",l.Single(c=>c.Id==0x57).Name);});
+Test("Class list has one entry per ID",()=>{var l=ClassDecoder.LoadList();Equal(l.Count,l.Select(c=>c.Id).Distinct().Count());Equal("Burglar (male)",l.Single(c=>c.Id==0x57).Name);Equal("Wyvern Knight (mounted) (2)",l.Single(c=>c.Id==0xF2).Name);});
 Test("Item encoder writes are exact inverses of the decoder",()=>{
     var rng=new Random(7);
     foreach(var f in ItemEncoder.Fields)
@@ -518,7 +518,7 @@ Test("Terrain costs show tenths and the impassable mark, and parse back",()=>{
     Equal(false,FieldCodec.TryParse(forest,"25.5",out _,out _));Equal(false,FieldCodec.TryParse(forest,"0",out _,out _));Equal(false,FieldCodec.TryParse(forest,"1.55",out _,out _));
     Equal("0.1 to 25.4, or ×",FieldCodec.RangeText(forest));
     Equal(TerrainData.Terrains,TerrainData.Fields.Count);Equal(TerrainData.Terrains,TerrainData.TerrainNames.Length);Equal(TerrainData.Types,TerrainData.TypeNames.Length);
-    var row=new byte[TerrainData.RowLength];row[0]=2;row[4+50]=70;var m=TerrainData.Decode(2,row);Equal("Flying/Flying/7",$"{m.Name}/{m.MountText}/{m.Cost(50)}");
+    var row=new byte[TerrainData.RowLength];row[0]=2;row[4+50]=70;var m=TerrainData.Decode(2,row);Equal("Fly/Flying/7",$"{m.Name}/{m.MountText}/{m.Cost(50)}");
 });
 Test("Live game: units, record and item edits, rules and undo over a stand-in for PCSX2",()=>{
     var memory=new byte[0x02000000];
@@ -819,7 +819,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(0,RecordComparison.Compare(disc.Characters.Where(c=>c.Id!=0x54),back.Characters.Where(c=>c.Id!=0x54)).Count);
             Equal(0,ClassComparison.Compare(disc.Classes.Where(c=>c.Id!=0x1E),back.Classes.Where(c=>c.Id!=0x1E)).Count);
             Equal(true,back.CharacterCopiesMatch);Equal(true,back.ClassCopiesMatch);Equal(true,back.TerrainCopiesMatch);
-            Equal("1.5/1/Flying",$"{back.MovementTypes[5].Cost(4)}/{back.MovementTypes[5].Cost(15)}/{vk.MovementTypeText}");
+            Equal("1.5/1/Fly",$"{back.MovementTypes[5].Cost(4)}/{back.MovementTypes[5].Cost(15)}/{vk.MovementTypeText}");
             Equal(true,Enumerable.Range(0,TerrainData.Types).Where(t=>t!=5).All(t=>back.TerrainBytes[t].Span.SequenceEqual(disc.TerrainBytes[t].Span)));
             Equal(true,back.TerrainKindCopiesMatch);Equal("False/10/7/True",$"{back.TerrainKinds[36].FlyersCannotStop}/{back.TerrainKinds[51].Recovery}/{back.TerrainKinds[0].Avoid}/{back.TerrainKinds[38].FlyersCannotStop}");
             Equal(0x81,back.TerrainKinds[36].Flags);

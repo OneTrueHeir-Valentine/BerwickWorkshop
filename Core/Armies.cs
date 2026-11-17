@@ -74,6 +74,24 @@ public static class ArmyData
     }
 
     // Unit names are glyph numbers: capitals, small letters, then digits 1 to 9 and 0, and a few marks.
+    /// <summary>Decodes a name through the archive's own glyph table (sjistab.dat: one Shift-JIS code per glyph).
+    /// The English font reuses three kana for É, ö and è.</summary>
+    public static string DecodeName(ReadOnlySpan<byte> data, ushort[] table)
+    {
+        var sjis = CodePagesEncodingProvider.Instance.GetEncoding(932)!;
+        var text = new StringBuilder();
+        Span<byte> pair = stackalloc byte[2];
+        for (int i = 0; i + 1 < data.Length; i += 2)
+        {
+            int g = BinaryPrimitives.ReadUInt16LittleEndian(data[i..]);
+            if (g >= table.Length) return "";
+            pair[0] = (byte)(table[g] >> 8); pair[1] = (byte)table[g];
+            text.Append(sjis.GetString(pair));
+        }
+        return text.ToString().Normalize(NormalizationForm.FormKC).Replace("キロ", " ").Replace("ャ", "É").Replace("ァ", "ö")
+            .Replace("ズ", "è").Replace(" ́", "'").Replace("‐", "-").Trim();
+    }
+
     public static string DecodeName(ReadOnlySpan<byte> data)
     {
         var text = new StringBuilder();
@@ -195,17 +213,34 @@ public static class ArmyData
     /// <summary>Unit names by name ID, read from the disc's namene.ar (readable on the English disc only).</summary>
     public static IReadOnlyDictionary<int, string> LoadNames(GameArchives archives)
     {
+        // sysfont.ar holds the names the English release shows (it also has the English skill names); namene.ar is older.
+        foreach (var file in new[] { "sysfont.ar", "namene.ar" })
+            if (LoadNames(archives, file) is { Count: > 0 } found) return found;
+        return new Dictionary<int, string>();
+    }
+
+    private static IReadOnlyDictionary<int, string> LoadNames(GameArchives archives, string file)
+    {
         var result = new Dictionary<int, string>();
         for (int top = 0; top < archives.Count && result.Count == 0; top++)
         {
             if (List(archives, top) is not { } entries) continue;
-            var holder = entries.FirstOrDefault(e => e.Name == "namene.ar" && !e.Compressed);
+            var holder = entries.FirstOrDefault(e => e.Name == file && !e.Compressed);
             if (holder is null) continue;
             var archive = archives.TopRange(top, holder.Offset, holder.Size);
             if (!Tarc.IsArchive(archive)) continue;
-            foreach (var e in Tarc.Parse(archive))
+            var parsed = Tarc.Parse(archive);
+            var glyphs = parsed.FirstOrDefault(e => e.Name == "sjistab.dat" && !e.Compressed);
+            ushort[]? table = null;
+            if (glyphs is not null)
+            {
+                var bytes = Tarc.Extract(archive, glyphs);
+                table = new ushort[bytes.Length / 2];
+                for (int i = 0; i < table.Length; i++) table[i] = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(i * 2));
+            }
+            foreach (var e in parsed)
                 if (e.Name.StartsWith("un", StringComparison.Ordinal) && int.TryParse(e.Name.AsSpan(2), out int id) && !e.Compressed)
-                    result[id] = DecodeName(Tarc.Extract(archive, e));
+                    result[id] = table is null ? DecodeName(Tarc.Extract(archive, e)) : DecodeName(Tarc.Extract(archive, e), table);
         }
         return result;
     }

@@ -11,5 +11,6 @@
     <EmbeddedResource Include="../reference/classes.csv" LogicalName="classes.csv" />
     <EmbeddedResource Include="../reference/units.csv" LogicalName="units.csv" />
     <EmbeddedResource Include="../reference/titles.csv" LogicalName="titles.csv" />
+    <EmbeddedResource Include="../reference/game_names.csv" LogicalName="game_names.csv" />
   </ItemGroup>
 </Project>

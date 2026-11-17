@@ -180,45 +180,45 @@ public static class Mechanics
     });
 
     /// <summary>Published terrain costs (gamekouryaku.com terrain list). Null means the terrain cannot be entered.</summary>
-    public static readonly string[] TerrainColumns = ["Cavalry", "Horseman", "Flying", "Knight", "Armor", "Infantry", "Fighter", "Thief", "Priest", "Civilian", "Special"];
+    public static readonly string[] TerrainColumns = ["Cav", "LtCav", "Fly", "Knt", "Armor", "Inf", "LtInf", "Thief", "Cler", "Comm", "Spec"];
 
     public sealed record TerrainCost(string Terrain, int Avoid, int?[] Costs, string Note = "");
 
     public static IReadOnlyList<TerrainCost> Terrain { get; } = Array.AsReadOnly(new TerrainCost[]
     {
         new("Road", 1, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
-        new("Plain", 2, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
-        new("Grassland", 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
+        new("Plains", 2, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
+        new("Grass", 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
         new("Thicket", 3, [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2]),
         new("Bridge", 0, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
         new("Floor", 0, [null, null, null, 1, 1, 1, 1, 1, 1, 1, 1]),
         new("Gate", 0, [1, 1, null, 1, 1, 1, 1, 1, 1, 1, 1], "Break it or use Locktouch"),
-        new("Wasteland", 5, [3, 2, 1, 2, 2, 2, 1, 1, 2, 2, null]),
+        new("Wilds", 5, [3, 2, 1, 2, 2, 2, 1, 1, 2, 2, null]),
         new("Sand", 0, [4, 3, 1, 3, null, 2, 1, 1, 1, 2, null]),
-        new("Shallows", 0, [4, 3, 1, 3, null, 2, 1, 1, 2, 2, null]),
-        new("Poison swamp", 0, [4, 3, 1, 2, null, 2, 2, 1, 2, 2, null], "Recovery while resting minus 20%"),
-        new("Snow road", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
-        new("Snowfield", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Shoal", 0, [4, 3, 1, 3, null, 2, 1, 1, 2, 2, null]),
+        new("Swamp", 0, [4, 3, 1, 2, null, 2, 2, 1, 2, 2, null], "Recovery while resting minus 20%"),
+        new("Snowy Road", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
+        new("Snowy Plains", 0, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
         new("Forest", 9, [4, 3, 1, 2, 2, 2, 2, 1, 2, 3, 2]),
-        new("Snow forest", 10, [7, 6, 1, 4, 4, 4, 3, 2, 3, 3, 2]),
-        new("Mountain foot", 8, [6, 4, 1, 4, null, 3, 2, 2, 3, 3, 2]),
+        new("Snowy Woods", 10, [7, 6, 1, 4, 4, 4, 3, 2, 3, 3, 2]),
+        new("Mountains", 8, [6, 4, 1, 4, null, 3, 2, 2, 3, 3, 2]),
         new("Cliff", 0, [null, null, 1, 4, null, 3, 2, 2, 3, 3, null], "Avoid 0 without Climber"),
-        new("Cave (open)", 6, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, null]),
-        new("Cave (narrow)", 2, [null, null, null, 1, 1, 1, 1, 1, 1, 1, null]),
+        new("Cave", 6, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, null]),
+        new("Cave Interior", 2, [null, null, null, 1, 1, 1, 1, 1, 1, 1, null]),
         new("House", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Search finds items"),
         new("Shop", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null]),
         new("Church", 5, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Waiting restores HP each turn"),
-        new("Lighthouse", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Unit vision +3"),
-        new("Guardhouse", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Operates the drawbridge"),
+        new("Beacon", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Unit vision +3"),
+        new("Guard Tower", 6, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null], "Operates the drawbridge"),
         new("Manor", 7, [null, null, 1, 2, 2, 2, 2, 2, 2, 2, null]),
         new("Temple", 8, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
         new("Castle", 10, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
         new("Throne", 10, [null, null, null, 2, 2, 2, 2, 2, 2, 2, null]),
         new("Drawbridge", 0, [null, null, 1, null, null, null, null, null, null, null, null], "Lowered from a guardhouse"),
         new("Jungle", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
-        new("Mountain", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
+        new("Peak", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
         new("River", 12, [null, null, 1, null, null, null, null, null, null, null, null], "Swimmer lets a unit cross"),
-        new("Sea or lake", 15, [null, null, 1, null, null, null, null, null, null, null, null]),
+        new("Water", 15, [null, null, 1, null, null, null, null, null, null, null, null]),
         new("Wall", 0, [null, null, null, null, null, null, null, null, null, null, null]),
         new("Door", 0, [null, null, null, null, null, null, null, null, null, null, null], "Break it or use Locktouch"),
     });

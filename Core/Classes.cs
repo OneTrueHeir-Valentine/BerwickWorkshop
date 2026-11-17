@@ -65,7 +65,7 @@ public static class ClassDecoder
         { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2), ShieldSizes = B(record, 0x1B, 4, 3) };
     }
 
-    public static string DisplayName(string raw)
+    public static string DisplayName(string raw, int id = -1)
     {
         string name = raw.Trim(), suffix = "";
         if (name.EndsWith("_R")) { name = name[..^2]; suffix = " (mounted)"; }
@@ -73,6 +73,7 @@ public static class ClassDecoder
         else if (name.EndsWith("_F")) { name = name[..^2]; suffix = " (female)" + suffix; }
         foreach (var who in new[] { "Larentia", "Paramythis", "Owen" })
             if (name.EndsWith(who) && name.Length > who.Length) { name = name[..^who.Length]; suffix = $" ({who})" + suffix; }
+        if (GameNames.Class(id) is { } shown) return shown + suffix;
         name = name.Replace("Chevalire", "Chevalier");
         name = Regex.Replace(name, @"(?<=[a-z])(?=[A-Z0-9])", " ");
         return name + suffix;
@@ -89,9 +90,11 @@ public static class ClassDecoder
             var parts = line.Split(',');
             if (parts.Length != 2) continue;
             int id = int.Parse(parts[1].Trim()[2..], NumberStyles.HexNumber);
-            if (seen.Add(id)) result.Add((id, DisplayName(parts[0])));
+            if (seen.Add(id)) result.Add((id, DisplayName(parts[0], id)));
         }
-        return result.OrderBy(c => c.Item1).ToList().AsReadOnly();
+        result.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+        var shown = GameNames.Distinguish(result.Select(c => c.Item2));
+        return result.Select((c, i) => (c.Item1, shown[i])).ToList().AsReadOnly();
     }
 }
 

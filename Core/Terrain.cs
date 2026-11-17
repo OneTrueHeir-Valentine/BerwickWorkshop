@@ -45,11 +45,14 @@ public static class TerrainData
     public const int Terrains = 64, Types = 14, HeaderLength = 8, RowLength = 68, CostOffset = 4, Blocked = 255;
     public const int TableLength = HeaderLength + Types * RowLength;
 
-    public static readonly string[] TypeNames =
-        ["Cavalry", "Horseman", "Flying", "Knight", "Armor", "Infantry", "Thief", "Civilian", "Special", "Snow", "War priest", "Fighter", "Priest", "Unused type"];
+    /// <summary>Movement type names as the game shows them (Cav, LtCav, Fly and so on).</summary>
+    public static readonly string[] TypeNames = Enumerable.Range(0, Types).Select(t => GameNames.MovementType(t) ?? $"Type {t}").ToArray();
 
-    /// <summary>Terrain kinds by the published terrain list they match. Several kinds share the same costs, so some names cover a group.</summary>
-    public static readonly string[] TerrainNames =
+    /// <summary>Terrain kind names as the game shows them.</summary>
+    public static readonly string[] TerrainNames = Enumerable.Range(0, Terrains).Select(t => GameNames.Terrain(t) ?? $"Terrain {t}").ToArray();
+
+    /// <summary>Terrain kinds grouped by the published terrain list they match (several kinds share the same costs); used for map colours and walls.</summary>
+    public static readonly string[] TerrainGroups =
     [
         "Plain or grassland", "Plain or grassland", "Wasteland", "Sand", "Forest", "Flying only", "Mountain foot", "Flying only",
         "Flying only", "Shallows", "Flying only", "Unidentified", "Cave (open)", "Cave (narrow)", "Plain or grassland", "Blocked",
@@ -67,7 +70,7 @@ public static class TerrainData
 
     public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(Enumerable.Range(0, Terrains).Select(t =>
         new TableField($"cost{t}", TerrainLabel(t), CostOffset + t, 0, 8, 1, Blocked)
-        { Display = 0.1, SpecialValue = Blocked, SpecialText = "×", Group = TerrainNames[t] == "Blocked" ? "Blocked" : "" }).ToArray());
+        { Display = 0.1, SpecialValue = Blocked, SpecialText = "×", Group = TerrainGroups[t] == "Blocked" ? "Blocked" : "" }).ToArray());
 
     public static MovementTypeRecord Decode(int id, ReadOnlySpan<byte> row)
     {
