@@ -382,7 +382,7 @@ public static class GameRules
         [FightCheck(0x00229E50, 0x0C05B89Cu, 0x10400019u, 0x00229EC0)], confirmed: true);
 
     private static GameRule HunterWeapon() => SkillWeapon(187, "hunterWeapon", "Hunter weapon", "Hunter", "Bow, crossbow or ballista",
-        [FightCheck(0x0022BFA0, 0x0C05B928u, 0x1040000Du, 0x0022BFE0)]);
+        [FightCheck(0x0022BFA0, 0x0C05B928u, 0x1040000Du, 0x0022BFE0)], confirmed: true);
 
     // Axe Guard checks for an axe in the fight (0x0022A3F8), the command menu (0x0038B94C) and enemy decisions (0x003077D4).
     private static GameRule AxeGuardWeapon() => SkillWeapon(188, "axeGuardWeapon", "Axe Guard weapon", "Axe Guard", "Axe",
