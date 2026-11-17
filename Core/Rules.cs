@@ -225,12 +225,12 @@ public static class GameRules
         ["Pursuit"] = "A unit with Pursuit attacks again when its attack speed beats the enemy's by at least the speed lead. The game's lead is 5. At 0, an equal attack speed is enough.",
         ["Parry"] = "A unit with the Parry skill parries at a chance of the unit's weapon level plus this bonus, halved: (weapon level + bonus) ÷ 2. The game's bonus is 10. Whether parrying happens at all is set by the Parry rule on the Rules page.",
         ["Sunder"] = "When the unit attacks using Sunder, its critical chance rises by this bonus for that attack. The game's bonus is 25. " + "In the game, Sunder can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. In the game the enemy always hits a unit using Desperation. Own defense set to Kept leaves the unit its defenses.",
-        ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move.",
-        ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move.",
+        ["Desperation"] = "When the unit attacks using Desperation, its hit chance rises by this bonus for that attack, and its own defenses drop to 0. The game's bonus is 22. " + "In the game, Desperation can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. In the game the enemy always hits a unit using Desperation. Own defense set to Kept leaves the unit its defenses. The weapon it needs is set on the Flourish card.",
+        ["Aim"] = "When the unit attacks using Aim, its hit chance rises by this bonus for that attack. The game's bonus is 33. In the game, Aim can only be chosen before the unit moves. Allowed also offers it after a move. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
+        ["Deadeye"] = "When the unit attacks using Deadeye, its hit chance changes by this amount for that attack. The game's amount is -15. In the game, Deadeye can only be chosen before the unit moves. Allowed also offers it after a move. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon. The same weapon setting covers Double Shot and Triple Shot.",
         ["Steal"] = "In the game, Steal, Robbery and Mug II share one count per map: 3 steals, or 2 for a unit with Mug II, and each steal uses one. No limit keeps the count from going down. In the game, Steal can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Swimmer"] = "With Swimmer, water costs the unit the same movement as plain ground. In the game this works mounted or on foot. On foot only gives a mounted unit no help from Swimmer until it dismounts.",
-        ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move. The first hit has double attack and the unit's own defenses drop to 0. Attack set to Not doubled keeps the normal attack; Own defense set to Kept leaves the unit its defenses.",
+        ["Pulverize"] = "In the game, Pulverize can only be chosen before the unit moves. Allowed also offers it after a move. The first hit has double attack and the unit's own defenses drop to 0. Attack set to Not doubled keeps the normal attack; Own defense set to Kept leaves the unit its defenses. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
         ["Overwatch"] = "In the game, Overwatch can only be chosen before the unit moves. Allowed also offers it after a move.",
         ["Axe Guard"] = "In the game, Axe Guard can only be chosen before the unit moves. Allowed also offers it after a move. Until its next turn, attacks on the unit can be blocked: the chance is the axe level plus the block bonus, and a block takes the axe's Might off the hit. The game's block bonus is 25.",
         ["Windsweep"] = "In the game, Windsweep can only be chosen before the unit moves. Allowed also offers it after a move.",
@@ -247,17 +247,17 @@ public static class GameRules
         ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3.",
         ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
-        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7.",
-        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple Shot strikes three times in the game; it can be set from 1 to 7.",
-        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7.",
-        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page).",
+        ["Double Shot"] = "In the game, Double Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Double Shot can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Double Shot strikes two times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
+        ["Triple Shot"] = "In the game, Triple Shot can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Triple Shot can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn. Triple Shot strikes three times in the game; it can be set from 1 to 7. The weapon it needs is set on the Deadeye card.",
+        ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
+        ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page). Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
         ["Guard"] = "In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Convert"] = "In the game, Convert can be chosen before or after the unit moves. Not allowed offers it only before a move.",
-        ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. A throw gets 10 more hit in the game.",
+        ["Throw"] = "In the game, Throw can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. A throw gets 10 more hit in the game. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon.",
         ["Mercy"] = "In the game, Mercy can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
-        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Flourish halves the unit's attack for that attack and adds 33 to the chance that the hit cripples. Attack set to Not halved keeps the full attack.",
+        ["Flourish"] = "In the game, Flourish can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move. After use, Flourish can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn. Flourish halves the unit's attack for that attack and adds 33 to the chance that the hit cripples. Attack set to Not halved keeps the full attack. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon. The same weapon setting covers Desperation.",
         ["Deathmatch"] = "In the game, Deathmatch can be chosen after a move unless the unit's weapon rules it out. Allowed offers it after any move; Not allowed offers it only before a move.",
         ["Shieldfaire"] = "Shieldfaire adds a bonus to the unit's shield block chance. The block chance is the shield's accuracy plus the shield level plus this bonus. The game's bonus is 18.",
         [BattleStatsGroup] = "Which stat each part of a fight uses. Physical attack is the stat plus weapon Might (crossbows and ballistae use Might alone). Physical defense and magic defense are the stat plus their bonuses. Mag on the status screen is the Mind stat itself, not magic defense. Attack speed is the stat minus the weight of the weapon and shield beyond what the carrying stat offsets, and avoid is twice attack speed, so the attack speed stat also sets avoid. Healing is the stat plus the staff's power. Each choice counts the stat with its bonuses from equipment and skills. The game uses Strength for attack, Defense for defense, Mind for magic defense and healing, Agility for attack speed, and half of Strength to offset weight.",
@@ -305,6 +305,34 @@ public static class GameRules
     /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
     // An immediate of 0 to max in an instruction with the given upper half, or null.
     private static int? Imm(uint word, uint upper, int max = 10) => (word & 0xFFFF0000u) == upper && (word & 0xFFFF) <= max ? (int)(word & 0xFFFF) : null;
+
+    public static readonly string[] WeaponTypeChoices = ["Knife", "Sword", "Blade", "Mace", "Spear", "Lance", "Fork", "Axe", "Bow", "Crossbow", "Ballista", "Fire", "Thunder", "Wind", "Holy", "Dark"];
+
+    private static uint Branch(uint op, uint at, uint target) => op | ((uint)(((int)target - (int)(at + 4)) >> 2) & 0xFFFFu);
+
+    // A command's weapon check in the weapon filter 0x001BE800: the block at start passes to ok or fails to the shared "cannot use" exit.
+    // A weapon type rewrites the block as: item type (0x0016E820) equal to the type passes; Any weapon always passes.
+    private static GameRule WeaponNeed(int id, string key, string name, string group, string game, uint start, uint ok, uint[] original)
+    {
+        int n = original.Length;
+        var sets = new List<uint[]> { original };
+        for (uint type = 0; type < WeaponTypeChoices.Length; type++)
+        {
+            var words = new uint[n];
+            words[0] = 0x0C05BA08u;                                  // jal item type
+            words[1] = 0x0280202Du;                                  // daddu a0, s4, zero
+            words[2] = 0x24030000u | type;                           // addiu v1, zero, type
+            words[3] = Branch(0x10430000u, start + 12, ok);          // beq v0, v1, ok
+            if (n >= 7) { words[5] = Branch(0x10000000u, start + 20, 0x001BEE58u); words[6] = 0x0000102Du; }
+            else words[5] = Branch(0x10000000u, start + 20, 0x001BE944u);   // to an exit that clears v0
+            sets.Add(words);
+        }
+        var any = new uint[n];
+        any[0] = Branch(0x10000000u, start, ok);
+        sets.Add(any);
+        return WordSets(id, key, name, group, "Weapon", 0, [game, .. WeaponTypeChoices, "Any weapon"],
+            Enumerable.Range(0, n).Select(i => start + (uint)(4 * i)).ToArray(), sets.ToArray());
+    }
 
     // A negated immediate of 0 to max (an addiu that subtracts), or null.
     private static int? Minus(uint word, uint upper, int max) => (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
@@ -799,6 +827,21 @@ public static class GameRules
         // On terrain with flag 0x400 (cliffs) avoid becomes 0 unless the unit has Climber: forecast 0x001B7E74, fight 0x0022C3A8.
         WordSets(178, "cliffAvoid", "Avoid on cliffs", "Climber", "Avoid on cliffs without Climber", 0, ["Drops to 0", "Kept"],
             [0x001B7E74, 0x0022C3A8], [[0x10400010u, 0x10400007u], [0x10000010u, 0x10000007u]], confirmed: false),
+        // Weapons a command can attack with, checked by command state bit in 0x001BE800 (menu, targeting and forecast).
+        WeaponNeed(179, "aimWeapon", "Aim weapon", "Aim", "Bow, crossbow or ballista", 0x001BE9BC, 0x001BE9D8,
+            [0x0C05B928u, 0u, 0x14400004u, 0u, 0x10000122u, 0x0000102Du, 0u]),
+        WeaponNeed(180, "bowShotsWeapon", "Deadeye, Double Shot and Triple Shot weapon", "Deadeye", "Bow", 0x001BE9F4, 0x001BEA10,
+            [0x0C05BA08u, 0u, 0x24030008u, 0x10430003u, 0u, 0x10000113u, 0x0000102Du]),
+        WeaponNeed(181, "pulverizeWeapon", "Pulverize weapon", "Pulverize", "Axe or blade", 0x001BEA24, 0x001BEA50,
+            [0x0C05B85Cu, 0u, 0x14400008u, 0x0280202Du, 0x0C05B87Cu, 0u, 0x14400004u, 0u, 0x10000104u, 0x0000102Du]),
+        WeaponNeed(182, "throwWeapon", "Throw weapon", "Throw", "Thrown weapon", 0x001BEA74, 0x001BEA90,
+            [0x0280282Du, 0x0C05BB7Cu, 0x2406003Cu, 0x14400003u, 0u, 0x100000F3u, 0x0000102Du]),
+        WeaponNeed(183, "astraWeapon", "Astra weapon", "Astra", "Sword or blade", 0x001BEAA8, 0x001BEAC0,
+            [0x0C05B89Cu, 0u, 0x14400003u, 0u, 0x100000E7u, 0x0000102Du]),
+        WeaponNeed(184, "focusChantWeapon", "Focus Chant weapon", "Focus Chant", "Attack magic", 0x001BEAD4, 0x001BEAF0,
+            [0x0C05B94Cu, 0u, 0x24030001u, 0x10430003u, 0u, 0x100000DBu, 0x0000102Du]),
+        WeaponNeed(185, "flourishWeapon", "Flourish and Desperation weapon", "Flourish", "Physical weapon", 0x001BEB04, 0x001BEB20,
+            [0x0C05B94Cu, 0u, 0x24030001u, 0x14430003u, 0u, 0x100000CFu, 0x0000102Du]),
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
