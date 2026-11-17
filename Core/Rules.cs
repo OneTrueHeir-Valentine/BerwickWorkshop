@@ -827,7 +827,7 @@ public static class GameRules
             [0x0022C358], [[0x1040000Du], [0x1000000Du]]),
         // Desperation (unit state bit 0x20): the enemy's hit becomes 900 in the strike loop, and the user's defenses become 0.
         WordSets(154, "desperationEnemyHit", "Desperation enemy hit", "Desperation", "Enemy hit", 0, ["Always hits", "Normal"],
-            [0x00227238], [[0x10400003u], [0x10000003u]], confirmed: false),
+            [0x00227238, 0x0022C618], [[0x10400003u, 0x10400003u], [0x10000003u, 0x10000003u]]),
         WordSets(155, "desperationDefense", "Desperation defense", "Desperation", "Own defense", 0, ["Drops to 0", "Kept"],
             [0x0022C1AC, 0x0022C1B0, 0x0022C1B4], [[0xAE600068u, 0xAE60006Cu, 0xAE600070u], [0u, 0u, 0u]]),
         // Injury roll 0x002289C0: base 3, plus 6 with a knife (weapon type 0), plus Flourish and item effects, against 0 to 99.
