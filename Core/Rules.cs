@@ -285,6 +285,7 @@ public static class GameRules
         ["Adept"] = "Adept needs at least the attack speed set here. Its chance is attack speed minus that value, plus half of the weapon level plus the bonus. On success the unit strikes more than once. The game needs speed 5, adds 10 before halving and strikes twice.",
         ["Expert"] = "When the game checks whether a unit's level is high enough to use an item safely and get its bonuses, Expert counts the item's rank this much lower, never below 1. The game uses 7.",
         ["Climber"] = "On a cliff a unit's avoid drops to 0, unless it has Climber. Kept lets every unit keep its avoid on cliffs, so Climber no longer matters.",
+        ["Slow Start"] = "When a unit with Slow Start begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
@@ -349,6 +350,23 @@ public static class GameRules
         WordSets(id, key, $"{skill} holders", skill, "Who counts", 0,
             ["Others, each adds", "Others, counted once", "Itself too, each adds", "Itself too, counted once"],
             [selfSkip, add], [[selfWord, 0x26100001u], [selfWord, 0x24100001u], [0u, 0x26100001u], [0u, 0x24100001u]]);
+
+    // Slow Start: after the skill check, "addiu rN, zero, 10" is the move taken off at the start of a move, in tenths of a hex,
+    // in the player's moves and the enemy's move planning (26 places, each with its own register).
+    private static readonly (uint Address, uint Upper)[] SlowStartSites =
+    [
+        (0x002F37F0, 0x24100000u), (0x002F4A04, 0x24100000u), (0x002F5A78, 0x24120000u), (0x002F5AEC, 0x24120000u), (0x002FEC0C, 0x24140000u),
+        (0x002FF3D0, 0x24150000u), (0x002FF84C, 0x24120000u), (0x002FFE80, 0x24130000u), (0x00300DD4, 0x24110000u), (0x00300E2C, 0x24110000u),
+        (0x00300E6C, 0x24100000u), (0x00301220, 0x24110000u), (0x003013B4, 0x24120000u), (0x00301A50, 0x24160000u), (0x00302218, 0x24130000u),
+        (0x00303294, 0x24110000u), (0x003032D4, 0x24100000u), (0x003036FC, 0x24110000u), (0x0030373C, 0x24100000u), (0x00303FC8, 0x24110000u),
+        (0x003043D8, 0x24120000u), (0x00304788, 0x24120000u), (0x003064FC, 0x24150000u), (0x00307F8C, 0x24130000u), (0x00308FC0, 0x24110000u),
+        (0x00309008, 0x24110000u),
+    ];
+
+    private static GameRule SlowStartPenalty() => new(198, "slowStartPenalty", "Slow Start move penalty", "", RuleKind.Limit, 0, 5, 1, null,
+        SlowStartSites.Select(s => new RuleSite(s.Address, n => s.Upper | (uint)(n * 10),
+            w => (w & 0xFFFF0000u) == s.Upper && (w & 0xFFFF) % 10 == 0 && (w & 0xFFFF) <= 50 ? (int)(w & 0xFFFF) / 10 : null)).ToArray(), confirmed: true)
+        { Group = "Slow Start", Short = "Hexes taken off", Section = SkillsSection };
 
     private const uint JalItemType = 0x0C05BA08u;          // jal 0x0016E820
     private static uint XoriV0(uint type) => 0x38420000u | type;
@@ -898,6 +916,7 @@ public static class GameRules
         // Celerity skips every class in the mounted class list (branch at 0x0017E760).
         WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
             [0x0017E760], [[0x14400003u], [0u]], confirmed: false),
+        SlowStartPenalty(),
         IaidoWeapon(),
         HunterWeapon(),
         AxeGuardWeapon(),

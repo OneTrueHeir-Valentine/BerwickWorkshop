@@ -489,12 +489,12 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(170,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(171,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
-    Equal(135,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
+    Equal(136,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
     Equal(0x24040004u,GameRules.ById(90).Original[0]);Equal(0x24040001u,GameRules.ById(90).Encode(1)[0]);Throws<EditException>(()=>GameRules.ById(90).Encode(0));Equal<int?>(null,GameRules.ById(90).Decode(new[]{0x24040000u}));
     var swim=GameRules.ById(93);Equal(26,swim.Sites.Count);Equal(0x10400019u,swim.Original[0]);Equal(0x0C05F7ECu,swim.Encode(1)[2]);Equal<int?>(1,swim.Decode(swim.Encode(1)));Equal("On foot only",swim.Describe(1));
     var sunder=GameRules.ById(53);Equal("24420019,24420019,24620019",string.Join(",",sunder.Original.Select(x=>x.ToString("X8"))));Equal("24420046,24420046,24620046",string.Join(",",sunder.Encode(70).Select(x=>x.ToString("X8"))));
