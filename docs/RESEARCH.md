@@ -162,7 +162,7 @@ The starting unit table is a stream of tagged blocks read by `0x00181C60`: `HIST
 - 156 catalogue entries are unused placeholders, in runs inside each weapon category (for example 0x017 to 0x01F among knives). Their records hold template data; 19 are byte-identical to a real item. None are starting items. Shops, chests and drops have not been mapped, so a placeholder could still be referenced by chapter data.
 
 ## More skills read from the program
-- Fortune `0x00174DC0`: has Fortune (or an item with effect 0x2C) unless unit state +0x5C has bit 27 or 31; the battle code at `0x0022C66C` then clears the real critical chance (+184) and +196 of the attacker's side. The forecast value (+180) is left.
+- Fortune `0x00174DC0`: has Fortune (or an item with effect 0x2C) unless unit state +0x5C has bit 27 or 31; the battle code at `0x0022C66C` then clears the real critical chance (+184) and +196 of the attacker's side. The forecast value (+180) is left. Checked live: a bandit lent Fortune took no critical from Elbert's Sunder at +100, but did while asleep (status 27, +0x5C bit 0x08000000, counter +0x7B; the game showed it asleep).
 - Camouflage: terrain avoid times 3, halved, in the forecast hooks `0x001B7B74` and `0x001B7DAC` and in battle `0x0022C040`. Checked live: Ward on plain 11 avoid at 2.5 times, 8 without.
 - Hunter `0x0022BF88`: bow, crossbow or ballista (`0x0016E4A0`, weapon types 8 to 10) against a defender on terrain class 4 or 5 sets the defender's terrain avoid to 0.
 - Hateful `0x002F2F7C`: when attacked, status 15 (Provoked) for 10 aimed at the attacker, the same call as the Provoke command (`0x002F23E4`). Status n: unit state +0x5C bit n, counter byte +0x60 + n, set by `0x001B7400`.
