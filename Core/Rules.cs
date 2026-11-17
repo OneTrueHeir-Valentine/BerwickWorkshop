@@ -215,7 +215,7 @@ public static class GameRules
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
-        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Counter bonus after can also count a hit that does 0 damage. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
+        ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Counter bonus after can also count a hit that does 0 damage, a parry, or a hit cancelled by a bane skill such as Swordbane. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Knock Away"] = "When the unit attacks, Knock Away activates at a chance of half the unit's weapon level plus the base chance. The game's base is 30. The roll is 0 to 99, so a total of 100 or more always activates.",
         ["Spearbane"] = BaneText("a spear"),
         ["Swordbane"] = BaneText("a sword"),
@@ -926,8 +926,11 @@ public static class GameRules
             [0x0017E760], [[0x14400003u], [0u]]),
         SlowStartPenalty(),
         // A strike for 0 damage jumps past the Iaido roll (0x00229E24 to 0x00229F68); Also 0 damage sends it to the roll (0x00229E3C).
-        WordSets(203, "iaidoTrigger", "Iaido counter trigger", "Iaido", "Counter bonus after", 0, ["A miss", "A miss or a hit for 0 damage"],
-            [0x00229E24], [[0x10000050u], [0x10000005u]]),
+        // Failed strikes (a miss, a parry, a hit cancelled by a bane skill) jump from 0x00228048 to 0x00229E30, where the hit roll
+        // (sp+512) skips Iaido unless the strike really missed (0x00229E34); removing that check lets parries and cancelled hits count.
+        WordSets(203, "iaidoTrigger", "Iaido counter trigger", "Iaido", "Counter bonus after", 0,
+            ["A miss", "A miss or a hit for 0 damage", "A miss, a parry or a cancelled hit", "Any of these"],
+            [0x00229E24, 0x00229E34], [[0x10000050u, 0x14400022u], [0x10000005u, 0x14400022u], [0x10000050u, 0u], [0x10000005u, 0u]]),
         // Partner bonuses count partners closer than 3 hexes (slti at, s1, 3 at 0x001B8530).
         new GameRule(202, "partnerRange", "Partner range",
             "A unit gets the hit and critical bonuses of its partners (set on the Characters page) while a partner is within this many hexes. The game uses 2.",
