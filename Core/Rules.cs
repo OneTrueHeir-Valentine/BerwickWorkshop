@@ -246,6 +246,7 @@ public static class GameRules
         ["Camouflage"] = "A unit with Camouflage multiplies the avoid it gets from terrain. The game uses one and a half times.",
         ["Armsthrift"] = "Every use of a weapon has a chance to cost no durability. Armsthrift adds this much to that chance; the game adds 20.",
         ["Watchful"] = "A hidden unit is uncovered when a unit of the other side comes within 1 hex, or within this many hexes of a unit with Watchful. The game uses 3. The range for units without Watchful is also the view they refresh in fog after acting; the game uses 1.",
+        ["Counter"] = "In the game, a unit that takes damage in a fight stops counterattacking unless it has Counter. Keep countering lets every unit, on both sides, go on counterattacking after taking damage.",
         ["Vantage"] = "When attacked, a unit with Vantage strikes first if its attack speed beats the attacker's and its weapon can reach. Attack speed set to Any speed drops the speed check.",
         ["Despoil"] = "After the unit defeats an enemy, its side gains the enemy's level times the gold per level, plus a random amount from 0 up to the random extra. The game gives 4 per level and up to 50 extra.",
         ["Imbue"] = "In the game, Imbue can only be chosen before the unit moves. Allowed also offers it after a move. After use, Imbue can be chosen again this many of the unit's turns later. The game's wait is 3; at 1 it can be used every turn.",
@@ -924,6 +925,10 @@ public static class GameRules
         WordSets(197, "celerityMounted", "Celerity while mounted", "Celerity", "Mounted units", 0, ["No bonus", "Bonus too"],
             [0x0017E760], [[0x14400003u], [0u]]),
         SlowStartPenalty(),
+        // A unit that took damage (battle +0x48 bit 0x800) stops counterattacking unless it has Counter (0x002268EC);
+        // Always skips to the next step without the Counter message.
+        WordSets(201, "counterAfterDamage", "Counterattacks after taking damage", "Counter", "Without Counter", 0, ["Stop", "Keep countering"],
+            [0x002268EC], [[0x10400E60u], [0x10400008u]]),
         // Vantage only strikes first when the attack speed comparison passes (branch at 0x00226518).
         WordSets(199, "vantageSpeed", "Vantage speed check", "Vantage", "Attack speed", 0, ["Must beat the attacker", "Any speed"],
             [0x00226518], [[0x14200003u], [0x10000003u]]),
