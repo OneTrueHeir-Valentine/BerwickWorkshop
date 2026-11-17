@@ -279,7 +279,11 @@ public static class GameRules
         ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1.",
         ["Slow Start II"] = "A unit with Slow Start II takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
-        ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is level 10 or lower. The game adds 20%.",
+        ["Paragon"] = "Paragon adds a share of the experience the unit earns, on top of the normal amount, while the unit is at or below the highest level. The game adds 20% up to level 10.",
+        ["Vengeful"] = "After taking damage while holding an axe, the unit rolls a chance for each point of damage taken. On success it counters with double hit and its attack raised by the damage. The game uses 3% for each point and needs an axe; Any weapon lets it work with every weapon.",
+        ["Adept"] = "Adept needs at least the attack speed set here. Its chance is attack speed minus that value, plus half of the weapon level plus the bonus. On success the unit strikes more than once. The game needs speed 5, adds 10 before halving and strikes twice.",
+        ["Expert"] = "When the game checks whether a unit's level is high enough to use an item safely and get its bonuses, Expert counts the item's rank this much lower, never below 1. The game uses 7.",
+        ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };
 
@@ -300,6 +304,9 @@ public static class GameRules
     /// <summary>A rule whose settings are whole instruction words: words[setting][site].</summary>
     // An immediate of 0 to max in an instruction with the given upper half, or null.
     private static int? Imm(uint word, uint upper, int max = 10) => (word & 0xFFFF0000u) == upper && (word & 0xFFFF) <= max ? (int)(word & 0xFFFF) : null;
+
+    // A negated immediate of 0 to max (an addiu that subtracts), or null.
+    private static int? Minus(uint word, uint upper, int max) => (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
 
     // An aura's range checked as "slti at, s3, range + 1".
     private static RuleSite Below(uint address) =>
@@ -759,6 +766,35 @@ public static class GameRules
         WordSets(167, "pulverizeDefense", "Pulverize defense", "Pulverize", "Own defense", 0, ["Drops to 0", "Kept"],
             [0x0022C150, 0x0022C154, 0x0022C158], [[0xAE600068u, 0xAE60006Cu, 0xAE600070u], [0u, 0u, 0u]]),
         FocusChantAttack(),
+        // Vengeful (skill bit 0x400) in the fight: needs an axe (type 7, 0x0022688C); chance is damage taken times 3 (0x002268A0, 0x002268A8).
+        WordSets(169, "vengefulChance", "Vengeful chance", "Vengeful", "Chance for each point of damage taken", 2, ["1%", "2%", "3%", "4%", "5%"],
+            [0x002268A0, 0x002268A8], [[0x00052000u, 0x00808821u], [0x00052040u, 0x00808821u], [0x00052040u, 0x00858821u], [0x00052080u, 0x00808821u], [0x00052080u, 0x00858821u]], confirmed: false),
+        WordSets(170, "vengefulWeapon", "Vengeful weapon", "Vengeful", "Weapon", 0, ["Axe only", "Any weapon"],
+            [0x0022688C], [[0x14430014u], [0u]], confirmed: false),
+        // Adept (skill bit 0x100): needs attack speed 5 (0x00226BA8), chance adds (weapon level + 10) / 2 (0x00226C3C), strikes 2 (0x00226C8C).
+        new GameRule(171, "adeptSpeed", "Adept speed needed", "", RuleKind.Limit, 0, 20, 5, null,
+            [new RuleSite(0x00226BA8, n => 0x24550000u | (uint)(-n & 0xFFFF), w => Minus(w, 0x24550000u, 20))], confirmed: true)
+        { Group = "Adept", Short = "Attack speed needed", Section = SkillsSection },
+        new GameRule(172, "adeptBonus", "Adept chance bonus", "", RuleKind.Limit, 0, 200, 10, null,
+            [new RuleSite(0x00226C3C, n => 0x24430000u | (uint)n, w => Imm(w, 0x24430000u, 200))], confirmed: true)
+        { Group = "Adept", Short = "Added to the weapon level before halving", Section = SkillsSection },
+        new GameRule(173, "adeptStrikes", "Adept strikes", "", RuleKind.Limit, 1, 7, 2, null,
+            [new RuleSite(0x00226C8C, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 7))], confirmed: false)
+        { Group = "Adept", Short = "Strikes", Section = SkillsSection },
+        // Paragon only counts at level 10 or lower: slti at, v0, 11 in the skill check (0x0017D484).
+        new GameRule(174, "paragonLevel", "Paragon highest level", "", RuleKind.Limit, 0, 63, 10, null,
+            [new RuleSite(0x0017D484, n => 0x28410000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 64 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: false)
+        { Group = "Paragon", Short = "Highest level", Section = SkillsSection },
+        // Item level check 0x0017A240: Limited makes ranks above 3 (0x0017A5C8) need level 50 (0x0017A5D0); Expert takes 7 off the rank (0x0017A604).
+        new GameRule(175, "expertRank", "Expert rank reduction", "", RuleKind.Limit, 0, 20, 7, null,
+            [new RuleSite(0x0017A604, n => 0x26310000u | (uint)(-n & 0xFFFF), w => Minus(w, 0x26310000u, 20))], confirmed: true)
+        { Group = "Expert", Short = "Rank reduction", Section = SkillsSection },
+        new GameRule(176, "limitedRank", "Limited highest rank", "", RuleKind.Limit, 0, 20, 3, null,
+            [new RuleSite(0x0017A5C8, n => 0x2A210000u | (uint)(n + 1), w => (w & 0xFFFF0000u) == 0x2A210000u && (w & 0xFFFF) is >= 1 and <= 21 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true)
+        { Group = "Limited", Short = "Highest rank used normally", Section = SkillsSection },
+        new GameRule(177, "limitedLevel", "Limited level", "", RuleKind.Limit, 1, 99, 50, null,
+            [new RuleSite(0x0017A5D0, n => 0x24020000u | (uint)n, w => Imm(w, 0x24020000u, 99))], confirmed: true)
+        { Group = "Limited", Short = "Level needed above that rank", Section = SkillsSection },
         WordSets(106, "criticalSkillLevel", "Critical skill bonus", "Critical", "Adds to critical", 0, ["Level", "Twice the level", "Four times the level", "Half the level", "Nothing"],
             [0x00179488u, 0x0017948Cu], [[0x02028021u, 0u], [0x00021040u, 0x02028021u], [0x00021080u, 0x02028021u], [0x00021042u, 0x02028021u], [0u, 0u]]),
         new GameRule(47, "pursuitLead", "Pursuit speed lead", "", RuleKind.Limit, 0, 50, 5, null,
