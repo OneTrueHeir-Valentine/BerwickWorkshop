@@ -184,6 +184,12 @@ How horses work is known and was checked in a running game (see `RESEARCH.md`, H
 2. Characters page: show and edit each character's starting horse (disc record +0x4C). Needs a new game to check before it is offered.
 3. Mechanics help: mounting is a menu command, which terrain blocks it, horse HP from the horse item, and the mounted and dismounted class pairs.
 
+### Battle animation weapons (planned research)
+A Spear Knight holding a lance (through the Lance skill) uses the right motions but shows no weapon. Plan:
+1. Find the code that picks a class's battle animation set (167 sets in DATA3, each with vuwppos.dat, the weapon position per frame) and the weapon model archive (81 bw######.ar).
+2. Decode vuwppos.dat and compare the Spear Knight with a class that shows lances (Lance Knight).
+3. If the gap is a missing entry, offer to add weapon support to classes whose motions already fit (lances for Spear Knights first), checked in a running game with animations on. If the data cannot be added, warn instead.
+
 ## Rules that apply to every milestone
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.
 - Offsets are per edition. Never reuse a Japanese address on English or the reverse.

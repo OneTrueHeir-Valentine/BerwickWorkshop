@@ -285,7 +285,7 @@ public static class GameRules
         ["Adept"] = "Adept needs at least the attack speed set here. Its chance is attack speed minus that value, plus half of the weapon level plus the bonus. On success the unit strikes more than once. The game needs speed 5, adds 10 before halving and strikes twice.",
         ["Expert"] = "When the game checks whether a unit's level is high enough to use an item safely and get its bonuses, Expert counts the item's rank this much lower, never below 1. The game uses 7.",
         ["Climber"] = "On a cliff a unit's avoid drops to 0, unless it has Climber. Kept lets every unit keep its avoid on cliffs, so Climber no longer matters.",
-        ["Slow Start"] = "When an enemy with Slow Start plans a move, it has this many hexes less to spend. The game takes off 1. In a running game a player unit with Slow Start kept its full move.",
+        ["Slow Start"] = "When a unit with Slow Start begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
     };

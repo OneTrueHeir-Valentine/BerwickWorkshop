@@ -180,7 +180,7 @@ public static class SkillCatalog
             "Chance: read from the game program. Which items: from the game's own description"),
         new("Versatile", "Always on", "Switches back after support magic.",
             "After using a staff such as Heal or Detoxify, the unit goes back to the weapon it was holding.", Game),
-        new("Slow Start", "Always on", "Moves 1 hex less.", "An enemy with Slow Start has 1 hex less to spend when it plans a move. A player unit with it kept its full move in a running game. Slow Start II lowers the Move itself.", Program),
+        new("Slow Start", "Always on", "Moves 1 hex less.", "When the unit starts to move it has 1 hex less to spend. The Move shown on its status screen does not change; Slow Start II lowers the Move itself.", Program),
         new("Fork", "Always on", "Can use pitchforks.", "Adds pitchforks to the weapons the unit's class allows.", Program),
         new("Pursuit", "Always on", "Strikes again when much faster.",
             "Attacks a second time in a fight when the unit's attack speed beats the enemy's by 5 or more. Without Pursuit a unit never attacks twice in one fight.", Game),
