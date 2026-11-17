@@ -28,7 +28,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.86.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.86.1" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <Grid/>
    </DockPanel>
@@ -228,11 +228,11 @@
         <DataGrid.Columns>
          <DataGridTextColumn Header="Movement type" Binding="{Binding Type.Name}" Width="*" MinWidth="120"/>
          <DataGridTextColumn Header="Classes" Binding="{Binding ClassCount}" Width="66" MinWidth="66"/>
-         <DataGridTextColumn Header="Plain" Binding="{Binding Plain}" Width="56" MinWidth="56"/>
+         <DataGridTextColumn Header="Plains" Binding="{Binding Plain}" Width="60" MinWidth="60"/>
          <DataGridTextColumn Header="Forest" Binding="{Binding Forest}" Width="60" MinWidth="60"/>
-         <DataGridTextColumn Header="Hills" Binding="{Binding MountainFoot}" Width="54" MinWidth="54"/>
+         <DataGridTextColumn Header="Mountains" Binding="{Binding MountainFoot}" Width="100" MinWidth="100"/>
          <DataGridTextColumn Header="Sand" Binding="{Binding Sand}" Width="54" MinWidth="54"/>
-         <DataGridTextColumn Header="Snow forest" Binding="{Binding SnowForest}" Width="88" MinWidth="88"/>
+         <DataGridTextColumn Header="Snowy Woods" Binding="{Binding SnowForest}" Width="116" MinWidth="116"/>
          <DataGridTextColumn Header="Status" Binding="{Binding EditedText}" Width="70" MinWidth="70"/>
         </DataGrid.Columns>
        </DataGrid>

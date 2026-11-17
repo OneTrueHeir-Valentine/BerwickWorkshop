@@ -54,14 +54,14 @@ public static class TerrainData
     /// <summary>Terrain kinds grouped by the published terrain list they match (several kinds share the same costs); used for map colours and walls.</summary>
     public static readonly string[] TerrainGroups =
     [
-        "Plain or grassland", "Plain or grassland", "Wasteland", "Sand", "Forest", "Flying only", "Mountain foot", "Flying only",
-        "Flying only", "Shallows", "Flying only", "Unidentified", "Cave (open)", "Cave (narrow)", "Plain or grassland", "Blocked",
+        "Plains or Grass", "Plains or Grass", "Wilds", "Sand", "Forest", "Flying only", "Mountains", "Flying only",
+        "Flying only", "Shoal", "Flying only", "Unidentified", "Cave", "Cave Interior", "Plains or Grass", "Blocked",
         "Blocked", "Blocked", "Snow, temple or castle", "Blocked", "Gate", "Snow, temple or castle", "Snow, temple or castle", "Snow, temple or castle",
-        "Road or bridge", "Flying only", "Blocked", "Blocked", "Cave (narrow)", "Snow, temple or castle", "Floor", "Unidentified",
+        "Road or bridge", "Flying only", "Blocked", "Blocked", "Cave Interior", "Snow, temple or castle", "Inner Floor", "Unidentified",
         "Throne", "Blocked", "Unidentified", "Cliff", "Building", "Road or bridge", "Building", "Building",
         "Snow, temple or castle", "Road or bridge", "Gate", "Blocked", "Building", "Building", "Building", "Building",
-        "Snow, temple or castle", "Snow, temple or castle", "Snow forest", "Poison swamp", "Unidentified", "Building", "Building", "Building",
-        "Plain or grassland", "Blocked", "Road or bridge", "Flying only", "Blocked", "Road or bridge", "Road or bridge", "Blocked",
+        "Snow, temple or castle", "Snow, temple or castle", "Snowy Woods", "Swamp", "Unidentified", "Building", "Building", "Building",
+        "Plains or Grass", "Blocked", "Road or bridge", "Flying only", "Blocked", "Road or bridge", "Road or bridge", "Blocked",
     ];
 
     public static string TerrainLabel(int terrain) => $"{terrain}. {TerrainNames[terrain]}";

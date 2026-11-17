@@ -526,13 +526,13 @@ public partial class MainWindow : Window
     private void MapViewChanged(object sender,RoutedEventArgs e){if(shownTitle.Length>0)DrawMap(shownMap,shownPicture,shownTitle);}
     private static readonly Dictionary<string,Color> TerrainColors=new()
     {
-        ["Plain or grassland"]=Color.FromRgb(185,216,138),["Wasteland"]=Color.FromRgb(205,187,142),["Sand"]=Color.FromRgb(233,217,160),
-        ["Forest"]=Color.FromRgb(79,138,60),["Flying only"]=Color.FromRgb(124,150,178),["Mountain foot"]=Color.FromRgb(168,139,94),
-        ["Shallows"]=Color.FromRgb(156,201,227),["Unidentified"]=Color.FromRgb(208,200,216),["Cave (open)"]=Color.FromRgb(154,143,128),
-        ["Cave (narrow)"]=Color.FromRgb(125,115,104),["Blocked"]=Color.FromRgb(94,90,85),["Snow, temple or castle"]=Color.FromRgb(232,230,224),
-        ["Gate"]=Color.FromRgb(224,123,57),["Road or bridge"]=Color.FromRgb(216,196,154),["Floor"]=Color.FromRgb(207,194,168),
+        ["Plains or Grass"]=Color.FromRgb(185,216,138),["Wilds"]=Color.FromRgb(205,187,142),["Sand"]=Color.FromRgb(233,217,160),
+        ["Forest"]=Color.FromRgb(79,138,60),["Flying only"]=Color.FromRgb(124,150,178),["Mountains"]=Color.FromRgb(168,139,94),
+        ["Shoal"]=Color.FromRgb(156,201,227),["Unidentified"]=Color.FromRgb(208,200,216),["Cave"]=Color.FromRgb(154,143,128),
+        ["Cave Interior"]=Color.FromRgb(125,115,104),["Blocked"]=Color.FromRgb(94,90,85),["Snow, temple or castle"]=Color.FromRgb(232,230,224),
+        ["Gate"]=Color.FromRgb(224,123,57),["Road or bridge"]=Color.FromRgb(216,196,154),["Inner Floor"]=Color.FromRgb(207,194,168),
         ["Throne"]=Color.FromRgb(217,180,74),["Cliff"]=Color.FromRgb(142,122,98),["Building"]=Color.FromRgb(181,82,59),
-        ["Snow forest"]=Color.FromRgb(159,191,160),["Poison swamp"]=Color.FromRgb(141,111,168),
+        ["Snowy Woods"]=Color.FromRgb(159,191,160),["Swamp"]=Color.FromRgb(141,111,168),
     };
     private void DrawMap(BattleMap? map,BitmapSource? picture,string title)
     {

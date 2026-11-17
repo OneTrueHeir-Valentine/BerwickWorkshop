@@ -214,7 +214,7 @@ public static class Mechanics
         new("Temple", 8, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
         new("Castle", 10, [2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2]),
         new("Throne", 10, [null, null, null, 2, 2, 2, 2, 2, 2, 2, null]),
-        new("Drawbridge", 0, [null, null, 1, null, null, null, null, null, null, null, null], "Lowered from a guardhouse"),
+        new("Drawbridge", 0, [null, null, 1, null, null, null, null, null, null, null, null], "Lowered from a guard tower"),
         new("Jungle", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
         new("Peak", 0, [null, null, 1, null, null, null, null, null, null, null, null]),
         new("River", 12, [null, null, 1, null, null, null, null, null, null, null, null], "Swimmer lets a unit cross"),

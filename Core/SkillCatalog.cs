@@ -98,7 +98,7 @@ public static class SkillCatalog
         new("Aim", "Command", "Takes careful aim.",
             "Chosen instead of moving with a bow or crossbow. Adds 33 to hit for that attack, and Canto can still be used afterwards.", Game),
         new("Swimmer", "Always on", "Moves through water as easily as plain ground.",
-            "Shallows, rivers and water cost the unit the same movement as plain ground, mounted or on foot.", Game),
+            "Shoals, rivers and water cost the unit the same movement as plain ground, mounted or on foot.", Game),
         new("Resistor", "Always on", "Raises the resistance of allies nearby.",
             "Each ally within 3 hexes gets 5 more magic defense for every unit with Resistor in range. A unit's own Resistor does not help itself.", "Bonuses: checked in a running game. Range and stacking: read from the game program"),
         new("Search", "Command", "Searches a hex for hidden enemies.",
