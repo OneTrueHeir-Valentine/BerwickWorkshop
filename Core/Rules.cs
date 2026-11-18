@@ -347,6 +347,7 @@ public static class GameRules
         ["Astra"] = "In the game, Astra can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Astra can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Astra strikes five times in the game; it can be set from 1 to 7. Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Focus Chant"] = "In the game, Focus Chant can be chosen before or after the unit moves. Not allowed offers it only before a move. After use, Focus Chant can be chosen again this many of the unit's turns later. The game's wait is 6; at 1 it can be used every turn. Focus Chant adds 30 hit in the game and raises attack by a random 10% to 30% (set on the Game rules page). Weapon chooses which weapons it can attack with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Canto"] = "In the game, Canto is not offered after a fight in which the unit took damage; this can be changed so it is offered anyway.",
+        ["Debility"] = "A unit with Debility has its HP, Strength, Defense, Agility and Mind divided by this number. The game uses 2 (halved); 1 turns the penalty off.",
         ["Guard"] = "While a unit guards, the game halves its own defense and avoid; this can be changed so they are kept. In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -1176,6 +1177,10 @@ public static class GameRules
         new GameRule(212, "hatefulTurns", "Hateful turns", "", RuleKind.Limit, 1, 30, 10, null,
             [new RuleSite(0x002F2FB4, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: false)
         { Group = "Hateful", Short = "Turns provoked", Section = SkillsSection },
+        // Debility: the stat getter (0x00180BF0) divides max HP, Strength, Defense, Agility, Mind and stat 9 by 2 (0x00180C54) for a unit with the skill.
+        new GameRule(238, "debilityDivisor", "Debility divisor", "", RuleKind.Limit, 1, 4, 2, null,
+            [new RuleSite(0x00180C54, n => 0x24110000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24110000u && (w & 0xFFFF) is >= 1 and <= 4 ? (int)(w & 0xFFFF) : null)], confirmed: true)
+        { Group = "Debility", Short = "Stats divided by", Section = SkillsSection },
         // Robbery after a kill (0x003F9960): a percent roll below 25 (0x003F99B8), then the range below 2 (0x003F99C0).
         new GameRule(204, "robberyChance", "Robbery chance", "", RuleKind.Limit, 0, 100, 25, null,
             [new RuleSite(0x003F99B8, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 100))], confirmed: true)
