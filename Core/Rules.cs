@@ -330,7 +330,7 @@ public static class GameRules
         ["Horse-Lover"] = "After each chapter, the unit's horse recovers this much HP, up to its maximum. The game's value is 20.",
         ["Scotopic"] = "Adds to the unit's vision range, which matters on maps with fog. The game adds 1.",
         ["Our Bond"] = "The game raises Reese's critical chance to this value while Lynette stands next to him; it checks Lynette herself, not the skill. The game's value is 100.",
-        ["Hateful"] = "When a unit with Hateful is attacked, its attacker becomes Provoked for this many of its own turns. The game uses 10.",
+        ["Hateful"] = "When a unit with Hateful is attacked, it becomes Provoked at its attacker for this many of its own turns. The game uses 10.",
         ["Provoke"] = "A provoked enemy stays provoked for Turns provoked of its own turns; the game uses 10. In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
@@ -1184,7 +1184,7 @@ public static class GameRules
              new RuleSite(0x002F23E0, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Provoke", Short = "Turns provoked", Section = SkillsSection },
         new GameRule(212, "hatefulTurns", "Hateful turns", "", RuleKind.Limit, 1, 30, 10, null,
-            [new RuleSite(0x002F2FB4, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+            [new RuleSite(0x002F2FB4, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Hateful", Short = "Turns provoked", Section = SkillsSection },
         // Debility: the stat getter (0x00180BF0) divides max HP, Strength, Defense, Agility, Mind and stat 9 by 2 (0x00180C54) for a unit with the skill.
         new GameRule(238, "debilityDivisor", "Debility divisor", "", RuleKind.Limit, 1, 4, 2, null,
