@@ -13,6 +13,7 @@ New items reuse existing slots; custom names currently appear only in the projec
 - `Tests` test runner
 - `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT)
 - `docs/ROADMAP.md` planned features
+- `docs/RESEARCH.md` notes on the game's data and program
 
 ## Building
 

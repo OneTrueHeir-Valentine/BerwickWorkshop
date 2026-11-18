@@ -77,7 +77,7 @@ Verified while building the Classes page (v0.3.0):
 1. Done. `Core/Export.cs`: one streaming pass copies the source, checks its hash against the opened disc, applies byte patches and hashes the output. A uniquely named temporary file is created exclusively, checked, then renamed without replacing an existing destination. Cancellation and errors remove only that export's temporary file. Export refuses overlapping or out-of-range patches, too little free space, a mismatched project/disc pair, and original-byte mismatches at edited locations. Each changed byte run is written to both table copies; differing bytes in either copy are never silently replaced.
 2. Done. Modified-disc recognition: if the full hash is unknown but the executable SHA-256 and the DATA3.DAT length match a profile, the disc loads with that profile and `IsModified`. Exports and Redux v1.4.1 open this way. Redux v1.4.1 differs from English v2.3 in 103 items, 29 characters and 5 classes; its item table copies agree.
 3. Verified: a real export of an edited English disc (4,321,804,288 bytes, 12 bytes changed) reopens as Modified English v2.3 with exactly the project's item values and unchanged characters and classes; the in-app export, compared against the live session, matches on all 646 items. Booted in PCSX2 in v0.9.0: an exported disc's item, rule and experience changes all showed in the first battle (see M6). Not yet tested over a full campaign.
-4. Not done: xdelta patch output (DeltaPatcher compatible). The user's `bws-rc-v2.3.xdelta` could validate a VCDIFF decoder before writing an encoder. Also not done: setup screen, export folder preference, logs.
+4. Not done: xdelta patch output (DeltaPatcher compatible). The v2.3 release patch (`bws-rc-v2.3.xdelta`) could validate a VCDIFF decoder before writing an encoder. Also not done: setup screen, export folder preference, logs.
 
 ### M4 Character and class editing (done in v0.6.0 for proven fields)
 - `EditSession` now covers four tables: `items`, `characters` (unit record, 0x100 bytes at the roster offset), `growths` (32 bytes per character ID) and `classes` (100 bytes per class ID). One Apply can span tables and is one undo step. `.bwproj` format version 1 is unchanged (it already stored `table`).
@@ -98,7 +98,7 @@ Needed before data expansion is useful: a new item or class has no name in game 
 Status: the 2005 Japanese codes are decrypted and the locations they patch are identical in both executables (see `RESEARCH.md`). Confirmed in a running game: Parry (`0x002274EC`), experience gain (`0x00224580`), six stat limits in both routines, and Shield block (`0x0022A638`). Shield guard rewrites 26 words starting at `0x0022A640`. The random range function, percent roll and an unidentified rate formula are located but not offered as rules.
 
 The v0.9.0 rule at `0x002274EC` was mislabelled Shield block in v0.10.0 and corrected to Parry in v0.14.0. Its ID, `shieldParry` key and encodings are unchanged, so older projects retain their effects. Parry offers Normal, Always and Never; battle experience offers Normal or fixed 1 to 100. Rules are an editable table whose records hold all instruction words for a setting. Every word must match a supported encoding, including words shared by settings; mixed or unknown code is rejected. Export patches `SLPS_254.97` inside the copied ISO. Modified-disc recognition hashes the executable with recognised rules restored to the original instructions.
-Confirmed in game: an exported English disc with Rapier might 7 to 20, parry Always and experience 50 was booted in PCSX2 2.9.78 by the user; all three changes showed in the first battle. This is also the first in-game confirmation of an exported data table edit.
+Confirmed in game: an exported English disc with Rapier might 7 to 20, parry Always and experience 50 was booted in PCSX2 2.9.78; all three changes showed in the first battle. This is also the first in-game confirmation of an exported data table edit.
 Six stat limits are complete (v0.11.0). Open rule work includes level/experience caps and an experience multiplier, which needs free instruction words inside the executable; the 2005 multiplier used RAM below it, which an exported disc cannot use.
 The formulas live in the game program (`SLPS_254.97`), not in the data tables, so changing them means patching MIPS code. Published formulas to target first (EmblemWiki "Berwick Saga Calculations"):
 - Avoid = Attack Speed x 2 (+ terrain, x 2 terrain at range 2+); Attack Speed = Speed minus (weapon weight + shield weight minus Strength / 2).
@@ -190,7 +190,7 @@ A Spear Knight holding a lance (through the Lance skill) uses the right motions 
 2. Decode vuwppos.dat and compare the Spear Knight with a class that shows lances (Lance Knight).
 3. If the gap is a missing entry, offer to add weapon support to classes whose motions already fit (lances for Spear Knights first), checked in a running game with animations on. If the data cannot be added, warn instead.
 
-## Rules that apply to every milestone
+## Principles
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.
 - Offsets are per edition. Never reuse a Japanese address on English or the reverse.
 - Item and unit identity is the numeric ID, never the name (two Pickaxes exist: 0x0B0 and 0x1FA).
