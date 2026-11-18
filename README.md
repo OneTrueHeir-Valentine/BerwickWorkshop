@@ -1,17 +1,34 @@
 # Berwick Workshop
 
-An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation.
+An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation, each with its own verified addresses. Names follow the English release as the game shows them.
 
-Edit items, character stats and growths, starting equipment, personal and class skills, class stats, movement types and terrain costs. Game rules cover Parry, shield block, shield guard, battle experience and stat limits. Save changes as a `.bwproj` project, compare discs, and export a separate patched ISO for PCSX2. A Live game page can also change units and try rules in a game running in PCSX2 on the same computer, through its PINE connection, when you choose Connect.
+## What it edits
 
-New items reuse existing slots; custom names currently appear only in the project. Learned skills, class growths and in-game text are not editable. Game rules affect enemies as well as player units. Shield guard applies only after a failed block roll; attacks that ignore Defense also ignore guard.
+- **Items:** stats, durability, bonuses while equipped, resistances, special effects, stable prices for horses, Atelier recipes, and new items in the game's free slots.
+- **Characters:** class, level, stat bonuses, Luck, growth rates and growth band, weapon levels and growth, personal skills, starting items, bag contents, partners and bonds, mercenary fees. Expected stats by level are shown alongside.
+- **Armies:** every unit in the game's 275 armies (enemies, bosses, guests and story units): class, level, bonuses, weapon levels, skills, items and drops. Armies are named after the battles that place them where the events show it.
+- **Classes:** base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills.
+- **Movement and terrain:** the cost of each of the 64 kinds of terrain for every movement type, and each terrain's avoid, recovery and whether flyers may stop there.
+- **Shops and furniture:** what every shop sells and how, the stable, the Atelier and furniture prices.
+- **Events:** the game's event scripts as readable commands. Numbers, lines and whole scripts can be edited, for example the turn a reinforcement arrives.
+- **Game rules:** Parry, shield block and guard, durability and breaking, experience, stat limits, Luck, and many skill numbers and switches: activation chances, ranges, auras, command waits and strikes, the weapons a skill allows, Hurry, Deathmatch, Guard, Canto, Robbery, Provoke, Debility and more. Rules whose effect has not been confirmed in a running game stay hidden.
+
+## Also included
+
+- **Skills page:** what each of the 90 skills does, whether it is a command, who has it, and how that is known.
+- **Maps page:** every battle's map with terrain, spots, starting positions and later arrivals.
+- **Mechanics page:** the game's formulas with how well each is verified and links to the values you can change.
+- **Compare:** open a second disc to compare items, characters and classes.
+- **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map, try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.
+
+Changes are saved as a `.bwproj` project and exported as a new ISO for PCSX2. The original disc image is never written to.
 
 ## Layout
 
-- `Core` disc reading, edition detection, data tables, game rules, projects and export
+- `Core` disc reading, edition detection, data tables, game rules, events, projects and export
 - `App` Windows desktop interface (WPF)
 - `Tests` test runner
-- `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT)
+- `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT), and the game's own English names
 - `docs/ROADMAP.md` planned features
 - `docs/RESEARCH.md` notes on the game's data and program
 
