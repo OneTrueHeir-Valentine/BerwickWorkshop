@@ -430,7 +430,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("220,230,139,142,143,144,145,146,147,148,157,160,161,178,198,210,212,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,139,142,143,144,145,146,147,148,157,160,161,178,198,210,212,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -438,12 +438,19 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     Equal("24050019,24060019",string.Join(",",crit.Encode(GameRules.RangeSetting(25,25)).Select(x=>x.ToString("X8"))));
     Throws<EditException>(()=>crit.Encode(GameRules.RangeSetting(30,20)));Equal<int?>(null,crit.Decode(new[]{0x2405001Eu,0x24060014u}));
     var failed=GameRules.ById(14);Equal(0x28A10002u,failed.Original[0]);Equal(0x28A10006u,failed.Encode(1)[0]);
-    var guard=GameRules.ById(10);Equal(26,guard.Sites.Count);Equal(0x0022A640u,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[25].Address);
-    Equal(0x24020001u,guard.Original[0]);Equal(0x10000003u,guard.Original[22]);Equal(0xAFA20130u,guard.Original[25]);
-    Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[20].ToString("X8"))));
-    Equal(20,Enumerable.Range(0,26).Count(i=>guard.Encode(2)[i]!=guard.Original[i]));
-    var mixed=guard.Encode(2);mixed[20]=guard.Original[20];Equal<int?>(null,guard.Decode(mixed));
-    mixed=guard.Original.ToArray();mixed[20]=guard.Encode(3)[20];Equal<int?>(null,guard.Decode(mixed));
+    var guard=GameRules.ById(10);Equal(27,guard.Sites.Count);Equal(0x0022A63Cu,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[26].Address);
+    Equal(0u,guard.Original[0]);Equal(0x24020001u,guard.Original[1]);Equal(0x10000003u,guard.Original[23]);Equal(0xAFA20130u,guard.Original[26]);
+    Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[21].ToString("X8"))));
+    Equal(20,Enumerable.Range(0,27).Count(i=>guard.Encode(2)[i]!=guard.Original[i]));
+    Equal("8E4100A8,52A00007,00011883,28610001,0021180B,1000FFF8",string.Join(",",new[]{0,2,19,20,21,25}.Select(i=>guard.Encode(4)[i].ToString("X8"))));
+    Equal(0x00011843u,guard.Encode(5)[19]);
+    foreach(int g in Enumerable.Range(0,6))Equal<int?>(g,guard.Decode(guard.Encode(g)));
+    var mixed=guard.Encode(2);mixed[21]=guard.Original[21];Equal<int?>(null,guard.Decode(mixed));
+    mixed=guard.Original.ToArray();mixed[21]=guard.Encode(3)[21];Equal<int?>(null,guard.Decode(mixed));
+    mixed=guard.Encode(4);mixed[0]=0;Equal<int?>(null,guard.Decode(mixed));
+    Equal(0x28420005u,GameRules.ById(232).Original[0]);Equal(0x28420020u,GameRules.ById(232).Encode(32)[0]);
+    Equal(0x2406FFFBu,GameRules.ById(233).Original[0]);Equal(0x24060000u,GameRules.ById(233).Encode(0)[0]);Equal<int?>(9,GameRules.ById(233).Decode(new[]{0x2406FFF7u}));
+    Equal("2406FFFF,2407FFFF",string.Join(",",GameRules.ById(234).Original.Select(x=>x.ToString("X8"))));Equal(0x24060001u,GameRules.ById(235).Original[0]);
     var vantage=GameRules.ById(15);Equal(36,vantage.Sites.Count);Equal(0x00224E68u,vantage.Sites[0].Address);Equal(0x00224EF4u,vantage.Sites[35].Address);
     Equal(0x12600005u,vantage.Original[0]);Equal(0xAE6211E0u,vantage.Original[35]);Equal(0x0C08B878u,vantage.Encode(1)[2]);
     Equal("24090000,24090001",$"{vantage.Encode(1)[12]:X8},{vantage.Encode(2)[12]:X8}");Equal(34,Enumerable.Range(0,36).Count(i=>vantage.Encode(2)[i]!=vantage.Original[i]));
@@ -494,7 +501,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(203,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(207,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));

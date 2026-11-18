@@ -164,18 +164,43 @@ public static class GameRules
         0x8FA601B0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x00621021u, 0x10000009u, 0xAFA20170u, 0xAFA20130u, 0x8E4300A8u,
         0x00031803u, 0x0015180Bu, 0x10000003u, 0x02C3B021u, 0x1000FFF9u, 0x24020001u,
     ];
+    // Settings 4 and 5 (quarter or half, at least 1) use a tighter layout: the delay slot after the block branch
+    // (0x0022A63C) loads the shield's Might into at, the s5 == 0 case becomes a likely branch that copies it,
+    // and the two freed words raise the failed-block guard to at least 1 before knives clear it.
+    private static readonly uint[] GuardMinimum =
+    [
+        0x8E570038u, 0x52A00007u, 0x0020882Du, 0x8FA601A0u, 0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x00628821u, 0x8FA601B0u,
+        0x02E0202Du, 0x0C08B2E0u, 0x0000282Du, 0x8E4300ACu, 0x00621021u, 0x1000000Au, 0xAFA20170u, 0xAFA20130u, 0x00011803u, 0x28610001u,
+        0x0021180Bu, 0x0015180Bu, 0x10000003u, 0x02C3B021u, 0x1000FFF8u, 0x24020001u,
+    ];
+    private const int GuardMinimumShiftIndex = 18;
+    private const uint GuardSlot = 0x0022A63C, GuardSlotLoad = 0x8E4100A8u;
     private static uint GuardShift(int setting) => GuardPatched[GuardShiftIndex] | (uint)(3 - setting) << 6;
 
-    private static IReadOnlyList<RuleSite> GuardSites() => Enumerable.Range(0, GuardOriginal.Length).Select(i =>
+    /// <summary>Every word from 0x0022A63C for a shield guard setting.</summary>
+    private static uint[] GuardWords(int setting)
     {
-        uint original = GuardOriginal[i];
-        if (i == GuardShiftIndex)
-            return new RuleSite(GuardStart + (uint)i * 4, s => s == 0 ? original : GuardShift(s),
-                w => w == original ? 0 : w == GuardShift(1) ? 1 : w == GuardShift(2) ? 2 : w == GuardShift(3) ? 3 : null);
-        uint patched = GuardPatched[i];
-        return new RuleSite(GuardStart + (uint)i * 4, s => s == 0 ? original : patched,
-            w => w == original && w == patched ? AnySetting : w == original ? 0 : w == patched ? AnyChanged : null);
-    }).ToList();
+        var words = new uint[GuardOriginal.Length + 1];
+        if (setting >= 4)
+        {
+            words[0] = GuardSlotLoad;
+            GuardMinimum.CopyTo(words, 1);
+            words[1 + GuardMinimumShiftIndex] |= (uint)(setting == 4 ? 2 : 1) << 6;
+            return words;
+        }
+        (setting == 0 ? GuardOriginal : GuardPatched).CopyTo(words, 1);
+        if (setting > 0) words[1 + GuardShiftIndex] = GuardShift(setting);
+        return words;
+    }
+
+    private static IReadOnlyList<RuleSite> GuardSites() => Enumerable.Range(0, GuardOriginal.Length + 1).Select(i =>
+        new RuleSite(GuardSlot + (uint)i * 4, s => GuardWords(s)[i], w => null)).ToList();
+
+    private static int? GuardDecode(IReadOnlyList<uint> words)
+    {
+        for (int s = 0; s <= 5; s++) if (GuardWords(s).SequenceEqual(words)) return s;
+        return null;
+    }
 
     // Vantage shield training: where the battle decides whether the defender strikes first (0x00224E68 to
     // 0x00224EF4), an inlined battle-event push is replaced by a call to the routine that does the same push,
@@ -294,11 +319,36 @@ public static class GameRules
         ["Lethargy"] = "When a unit with Lethargy begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
+        [LuckGroup] = "Luck protects a unit in two ways. When a hit would defeat it and its Luck is at least the amount needed, the hit is cancelled and the unit loses Luck. After a fight, a unit hit for more damage than it had HP left faces a roll based on the excess; with 1 or more Luck it is spared and loses Luck instead. A level up that raises nothing else adds Luck. The game needs 5, takes 5 and 1, and adds 1. The highest Luck is set by the Luck limit.",
         [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
         [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
     };
 
-    public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level";
+    public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level", LuckGroup = "Luck";
+
+    private static int? Negative(uint word, uint upper, int max) =>
+        (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
+
+    // Luck (unit +0x14 bits 5 to 9, read through 0x00177000). A hit that would defeat the unit is cancelled when its Luck is at least 5
+    // (slti at 0x00228540); the unit then loses 5 Luck (0x00225F28). In the fight results (0x0022CCC0), a roll from the damage beyond the
+    // unit's HP sets state bit 0x80000000 unless Luck is 1 or more, which costs 1 Luck (0x0022CFA4, shown amount 0x0022CFB8).
+    // A level up with no other gain adds 1 Luck (0x00223D60).
+    private static IEnumerable<GameRule> LuckRules()
+    {
+        yield return new GameRule(232, "luckLethalNeed", "Luck needed to cancel a defeating hit", "", RuleKind.Limit, 1, 32, 5, null,
+            [new RuleSite(0x00228540, n => 0x28420000u | (uint)n, w => (w & 0xFFFF0000u) == 0x28420000u && (w & 0xFFFF) is >= 1 and <= 32 ? (int)(w & 0xFFFF) : null)],
+            confirmed: false) { Group = LuckGroup, Short = "Luck needed to cancel a defeating hit (32 never)" };
+        yield return new GameRule(233, "luckLethalCost", "Luck spent to cancel a defeating hit", "", RuleKind.Limit, 0, 31, 5, null,
+            [new RuleSite(0x00225F28, n => 0x24060000u | (ushort)(-n), w => Negative(w, 0x24060000u, 31))], confirmed: false)
+            { Group = LuckGroup, Short = "Luck spent to cancel a defeating hit" };
+        yield return new GameRule(234, "luckOverkillCost", "Luck spent on the overkill save", "", RuleKind.Limit, 0, 31, 1, null,
+            [new RuleSite(0x0022CFA4, n => 0x24060000u | (ushort)(-n), w => Negative(w, 0x24060000u, 31)),
+             new RuleSite(0x0022CFB8, n => 0x24070000u | (ushort)(-n), w => Negative(w, 0x24070000u, 31))], confirmed: false)
+            { Group = LuckGroup, Short = "Luck spent on the overkill save" };
+        yield return new GameRule(235, "luckLevelUp", "Luck from an empty level up", "", RuleKind.Limit, 0, 31, 1, null,
+            [new RuleSite(0x00223D60, n => 0x24060000u | (uint)n, w => Imm(w, 0x24060000u, 31))], confirmed: false)
+            { Group = LuckGroup, Short = "Luck gained when a level up raises nothing else" };
+    }
     // Checked live: grade D wear 20, band edge 90 with band 1 breaking at 100 (menu text and a break), failure 16 per level.
     // Durability use 0x0016CFE0: wear per use by grade is data (7 words at 0x00429ED0, S to F); shields multiply it (sll s6,s6,2 at
     // 0x0016D2AC); Reese (unit 83) gets 20 more chance to save a use while story flag 99 is set and 3709 is not (0x0016D308).
@@ -620,8 +670,9 @@ public static class GameRules
                 s => s switch { 0 => 0x10200019u, 1 => 0x14000019u, _ => 0x10000019u },
                 w => w switch { 0x10200019u => 0, 0x14000019u => 1, 0x10000019u => 2, _ => null })], confirmed: true),
         new GameRule(10, "shieldGuard", "Shield guard on a failed block",
-            "When a shield block roll fails against a physical attack, part of the shield's Might counts as Defense, rounded down. A successful block still takes off the full Might. A successful roll that an attack later cancels does not grant this bonus. Attacks that ignore Defense, including knives, also ignore this guard. Off is the game's own behaviour.",
-            RuleKind.Choice, 0, 3, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might"], GuardSites(), confirmed: true),
+            "When a shield block roll fails against a physical attack, part of the shield's Might counts as Defense, rounded down. A successful block still takes off the full Might. A successful roll that an attack later cancels does not grant this bonus. The at least 1 choices never give less than 1, so a small shield still helps. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. Attacks that ignore Defense, including knives, also ignore this guard. Off is the game's own behaviour.",
+            RuleKind.Choice, 0, 5, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might", "Quarter of Might, at least 1", "Half of Might, at least 1"],
+            GuardSites(), confirmed: true, decode: GuardDecode),
         Step(11, "shieldTraining", "Shield training speed",
             "How much a shield level rises on each successful training roll, in tenths of a level (the game's 4 is 0.4 of a level). Shield training happens when a unit's block roll succeeds, or fails on a hit while the level is below 20. 0 stops shield levels from rising.",
             4, 0x001716A4, confirmed: true),
@@ -644,6 +695,7 @@ public static class GameRules
             "When a unit with Vantage strikes first, the enemy's attacks never reach its shield, so the shield gets no block rolls and no training. With this rule, a defender that strikes first through Vantage gets one shield training roll per battle, if it holds a shield it can use. Counts as a failed block trains only below level 20 unless Training from failed attempts is set to every level. Off is the game's own behaviour.",
             RuleKind.Choice, 0, 2, 0, ["Off", "Counts as a failed block", "Counts as a successful block"], VantageSites(), confirmed: true),
         ..DurabilityRules(),
+        ..LuckRules(),
         CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formulas below. A fixed amount replaces them and gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",

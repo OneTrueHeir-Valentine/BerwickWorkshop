@@ -347,6 +347,8 @@ public partial class MainWindow : Window
         int? selected=(ShopGrid.SelectedItem as ShopRow)?.Event;
         var rows=shops.Select(s=>{var items=ShopItems(s);var (name,where)=ShopTitle(s,items);return new ShopRow(s.Event,name,where,items.Count,session is not null && (session.HasScript(s.Event) || ScriptChanges(s.Event).Count>0));})
             .OrderBy(r=>r.Where=="At the base"?0:1).ThenBy(r=>r.Where).ThenBy(r=>r.Name).ToList();
+        if(primary.StablePriceBytes.Count>0)
+            rows.Insert(0,new ShopRow(StableRow,"Stable","At the base",primary.StablePriceBytes.Count,primary.StablePriceBytes.Keys.Any(id=>session?.IsEdited(EditSession.StablePrices,id)==true)));
         ShopGrid.ItemsSource=rows;
         ShopCount.Text=$"{rows.Count} shops, {rows.Count(r=>r.Where=="At the base")} at the base";
         if(rows.Count>0)ShopGrid.SelectedItem=rows.FirstOrDefault(r=>r.Event==selected)??rows[0];
@@ -356,6 +358,7 @@ public partial class MainWindow : Window
     private void ShopSelected(object sender,SelectionChangedEventArgs e)
     {
         ShopItemPicker.Visibility=Visibility.Collapsed;
+        if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){ShowStable();return;}
         if(SelectedShop is not { } shop || ShopGrid.SelectedItem is not ShopRow row){ShopName.Text="Select a shop";ShopWhere.Text="";ShopItemList.ItemsSource=null;UpdateShopButtons();return;}
         int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -380,6 +383,7 @@ public partial class MainWindow : Window
     private void ShopItemSelected(object sender,SelectionChangedEventArgs e)
     {
         UpdateShopButtons();
+        if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){StableHorseSelected();return;}
         if(ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count){ShopItemNote.Text="";return;}
         var it=shownShopItems[ShopItemList.SelectedIndex];
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -396,6 +400,45 @@ public partial class MainWindow : Window
         bool can=session is not null && editing is null && SelectedShop is not null;
         bool item=can && ShopItemList.SelectedIndex>=0 && ShopItemList.SelectedIndex<shownShopItems.Count;
         ChangeShopItemButton.IsEnabled=item;RemoveShopItemButton.IsEnabled=item && shownShopItems.Count>1;AddShopItemButton.IsEnabled=can && shownShopItems.Count>0;
+    }
+    // The stable is not a script shop: its horses and prices come from event 602, edited through the stable price table.
+    private const int StableRow=-602;
+    private List<int> stableHorses=[];
+    private int StablePrice(int id)=>session?.Value(EditSession.StablePrices,id,StablePrices.Field.Key)
+        ??System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(primary!.StablePriceBytes[id].Span);
+    private void ShowStable()
+    {
+        int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
+        var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
+        stableHorses=StablePrices.Slots.Select(s=>s.Item).Where(id=>primary!.StablePriceBytes.ContainsKey(id)).ToList();
+        shownShopItems=[];
+        ShopName.Text="Stable";ShopWhere.Text="At the base · event 602";
+        ShopItemList.ItemsSource=stableHorses.Select((id,i)=>new Choice(i,$"{(catalog.TryGetValue(id,out var item)?item.DisplayName:$"Item 0x{id:X3}")}  {StablePrice(id):N0}{(session?.IsEdited(EditSession.StablePrices,id)==true?"  (edited)":"")}")).ToList();
+        if(keep is int k && k<stableHorses.Count)ShopItemList.SelectedIndex=k;
+        ShopNotes.Children.Clear();
+        AddText(ShopNotes,"The stable always sells these horses. The list is fixed; select a horse to change what the stable charges. Its item price does not affect the stable.");
+        UpdateShopButtons();StableHorseSelected();
+    }
+    private void StableHorseSelected()
+    {
+        int index=ShopItemList.SelectedIndex;
+        ShopItemNote.Text="";
+        var old=ShopNotes.Children.OfType<FrameworkElement>().Where(x=>x.Tag as string=="stablePrice").ToList();foreach(var x in old)ShopNotes.Children.Remove(x);
+        if(index<0 || index>=stableHorses.Count)return;
+        int id=stableHorses[index];
+        ShopItemNote.Text=session?.IsEdited(EditSession.StablePrices,id)==true?$"Stable price {StablePrice(id):N0}, was {session.OriginalValue(EditSession.StablePrices,id,StablePrices.Field.Key):N0}.":$"Stable price {StablePrice(id):N0}.";
+        if(session is null)return;
+        var row=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,8,0,0),Tag="stablePrice"};
+        var box=new TextBox{Width=110,Text=StablePrice(id).ToString(),Margin=new Thickness(0,0,6,0)};
+        System.Windows.Automation.AutomationProperties.SetName(box,"Stable price");
+        var apply=new Button{Content="Set price",Style=(Style)FindResource("SmallButton")};
+        apply.Click+=(_,_)=>
+        {
+            if(!int.TryParse(box.Text.Replace(",","").Trim(),out int value) || value<ScriptPrices.Minimum || value>ScriptPrices.Maximum)
+            {Status.Text=$"A stable price must be a whole number from {ScriptPrices.Minimum:N0} to {ScriptPrices.Maximum:N0}.";return;}
+            if(session.Apply(EditSession.StablePrices,id,new Dictionary<string,int>{[StablePrices.Field.Key]=value})){RefreshDocument();Status.Text="Stable price changed. Save the project to keep this change.";}
+        };
+        row.Children.Add(box);row.Children.Add(apply);ShopNotes.Children.Add(row);
     }
     private bool shopAdding;
     private void BeginChangeShopItem(object sender,RoutedEventArgs e)=>OpenShopPicker(adding:false);
@@ -1195,7 +1238,8 @@ public partial class MainWindow : Window
         var c=row.Character;
         if(editing?.Page==View.Characters && editing.Id!=c.Id) EndEdit();
         UpdateEditButtons();
-        CharacterName.Text=c.Name;CharacterIdentity.Text=$"{c.IdText} · {c.ClassName} · Level {c.Level}";
+        CharacterName.Text=c.Name;
+        CharacterIdentity.Text=string.Join(" · ",new[]{c.IdText,c.ClassName,$"Level {c.Level}",$"Luck {c.Luck}"}.Concat(c.WeaponLevels.Select(w=>$"{w.Weapon} {CharacterRecord.WeaponLevel(w.Value)}")));
         CharacterFields.Children.Clear();
         if(classLookup.TryGetValue(c.ClassId,out var k))
         {
@@ -1209,7 +1253,7 @@ public partial class MainWindow : Window
         Pair("Mind (stored value)",c.MindGrowth.ToString());
         Pair("Growth bracket",c.BracketText);
         if(c.WeaponGrowths.Count>0){Section("Weapon growth");foreach(var w in c.WeaponGrowths)Pair(w.Weapon,$"{w.Value}%");}
-        if(c.WeaponLevels.Count>0){Section("Weapon levels");foreach(var w in c.WeaponLevels)Pair(w.Weapon,CharacterRecord.WeaponLevel(w.Value));}
+        if(classLookup.TryGetValue(c.ClassId,out var cls))ExpectedStats(c,cls);
         Section("Personal skills");Text(c.Skills.Count==0?"None":string.Join(", ",c.Skills));
         Section("Learned on level up");
         if(c.Learned.Count==0)Text("None");else foreach(var l in c.Learned)Pair(l.Skill,$"Level {l.Level}");
@@ -1604,6 +1648,47 @@ public partial class MainWindow : Window
             _=>(primary!.BagBytes,BagData.Fields),
         };
         return FieldCodec.Read(records[id].Span,fields.First(f=>f.Key==key));
+    }
+    private int RuleSetting(int id)
+    {
+        var rule=GameRules.ById(id);
+        return session is not null && session.IsRuleAvailable(id)?session.Value(EditSession.Rules,id,rule.Key):rule.Default;
+    }
+    /// <summary>Expected stats at later levels: start value plus growth times levels gained, kept within the bonus limits.</summary>
+    private void ExpectedStats(CharacterRecord c,ClassRecord k)
+    {
+        const int levelCap=30;
+        var levels=Enumerable.Range(c.Level+1,Math.Max(0,levelCap-c.Level)).Where(l=>l%5==0 || l==c.Level+1 || l==levelCap).Distinct().ToList();
+        if(levels.Count==0)return;
+        Section("Expected stats by level");
+        string band=c.Bracket switch{2=>"Level ups keep each stat within 3 of this.",3=>"Level ups keep each stat close to this (the Tight band's exact range is not measured).",_=>"This character has no band, so real stats can drift far from this."};
+        Text($"Starting value plus growth rate times levels gained, in the current class, capped by the stat limits on the Rules page. {band}");
+        var stats=new (string Name,int Start,int Growth,int Base,int Limit)[]
+        {
+            ("HP",k.Hp+c.HpBonus,c.HpGrowth,k.Hp,RuleSetting(3)),("Str",k.Strength+c.StrengthBonus,c.StrengthGrowth,k.Strength,RuleSetting(4)),
+            ("Def",k.Defense+c.DefenseBonus,c.DefenseGrowth,k.Defense,RuleSetting(7)),("Agi",k.Agility+c.AgilityBonus,c.AgilityGrowth,k.Agility,RuleSetting(5)),
+        };
+        var table=new Grid {Margin=new Thickness(0,4,0,4)};
+        for(int col=0;col<=stats.Length;col++)table.ColumnDefinitions.Add(new ColumnDefinition{Width=col==0?new GridLength(1.4,GridUnitType.Star):new GridLength(1,GridUnitType.Star)});
+        void Cell(int row,int col,string text,bool head)
+        {
+            var t=new TextBlock{Text=text,FontSize=13,Margin=new Thickness(0,0,0,5),HorizontalAlignment=col==0?HorizontalAlignment.Left:HorizontalAlignment.Right};
+            if(head||col==0)t.Foreground=(Brush)FindResource("Muted");else t.FontWeight=FontWeights.SemiBold;
+            Grid.SetRow(t,row);Grid.SetColumn(t,col);table.Children.Add(t);
+        }
+        table.RowDefinitions.Add(new RowDefinition());Cell(0,0,"Level",true);
+        for(int i=0;i<stats.Length;i++)Cell(0,i+1,stats[i].Name,true);
+        for(int r=0;r<levels.Count;r++)
+        {
+            table.RowDefinitions.Add(new RowDefinition());Cell(r+1,0,levels[r].ToString(),false);
+            for(int i=0;i<stats.Length;i++)
+            {
+                var st=stats[i];
+                double expected=Math.Min(st.Start+st.Growth*(levels[r]-c.Level)/100.0,st.Base+st.Limit);
+                Cell(r+1,i+1,((int)Math.Round(expected,MidpointRounding.AwayFromZero)).ToString(),false);
+            }
+        }
+        CharacterFields.Children.Add(table);
     }
     private void Section(string title)=>CharacterFields.Children.Add(new TextBlock {Text=title,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,14,0,8)});
     private void Text(string text)=>CharacterFields.Children.Add(new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});

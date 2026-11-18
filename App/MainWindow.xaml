@@ -170,7 +170,7 @@
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
         <DockPanel Margin="0,0,0,14"><Button x:Name="EditCharacterButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginCharacterEdit" ToolTip="Edit this character (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="CharacterName" Text="Select a character" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
-        <TextBlock x:Name="CharacterIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6"/>
+        <TextBlock x:Name="CharacterIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6" TextWrapping="Wrap"/>
         <StackPanel x:Name="CharacterFields"/>
         <StackPanel x:Name="CharacterEditorPanel" Visibility="Collapsed"/>
         <TextBlock x:Name="CharacterComparisonDetail" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,10,0,0"/>

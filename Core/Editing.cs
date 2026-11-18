@@ -202,6 +202,7 @@ public static class CharacterFields
         new("defenseBonus", "Defense bonus", 25, 2, 5, -16, 15) { Signed = true },
         new("agilityBonus", "Agility bonus", 24, 0, 5, -16, 15) { Signed = true },
         new("mindBonus", "Mind bonus", 25, 7, 5, -16, 15) { Signed = true },
+        new("luck", "Luck", 24, 5, 5, 0, 31),
     }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" }))
      .Concat(SkillFlags(56, "Personal skills")).Concat(ItemSlotFields()).ToArray());
 
