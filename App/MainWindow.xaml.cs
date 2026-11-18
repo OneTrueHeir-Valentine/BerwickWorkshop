@@ -256,7 +256,8 @@ public partial class MainWindow : Window
             text.Inlines.Add(new System.Windows.Documents.Run(stable.ToString("N0")) {FontWeight=FontWeights.SemiBold,Foreground=stableEdited?(Brush)FindResource("Accent"):(Brush)FindResource("Ink")});
             Grid.SetColumn(text,1);grid.Children.Add(text);DetailFields.Children.Add(grid);
         }
-        if(session?.IsEdited(item.Id)==true || session?.IsEdited(EditSession.StablePrices,item.Id)==true)
+        AddRecipeDetails(item.Id);
+        if(session?.IsEdited(item.Id)==true || session?.IsEdited(EditSession.StablePrices,item.Id)==true || session?.IsEdited(EditSession.Recipes,item.Id)==true)
         {
             var actions=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,4,0,0)};
             if(createdFrom is not null)
@@ -266,12 +267,30 @@ public partial class MainWindow : Window
                 actions.Children.Add(rename);
             }
             var revert=new Button {Content=createdFrom is null?"Restore original values":"Remove new item",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0)};
-            revert.Click+=(_,_)=>{if(loading is not null)return;if(session.IsEdited(item.Id))session.Revert(item.Id);if(session.IsEdited(EditSession.StablePrices,item.Id))session.Revert(EditSession.StablePrices,item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
+            revert.Click+=(_,_)=>{if(loading is not null)return;if(session.IsEdited(item.Id))session.Revert(item.Id);if(session.IsEdited(EditSession.StablePrices,item.Id))session.Revert(EditSession.StablePrices,item.Id);if(session.IsEdited(EditSession.Recipes,item.Id))session.Revert(EditSession.Recipes,item.Id);RefreshDocument();Status.Text=createdFrom is null?"Item restored. Save the project to keep this change.":"New item removed. Its slot is free again.";};
             actions.Children.Add(revert);
             DetailFields.Children.Add(actions);
         }
         ItemEffect.Text=item.EffectDescription;
         ItemComparisonText.Text=!row.HasComparison?"":row.Differences.Count==0?"This item's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
+    }
+    // Atelier recipes: the recipe that makes this item, and the recipes that use it.
+    private int RecipeValue(int id,string key)=>session?.Value(EditSession.Recipes,id,key)
+        ??System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(primary!.RecipeBytes[id].Span[(8+(int.Parse(key["ingredient".Length..])-1)*4)..]);
+    private List<int> RecipeIngredients(int id)=>Enumerable.Range(1,RecipeData.Ingredients).Select(i=>RecipeValue(id,$"ingredient{i}")).Where(v=>v!=0).ToList();
+    private string ItemLabel(int id)=>(session?.EditedItems()??primary!.Items).FirstOrDefault(i=>i.Id==id)?.DisplayName??$"Item 0x{id:X3}";
+    private void AddRecipeDetails(int itemId)
+    {
+        if(primary is null || primary.RecipeBytes.Count==0)return;
+        void Heading(string t)=>DetailFields.Children.Add(new TextBlock {Text=t,Style=(Style)FindResource("Caption"),FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,6)});
+        void Line(string t)=>DetailFields.Children.Add(new TextBlock {Text=t,TextWrapping=TextWrapping.Wrap,FontSize=13,Margin=new Thickness(0,0,0,6)});
+        if(primary.RecipeBytes.TryGetValue(itemId,out var recipe))
+        {
+            Heading("ATELIER RECIPE");
+            Line($"{RecipeData.Craftsman(RecipeData.Type(recipe.Span))} makes this from {string.Join(", ",RecipeIngredients(itemId).Select(ItemLabel))}."+(session?.IsEdited(EditSession.Recipes,itemId)==true?" (edited)":""));
+        }
+        var uses=primary.RecipeBytes.Keys.Where(r=>RecipeIngredients(r).Contains(itemId)).Select(ItemLabel).ToList();
+        if(uses.Count>0){Heading("USED AT THE ATELIER FOR");Line(string.Join(", ",uses));}
     }
     private void ClearItem()
     {
@@ -349,6 +368,11 @@ public partial class MainWindow : Window
             .OrderBy(r=>r.Where=="At the base"?0:1).ThenBy(r=>r.Where).ThenBy(r=>r.Name).ToList();
         if(primary.StablePriceBytes.Count>0)
             rows.Insert(0,new ShopRow(StableRow,"Stable","At the base",primary.StablePriceBytes.Count,primary.StablePriceBytes.Keys.Any(id=>session?.IsEdited(EditSession.StablePrices,id)==true)));
+        foreach(var (rowId,type) in new[]{(AtelierWeapons,0),(AtelierMagic,5)})
+        {
+            var made=AtelierRecipes(type);
+            if(made.Count>0)rows.Insert(rows.Count(r=>r.Event<0),new ShopRow(rowId,$"Atelier, {RecipeData.Craftsman(type)}","At the base",made.Count,made.Any(id=>session?.IsEdited(EditSession.Recipes,id)==true)));
+        }
         ShopGrid.ItemsSource=rows;
         ShopCount.Text=$"{rows.Count} shops, {rows.Count(r=>r.Where=="At the base")} at the base";
         if(rows.Count>0)ShopGrid.SelectedItem=rows.FirstOrDefault(r=>r.Event==selected)??rows[0];
@@ -359,6 +383,7 @@ public partial class MainWindow : Window
     {
         ShopItemPicker.Visibility=Visibility.Collapsed;
         if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){ShowStable();return;}
+        if(ShopGrid.SelectedItem is ShopRow{Event:AtelierWeapons or AtelierMagic} atelier){ShowAtelier(atelier.Event==AtelierWeapons?0:5);return;}
         if(SelectedShop is not { } shop || ShopGrid.SelectedItem is not ShopRow row){ShopName.Text="Select a shop";ShopWhere.Text="";ShopItemList.ItemsSource=null;UpdateShopButtons();return;}
         int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -384,6 +409,7 @@ public partial class MainWindow : Window
     {
         UpdateShopButtons();
         if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){StableHorseSelected();return;}
+        if(ShopGrid.SelectedItem is ShopRow{Event:AtelierWeapons or AtelierMagic}){AtelierRecipeSelected();return;}
         if(ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count){ShopItemNote.Text="";return;}
         var it=shownShopItems[ShopItemList.SelectedIndex];
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -439,6 +465,26 @@ public partial class MainWindow : Window
             if(session.Apply(EditSession.StablePrices,id,new Dictionary<string,int>{[StablePrices.Field.Key]=value})){RefreshDocument();Status.Text="Stable price changed. Save the project to keep this change.";}
         };
         row.Children.Add(box);row.Children.Add(apply);ShopNotes.Children.Add(row);
+    }
+    // The Atelier makes items from recipes in the game program; each recipe is edited on the Items page of the item it makes.
+    private const int AtelierWeapons=-723,AtelierMagic=-732;
+    private List<int> atelierShown=[];
+    private List<int> AtelierRecipes(int type)=>primary is null?[]:primary.RecipeRows.OrderBy(p=>p.Value).Select(p=>p.Key).Where(id=>RecipeData.Type(primary.RecipeBytes[id].Span)==type).ToList();
+    private void ShowAtelier(int type)
+    {
+        int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
+        atelierShown=AtelierRecipes(type);shownShopItems=[];
+        ShopName.Text=$"Atelier, {RecipeData.Craftsman(type)}";ShopWhere.Text=type==0?"At the base · weapons and shields":"At the base · magic and potions";
+        ShopItemList.ItemsSource=atelierShown.Select((id,i)=>new Choice(i,$"{ItemLabel(id)}{(session?.IsEdited(EditSession.Recipes,id)==true?"  (edited)":"")}")).ToList();
+        if(keep is int k && k<atelierShown.Count)ShopItemList.SelectedIndex=k;
+        ShopNotes.Children.Clear();
+        AddText(ShopNotes,$"{RecipeData.Craftsman(type)} makes these items once you bring every ingredient. To change a recipe, open the item it makes on the Items page and edit its Atelier recipe.");
+        UpdateShopButtons();AtelierRecipeSelected();
+    }
+    private void AtelierRecipeSelected()
+    {
+        int index=ShopItemList.SelectedIndex;
+        ShopItemNote.Text=index<0 || index>=atelierShown.Count?"":$"Made from {string.Join(", ",RecipeIngredients(atelierShown[index]).Select(ItemLabel))}.";
     }
     private bool shopAdding;
     private void BeginChangeShopItem(object sender,RoutedEventArgs e)=>OpenShopPicker(adding:false);
@@ -1956,6 +2002,7 @@ public partial class MainWindow : Window
             new("Resistances",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Resistances").ToList()),
             new("Special effect",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Special effect").ToList()),
             new("Stable",EditSession.StablePrices,session?.Disc.StablePriceBytes.ContainsKey(row.Item.Id)==true?[StablePrices.Field]:[]),
+            new("Atelier recipe",EditSession.Recipes,session?.Disc.RecipeBytes.ContainsKey(row.Item.Id)==true?RecipeData.Fields:[]),
             new("Effects",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Effects").ToList()),
         ],null));
     }

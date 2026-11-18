@@ -264,8 +264,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", ScriptValues = "scriptValues", Scripts = "scripts";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, ScriptValues, Scripts];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", ScriptValues = "scriptValues", Scripts = "scripts";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, ScriptValues, Scripts];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name, byte[]? Script = null)
@@ -322,6 +322,7 @@ public sealed class EditSession
             [ScriptValues] = new(ScriptValues, "script number", [Core.ScriptValues.Field], scriptRecords),
             [Partners] = new(Partners, "character", PartnerData.Fields, disc.PartnerBytes, PartnerData.Validate),
             [Mercenaries] = new(Mercenaries, "character", MercenaryData.Fields, disc.MercenaryBytes),
+            [Recipes] = new(Recipes, "recipe", RecipeData.Fields, disc.RecipeBytes, values => RecipeData.Validate(values, id => disc.ItemBytes.ContainsKey(id))),
             [ArmyUnits] = new(ArmyUnits, "unit", ArmyData.Fields, disc.ArmyUnitBytes, values =>
             {
                 // Some armies use classes and item numbers that are not in the lists; a unit may keep any value found in the armies.
@@ -613,6 +614,7 @@ public sealed class EditSession
     private string? RecordName(string table, int id) => CustomName(table, id) ?? table switch
     {
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
+        Recipes => disc.Items.FirstOrDefault(i => i.Id == id)?.DisplayName,
         Characters or Growths or Partners or Bags or Mercenaries => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
         Terrain => id < TerrainData.TypeNames.Length ? TerrainData.TypeNames[id] : null,

@@ -29,10 +29,16 @@ public static class Exporter
                 ? [p.PartnerTable + row * (long)PartnerData.RowLength, p.SecondPartnerTable + row * (long)PartnerData.RowLength] : throw new EditException($"Character 0x{id:X3} has no partner row on this disc."),
             EditSession.Bags => disc.CharacterOffsets.TryGetValue(id, out int bagAt) && disc.BagBytes.ContainsKey(id)
                 ? [p.UnitTable + bagAt + BagData.OffsetFromRecord, p.SecondUnitTable + bagAt + BagData.OffsetFromRecord] : throw new EditException($"Character 0x{id:X3} has no starting bag on this disc."),
-            EditSession.Rules or EditSession.Mercenaries or EditSession.ArmyUnits => [],
+            EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.ArmyUnits => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
         if (table == EditSession.Rules) throw new EditException("Rules are written instruction by instruction; use PatchesFor.");
+        if (table == EditSession.Recipes)
+        {
+            var exe = disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc.");
+            return disc.RecipeRows.TryGetValue(id, out int recipeRow)
+                ? [(exe, RecipeData.FileOffset + recipeRow * (long)RecipeData.RowLength)] : throw new EditException($"Item 0x{id:X3} has no Atelier recipe on this disc.");
+        }
         if (table == EditSession.Mercenaries)
         {
             var exe = disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc.");

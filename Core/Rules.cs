@@ -182,7 +182,7 @@ public static class GameRules
     private const uint GuardSlot = 0x0022A63C, GuardSlotLoad = 0x8E4100A8u;
     private static uint GuardShift(int setting) => GuardPatched[GuardShiftIndex] | (uint)(3 - setting) << 6;
 
-    /// <summary>Every word from 0x0022A63C for a shield guard setting.</summary>
+    /// <summary>The damage routine words from 0x0022A63C in the earlier layouts (read from discs exported before the guard moved to setup).</summary>
     private static uint[] GuardWords(int setting)
     {
         var words = new uint[GuardOriginal.Length + 1];
@@ -198,12 +198,72 @@ public static class GameRules
         return words;
     }
 
-    private static IReadOnlyList<RuleSite> GuardSites() => Enumerable.Range(0, GuardOriginal.Length + 1).Select(i =>
-        new RuleSite(GuardSlot + (uint)i * 4, s => GuardWords(s)[i], w => null)).ToList();
+    // Shield guard, current layout: battle setup jumps at 0x0022C2C0 (after Desperation, sleep and the other cases have set
+    // defense and shield Might) to padding at 0x001481C8, which moves part of the Might (+0xA8) into physical defense (+0x6C,
+    // used for damage) and the defense against this opponent (+0x68, shown in the forecast). A successful block adds the rest.
+    // The status screen (0x0019C1C4, 0x0019C214) and the equipment window (0x00324EDC, 0x00389B3C) call small routines placed
+    // in an unused routine at 0x0022E660 that do the same move for what they show. The damage routine stays original.
+    private const uint GuardHook = 0x0022C2C0, GuardHookOriginal = 0x8E550008u, GuardCave = 0x001481C8, GuardShow = 0x0022E660;
+    private const int GuardCaveLength = 14;
+    private static readonly (uint Address, uint Original, int Routine)[] GuardShowHooks =
+        [(0x00324EDC, 0x0260282Du, 0), (0x00389B3C, 0x02C0282Du, 1), (0x0019C1C4, 0x0200202Du, 2), (0x0019C214, 0xAFA20148u, 2)];
+    private static readonly uint[] GuardShowOriginal =
+    [
+        0x27BDFFD0u, 0xFFBF0020u, 0x7FB10010u, 0x7FB00000u, 0x0000882Du, 0x27908640u, 0x06200003u, 0x2A230002u, 0x14600003u, 0x00000000u,
+        0x10000003u, 0x0000202Du, 0x8E040000u, 0x00000000u, 0x10800009u, 0x00000000u, 0x2402FFFFu, 0x24050002u, 0xAC82003Cu, 0x0000302Du,
+        0xAC800040u, 0x0C08C05Cu, 0x0000382Du, 0x00000000u, 0x26310001u, 0x2A230002u, 0x1460FFEBu, 0x26100004u,
+    ];
+    private static readonly int[] GuardShowStart = [0, 10, 20];
+    /// <summary>v1 = the guard part of the Might in v0 (at least 1 for settings 4 and 5 when there is a shield), v0 = the rest.</summary>
+    private static uint[] GuardSplit(int setting)
+    {
+        int shift = setting switch { 1 or 4 => 2, 2 or 5 => 1, _ => 0 };
+        bool least = setting >= 4;
+        return [0x00021803u | (uint)shift << 6, least ? 0x0002082Bu : 0u, least ? 0x0023180Au : 0u, 0x00431023u];
+    }
+    private static uint[] GuardCaveWords(int setting) => setting == 0 ? new uint[GuardCaveLength] :
+    [
+        0x8E550008u, 0x8E6200A8u,                   // lw s5,8(s2) (the hooked instruction); lw v0,168(s3) shield Might
+        .. GuardSplit(setting),
+        0xAE6200A8u,                                // sw v0,168(s3)  what a successful block still adds
+        0x8E61006Cu, 0x00230821u, 0xAE61006Cu,      // defense +0x6C += guard
+        0x8E610068u, 0x00230821u,                   // defense against this opponent +0x68 += guard
+        0x08000000u | (GuardHook + 8) >> 2,         // j 0x0022C2C8
+        0xAE610068u,
+    ];
+    private static uint[] GuardShowWords(int setting)
+    {
+        if (setting == 0) return GuardShowOriginal;
+        var split = GuardSplit(setting);
+        return
+        [
+            .. split, 0xAEA2001Cu, 0x8EA10010u, 0x00230821u, 0xAEA10010u, 0x03E00008u, 0x0260282Du,   // equipment window: Might +28, Def +16 of s5
+            .. split, 0xAFA200CCu, 0x8FA100C0u, 0x00230821u, 0xAFA100C0u, 0x03E00008u, 0x02C0282Du,   // command window: Might sp+204, Def sp+192
+            .. split, 0xAFA20148u, 0x02A3A821u, 0x03E00008u, 0x0200202Du,                             // status screen: Might sp+328, Def s5
+        ];
+    }
+    private static uint[] GuardAll(int setting) =>
+    [
+        .. GuardWords(0), setting == 0 ? GuardHookOriginal : 0x08000000u | GuardCave >> 2, .. GuardCaveWords(setting),
+        .. GuardShowHooks.Select(h => setting == 0 ? h.Original : 0x0C000000u | (GuardShow + (uint)GuardShowStart[h.Routine] * 4) >> 2),
+        .. GuardShowWords(setting),
+    ];
+
+    private static IReadOnlyList<RuleSite> GuardSites()
+    {
+        var addresses = Enumerable.Range(0, GuardOriginal.Length + 1).Select(i => GuardSlot + (uint)i * 4)
+            .Append(GuardHook).Concat(Enumerable.Range(0, GuardCaveLength).Select(i => GuardCave + (uint)i * 4))
+            .Concat(GuardShowHooks.Select(h => h.Address)).Concat(Enumerable.Range(0, GuardShowOriginal.Length).Select(i => GuardShow + (uint)i * 4)).ToList();
+        return addresses.Select((address, i) => new RuleSite(address, s => GuardAll(s)[i], w => null)).ToList();
+    }
 
     private static int? GuardDecode(IReadOnlyList<uint> words)
     {
-        for (int s = 0; s <= 5; s++) if (GuardWords(s).SequenceEqual(words)) return s;
+        for (int s = 0; s <= 5; s++) if (GuardAll(s).SequenceEqual(words)) return s;
+        int damage = GuardOriginal.Length + 1;
+        var rest = words.Skip(damage).ToArray();
+        if (!GuardAll(0).Skip(damage).SequenceEqual(rest)) return null;
+        for (int s = 1; s <= 5; s++) if (GuardWords(s).SequenceEqual(words.Take(damage))) return s;
         return null;
     }
 
@@ -710,7 +770,7 @@ public static class GameRules
                 s => s switch { 0 => 0x10200019u, 1 => 0x14000019u, _ => 0x10000019u },
                 w => w switch { 0x10200019u => 0, 0x14000019u => 1, 0x10000019u => 2, _ => null })], confirmed: true),
         new GameRule(10, "shieldGuard", "Shield guard on a failed block",
-            "When a shield block roll fails against a physical attack, part of the shield's Might counts as Defense, rounded down. A successful block still takes off the full Might. A successful roll that an attack later cancels does not grant this bonus. The at least 1 choices never give less than 1, so a small shield still helps. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. Attacks that ignore Defense, including knives, also ignore this guard. Off is the game's own behaviour.",
+            "Part of the shield's Might always counts as Defense against physical attacks, rounded down, and a successful block takes off the rest, so a block still takes off the full Might in total. The at least 1 choices never give less than 1, so a small shield still helps. The battle forecast shows the guard in Def and the rest of the Might as the shield bonus: with a quarter of Might 5, Def 7 +5 becomes Def 8 +4. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. A sleeping unit has no shield bonus. Attacks that ignore Defense, including knives, also ignore this guard. With Full Might a block adds nothing more. Off is the game's own behaviour.",
             RuleKind.Choice, 0, 5, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might", "Quarter of Might, at least 1", "Half of Might, at least 1"],
             GuardSites(), confirmed: true, decode: GuardDecode),
         Step(11, "shieldTraining", "Shield training speed",
@@ -1183,6 +1243,7 @@ public static class GameRules
                     BinaryPrimitives.WriteUInt32LittleEndian(copy.AsSpan((int)rule.Sites[i].FileOffset), original[i]);
             }
         MercenaryData.Restore(copy);
+        RecipeData.Restore(copy);
         return copy;
     }
 }

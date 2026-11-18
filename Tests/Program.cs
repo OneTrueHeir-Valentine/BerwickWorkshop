@@ -438,16 +438,16 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     Equal("24050019,24060019",string.Join(",",crit.Encode(GameRules.RangeSetting(25,25)).Select(x=>x.ToString("X8"))));
     Throws<EditException>(()=>crit.Encode(GameRules.RangeSetting(30,20)));Equal<int?>(null,crit.Decode(new[]{0x2405001Eu,0x24060014u}));
     var failed=GameRules.ById(14);Equal(0x28A10002u,failed.Original[0]);Equal(0x28A10006u,failed.Encode(1)[0]);
-    var guard=GameRules.ById(10);Equal(27,guard.Sites.Count);Equal(0x0022A63Cu,guard.Sites[0].Address);Equal(0x0022A6A4u,guard.Sites[26].Address);
-    Equal(0u,guard.Original[0]);Equal(0x24020001u,guard.Original[1]);Equal(0x10000003u,guard.Original[23]);Equal(0xAFA20130u,guard.Original[26]);
-    Equal("00031883,00031843,00031803",string.Join(",",new[]{1,2,3}.Select(x=>guard.Encode(x)[21].ToString("X8"))));
-    Equal(20,Enumerable.Range(0,27).Count(i=>guard.Encode(2)[i]!=guard.Original[i]));
-    Equal("8E4100A8,52A00007,00011883,28610001,0021180B,1000FFF8",string.Join(",",new[]{0,2,19,20,21,25}.Select(i=>guard.Encode(4)[i].ToString("X8"))));
-    Equal(0x00011843u,guard.Encode(5)[19]);
+    var guard=GameRules.ById(10);Equal(74,guard.Sites.Count);Equal(0x0022A63Cu,guard.Sites[0].Address);Equal(0x0022C2C0u,guard.Sites[27].Address);Equal(0x001481FCu,guard.Sites[41].Address);
+    Equal(0x00324EDCu,guard.Sites[42].Address);Equal(0x0019C214u,guard.Sites[45].Address);Equal(0x0022E660u,guard.Sites[46].Address);Equal(0x0022E6CCu,guard.Sites[73].Address);
+    Equal(0u,guard.Original[0]);Equal(0x24020001u,guard.Original[1]);Equal(0x8E550008u,guard.Original[27]);Equal(0u,guard.Original[28]);Equal(0x27BDFFD0u,guard.Original[46]);
+    foreach(int g in Enumerable.Range(1,5)){var w=guard.Encode(g);Equal(true,w.Take(27).SequenceEqual(guard.Original.Take(27)));Equal(0x08052072u,w[27]);Equal(0x0808B0B2u,w[40]);
+        Equal("0C08B998,0C08B9A2,0C08B9AC,0C08B9AC",string.Join(",",w.Skip(42).Take(4).Select(x=>x.ToString("X8"))));Equal(0x03E00008u,w[46+8]);Equal(0x0200202Du,w[73]);}
+    Equal("00021883,00021843,00021803,00021883,00021843",string.Join(",",Enumerable.Range(1,5).Select(x=>guard.Encode(x)[30].ToString("X8"))));
+    Equal("0002082B,0023180A",$"{guard.Encode(4)[31]:X8},{guard.Encode(4)[32]:X8}");Equal(0u,guard.Encode(1)[31]);Equal(0x00021843u,guard.Encode(5)[66]);
     foreach(int g in Enumerable.Range(0,6))Equal<int?>(g,guard.Decode(guard.Encode(g)));
-    var mixed=guard.Encode(2);mixed[21]=guard.Original[21];Equal<int?>(null,guard.Decode(mixed));
-    mixed=guard.Original.ToArray();mixed[21]=guard.Encode(3)[21];Equal<int?>(null,guard.Decode(mixed));
-    mixed=guard.Encode(4);mixed[0]=0;Equal<int?>(null,guard.Decode(mixed));
+    var mixed=guard.Encode(2);mixed[30]=guard.Original[30];Equal<int?>(null,guard.Decode(mixed));
+    mixed=guard.Encode(4);mixed[44]=guard.Original[44];Equal<int?>(null,guard.Decode(mixed));
     Equal(0x28420005u,GameRules.ById(232).Original[0]);Equal(0x28420020u,GameRules.ById(232).Encode(32)[0]);
     Equal(0x2406FFFBu,GameRules.ById(233).Original[0]);Equal(0x24060000u,GameRules.ById(233).Encode(0)[0]);Equal<int?>(9,GameRules.ById(233).Decode(new[]{0x2406FFF7u}));
     Equal("2406FFFF,2407FFFF",string.Join(",",GameRules.ById(234).Original.Select(x=>x.ToString("X8"))));Equal(0x24060001u,GameRules.ById(235).Original[0]);
@@ -865,7 +865,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(4+1+20+34+1+2+1+2+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4+1+45+34+1+2+1+2+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);
@@ -1209,6 +1209,28 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(5000,BinaryPrimitives.ReadInt32LittleEndian(MercenaryData.Read(edited).Single(r=>r.Id==0x90).Bytes.AsSpan(8)));
         }
     });
+    Test("Atelier recipes read from the program on both discs, edited, exported and recognised",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(30,disc.RecipeBytes.Count);Equal(20,disc.RecipeBytes.Values.Count(b=>RecipeData.Type(b.Span)==0));
+            var s=new EditSession(disc);
+            Equal("35,533,535,534",string.Join(",",Enumerable.Range(1,4).Select(i=>s.Value(EditSession.Recipes,0x59,$"ingredient{i}"))));
+            Equal(0,s.Value(EditSession.Recipes,0xFF,"ingredient4"));
+            Equal(true,disc.RecipeBytes.Keys.All(id=>disc.ItemBytes.ContainsKey(id)));
+            Throws<EditException>(()=>s.Apply(EditSession.Recipes,0x59,new Dictionary<string,int>{["ingredient1"]=0}));
+            Throws<EditException>(()=>s.Apply(EditSession.Recipes,0x59,new Dictionary<string,int>{["ingredient2"]=1023}));
+            s.Apply(EditSession.Recipes,0x59,new Dictionary<string,int>{["ingredient2"]=0x217,["ingredient4"]=0});
+            Equal(0,EditSession.FromJson(disc,s.ToJson()).Value(EditSession.Recipes,0x59,"ingredient4"));
+            var patches=Exporter.PatchesFor(s,disc);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
+            var edited=exe.ToArray();
+            foreach(var p in patches) p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
+            Equal(2,Enumerable.Range(0,exe.Length/4).Count(i=>BitConverter.ToUInt32(exe,i*4)!=BitConverter.ToUInt32(edited,i*4)));
+            Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
+            Equal(0x217,BinaryPrimitives.ReadInt32LittleEndian(RecipeData.Read(edited).Single(r=>r.Id==0x59).Bytes.AsSpan(12)));
+        }
+    });
     Test("Armies: every team file on both discs, names, bosses and edits written to every copy",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
@@ -1484,7 +1506,7 @@ foreach(var exportDisc in new[]{jp!,en!})
     Test("Game rules: original code present on both editions, edit, undo and project round trip",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
-            Equal(GameRules.All.Count,disc.RuleWords.Count);
+            Equal("",string.Join(",",GameRules.All.Where(r=>!disc.RuleWords.ContainsKey(r.Id)).Select(r=>r.Id)));
             var s=new EditSession(disc);
             foreach(var rule in GameRules.All) Equal(rule.Default,s.Value(EditSession.Rules,rule.Id,rule.Key));
             s.Apply(EditSession.Rules,4,new Dictionary<string,int>{["strengthLimit"]=9});Equal(9,s.Value(EditSession.Rules,4,"strengthLimit"));s.Undo();
