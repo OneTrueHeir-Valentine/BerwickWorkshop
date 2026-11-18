@@ -1028,7 +1028,7 @@ public static class GameRules
             [new RuleSite(0x0022726C, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
         { Group = "Iaido", Short = "Counter hit bonus", Section = SkillsSection },
         new GameRule(148, "iaidoCounterCrit", "Iaido counter critical bonus", "", RuleKind.Limit, 0, 100, 3, null,
-            [new RuleSite(0x00227278, n => 0x26B50000u | (uint)n, w => Imm(w, 0x26B50000u, 100))], confirmed: false)
+            [new RuleSite(0x00227278, n => 0x26B50000u | (uint)n, w => Imm(w, 0x26B50000u, 100))], confirmed: true)
         { Group = "Iaido", Short = "Counter critical bonus", Section = SkillsSection },
         // Battle Cry: the count of uses is unit state +0x104 bits 2 to 5. Attack adds 3 per use (0x001B8270); the command menu
         // and the enemy decisions offer it below 6 uses, and each use keeps the count at 6 or less.
