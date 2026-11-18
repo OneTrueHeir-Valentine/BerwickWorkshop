@@ -1057,7 +1057,7 @@ public static class GameRules
             [new RuleSite(0x00228A1C, n => 0x24100000u | (uint)n, w => Imm(w, 0x24100000u, 100))], confirmed: true)
         { Group = InjuryGroup, Short = "Base chance" },
         new GameRule(157, "injuryKnife", "Injury knife bonus", "", RuleKind.Limit, 0, 100, 6, null,
-            [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: false)
+            [new RuleSite(0x00228A28, n => 0x26100000u | (uint)n, w => Imm(w, 0x26100000u, 100))], confirmed: true)
         { Group = InjuryGroup, Short = "Knife bonus" },
         // Blessing at each turn start (0x001CEEE0): allies passing the check 0x001BF830 (within 3 hexes) recover random 0 to 3 HP.
         AuraRange(158, "blessingRange", "Blessing", 3, true, Below(0x001BF8F0)),
