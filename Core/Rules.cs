@@ -1017,7 +1017,7 @@ public static class GameRules
         // for 10 (0x002F2410), or status 15 for 10 in its other mode (0x002F23E0); Hateful gives status 15 for 10 (0x002F2FB4).
         new GameRule(211, "provokeTurns", "Provoke turns", "", RuleKind.Limit, 1, 30, 10, null,
             [new RuleSite(0x002F2410, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null),
-             new RuleSite(0x002F23E0, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)])
+             new RuleSite(0x002F23E0, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Provoke", Short = "Turns provoked", Section = SkillsSection },
         new GameRule(212, "hatefulTurns", "Hateful turns", "", RuleKind.Limit, 1, 30, 10, null,
             [new RuleSite(0x002F2FB4, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: false)
