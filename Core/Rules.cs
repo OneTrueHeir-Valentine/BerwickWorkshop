@@ -239,7 +239,9 @@ public static class GameRules
         ["Blessing"] = "At the start of each turn, each ally within range recovers a random amount of HP from 0 up to the most healing. The game's range is 3 hexes and the most healing 3.",
         ["Horse-Lover"] = "After each chapter, the unit's horse recovers this much HP, up to its maximum. The game's value is 20.",
         ["Scotopic"] = "Adds to the unit's vision range, which matters on maps with fog. The game adds 1.",
-        ["Provoke"] = "In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
+        ["Our Bond"] = "The game raises Reese's critical chance to this value while Lynette stands next to him; it checks Lynette herself, not the skill. The game's value is 100.",
+        ["Hateful"] = "When a unit with Hateful is attacked, its attacker becomes Provoked for this many of its own turns. The game uses 10.",
+        ["Provoke"] = "A provoked enemy stays provoked for Turns provoked of its own turns; the game uses 10. In the game, Provoke can only be chosen before the unit moves. Allowed also offers it after a move. It reaches enemies within range; the game's range is 5 hexes.",
         ["Evasion"] = "While Evasion is active the unit gets the avoid bonus; the game gives 50. In the game, Evasion can only be chosen before the unit moves. Allowed also offers it after a move. After use, Evasion can be chosen again this many of the unit's turns later. The game's wait is 4; at 1 it can be used every turn.",
         ["Silence"] = "In the game, Silence can only be chosen before the unit moves. Allowed also offers it after a move. After use, Silence can be chosen again this many of the unit's turns later; the game's wait is 9.",
         ["One-Two"] = "After use, One-Two can be chosen again this many of the unit's turns later. The game's wait is 6.",
@@ -949,10 +951,22 @@ public static class GameRules
         // Canto after a fight: the menu (0x00388450) skips Canto when state +0x58 bit 0x02000000 is set (0x00388480); the fight results
         // (0x0022CCC0) set that bit when a strike did damage to the unit (battle flag 0x10000).
         WordSets(208, "cantoAfterDamage", "Canto after taking damage", "Canto", "After taking damage", 0, ["Not offered", "Offered"],
-            [0x00388480], [[0x14400065u], [0u]], confirmed: false),
+            [0x00388480], [[0x14400065u], [0u]]),
         // Guard: the avoid hooks (0x001B7A90, 0x001B7BE0, 0x001B7CD0) and the defense hook (0x001B8140) halve the value while the unit guards (state +0x58 bit 0x4000).
         WordSets(209, "guardHalving", "Guard's own defense and avoid", "Guard", "Own defense and avoid", 0, ["Halved", "Kept"],
             [0x001B7B9C, 0x001B7C8C, 0x001B7DD4, 0x001B81E4], [[0x10400006u, 0x10400006u, 0x10400006u, 0x10400006u], [0x10000006u, 0x10000006u, 0x10000006u, 0x10000006u]]),
+        // Our Bond: the critical hook (0x001B79D0) sets Reese's critical to 100 (0x001B7A6C) while Lynette (unit 0x7D) stands next to him (0x001B82A0).
+        new GameRule(210, "ourBondCritical", "Our Bond critical", "", RuleKind.Limit, 0, 100, 100, null,
+            [new RuleSite(0x001B7A6C, n => 0x24100000u | (uint)n, w => Imm(w, 0x24100000u, 100))], confirmed: false)
+        { Group = "Our Bond", Short = "Reese's critical", Section = SkillsSection },
+        // Provoked is status 15; its counter (+0x6F) drops by 1 on each of the unit's turns (0x001B6F10). The Provoke command (0x002F23E0)
+        // and Hateful (0x002F2FB4) both start it at 10.
+        new GameRule(211, "provokeTurns", "Provoke turns", "", RuleKind.Limit, 1, 30, 10, null,
+            [new RuleSite(0x002F23E0, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Provoke", Short = "Turns provoked", Section = SkillsSection },
+        new GameRule(212, "hatefulTurns", "Hateful turns", "", RuleKind.Limit, 1, 30, 10, null,
+            [new RuleSite(0x002F2FB4, n => 0x24060000u | (uint)n, w => (w & 0xFFFF0000u) == 0x24060000u && (w & 0xFFFF) is >= 1 and <= 30 ? (int)(w & 0xFFFF) : null)], confirmed: false)
+        { Group = "Hateful", Short = "Turns provoked", Section = SkillsSection },
         // Robbery after a kill (0x003F9960): a percent roll below 25 (0x003F99B8), then the range below 2 (0x003F99C0).
         new GameRule(204, "robberyChance", "Robbery chance", "", RuleKind.Limit, 0, 100, 25, null,
             [new RuleSite(0x003F99B8, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 100))], confirmed: true)

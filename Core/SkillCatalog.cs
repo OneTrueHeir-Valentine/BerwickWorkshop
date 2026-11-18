@@ -127,7 +127,7 @@ public static class SkillCatalog
         new("Focus Chant", "Command", "Casts with extra focus.",
             "Needs an orb. Adds 30 to hit and raises attack by 10% to 30% for that attack. After use the command returns 6 of the unit's turns later.",
             "Hit bonus, wait and when it can be chosen: checked in a running game. Attack bonus: from the game's own description"),
-        new("Our Bond", "Always on", "Inspires Reese.", "While a unit with Our Bond is adjacent to Reese, his critical chance becomes 100.", Program),
+        new("Our Bond", "Always on", "Inspires Reese.", "While Lynette is next to Reese, his critical chance becomes 100. The game checks for Lynette herself rather than for the skill.", Program),
         new("Horse-Lover", "Always on", "Looks after the unit's horse.", "After each chapter the unit's horse recovers 20 HP, up to its maximum.",
             "Amount: read from the game program. After each chapter: from the game's own description"),
         new("Robbery", "Chance", "Takes items from defeated enemies.",
