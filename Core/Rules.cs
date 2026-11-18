@@ -294,11 +294,12 @@ public static class GameRules
         ["Lethargy"] = "When a unit with Lethargy begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
-        [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost that amount times the shield multiplier (the game uses 4). Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus Reese's extra chance from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
-        [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
+        [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
+        [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
     };
 
     public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level";
+    // Checked live: grade D wear 20, band edge 90 with band 1 breaking at 100 (menu text and a break), failure 16 per level.
     // Durability use 0x0016CFE0: wear per use by grade is data (7 words at 0x00429ED0, S to F); shields multiply it (sll s6,s6,2 at
     // 0x0016D2AC); Reese (unit 83) gets 20 more chance to save a use while story flag 99 is set and 3709 is not (0x0016D308).
     // Break chance 0x0016E8D0 returns a percent for the band from 0x0016EB00, which compares the stored durability (shown + 1).
@@ -323,28 +324,28 @@ public static class GameRules
     {
         for (int g = 0; g < Grades.Length; g++)
             yield return new GameRule(213 + g, $"wearGrade{Grades[g]}", $"Durability used per use, grade {Grades[g]}", "", RuleKind.Limit, 0, 127, g + 1, null,
-                [new RuleSite(WearTable + (uint)g * 4, s => (uint)s, w => null)], confirmed: false,
+                [new RuleSite(WearTable + (uint)g * 4, s => (uint)s, w => null)], confirmed: true,
                 decode: words => words[0] <= 127 ? (int)words[0] : null) { Group = DurabilityGroup, Short = $"Used per use, grade {Grades[g]}" };
         yield return new GameRule(220, "shieldWear", "Shield durability multiplier", "", RuleKind.Choice, 0, 3, 2, ["Times 1", "Times 2", "Times 4", "Times 8"],
             [new RuleSite(0x0016D2AC, s => 0x0016B000u | (uint)s << 6, w => w switch { 0x0016B000u => 0, 0x0016B040u => 1, 0x0016B080u => 2, 0x0016B0C0u => 3, _ => null })], confirmed: false)
             { Group = DurabilityGroup, Short = "Shields use" };
         for (int b = 0; b < BandSites.Length; b++)
             yield return new GameRule(221 + b, $"durabilityBand{b + 1}", $"Lowest durability of the {BandNames[b]} band", "", RuleKind.Limit, 0, 126, BandLowest[b], null,
-                [new RuleSite(BandSites[b], s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 127 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: false)
+                [new RuleSite(BandSites[b], s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 127 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true)
                 { Group = DurabilityGroup, Short = $"Lowest durability, band {BandNames[b]}" };
         for (int b = 0; b < BreakSites.Length; b++)
         {
             int band = b;
             yield return new GameRule(225 + b, $"breakChance{b + 1}", $"Break chance, band {BandNames[b]}", "", RuleKind.Limit, 0, 100, BreakDefaults[b], null,
                 [new RuleSite(BreakSites[b], s => s == BreakDefaults[band] ? BreakOriginal[band] : 0x24020000u | (uint)s,
-                    w => w == BreakOriginal[band] ? BreakDefaults[band] : Imm(w, 0x24020000u, 100))], confirmed: false)
+                    w => w == BreakOriginal[band] ? BreakDefaults[band] : Imm(w, 0x24020000u, 100))], confirmed: true)
                 { Group = DurabilityGroup, Short = $"Break chance (%), band {BandNames[b]}" };
         }
         yield return new GameRule(230, "reeseThrift", "Reese's chance to save a use", "", RuleKind.Limit, 0, 100, 20, null,
             [new RuleSite(0x0016D308, s => 0x26100000u | (uint)s, w => Imm(w, 0x26100000u, 100))], confirmed: false)
             { Group = DurabilityGroup, Short = "Reese's extra chance to save a use (%)" };
         yield return new GameRule(231, "rankFailure", "Failure chance per level", "", RuleKind.Choice, 0, FailureChoices.Length - 1, 5, FailureChoices,
-            [new RuleSite(0x0017C8D8, s => FailureWords[s][0], w => null), new RuleSite(0x0017C8E0, s => FailureWords[s][1], w => null)], confirmed: false,
+            [new RuleSite(0x0017C8D8, s => FailureWords[s][0], w => null), new RuleSite(0x0017C8E0, s => FailureWords[s][1], w => null)], confirmed: true,
             decode: found => Array.FindIndex(FailureWords, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
             { Group = RankFailureGroup, Short = "Failure chance per level of rank above" };
     }
