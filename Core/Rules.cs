@@ -351,6 +351,7 @@ public static class GameRules
         ["Pitchfork"] = "Weapon type allowed sets which weapons the skill lets a unit use; the game adds pitchforks.",
         ["Lance"] = "Weapon type allowed sets which weapons the skill lets a unit use; the game adds lances. Lances themselves still need a mounted class.",
         ["Blade"] = "Weapon type allowed sets which weapons the skill lets a unit use; the game adds blades.",
+        ["Locktouch"] = "Who can open sets who may open doors, gates and chests. In the game a unit needs Locktouch, or a Door Key (used up) for doors and gates; Every unit lets anyone open them as a Locktouch holder does.",
         ["Guard"] = "While a unit guards, the game halves its own defense and avoid; this can be changed so they are kept. In the game, Guard can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Search"] = "In the game, Search can be chosen before or after the unit moves. Not allowed offers it only before a move.",
         ["Return"] = "In the game, Return can be chosen before or after the unit moves. Not allowed offers it only before a move.",
@@ -1194,6 +1195,10 @@ public static class GameRules
         GrantedWeapon(239, "pitchforkWeapon", "Pitchfork", 6, 0x0017C9B4, 0x0017CA90),
         GrantedWeapon(240, "lanceWeapon", "Lance", 5, 0x0017C9D0, 0x0017CAB8),
         GrantedWeapon(241, "bladeWeapon", "Blade", 2, 0x0017C9EC, 0x0017CAE0),
+        // Locktouch: the Open command (menus 0x001B9D20 and 0x0038CF5C), the door action (0x001DEA14, spends a Door Key without the skill)
+        // and the chest action (0x001E4984) ask the skill check; answering yes for everyone lets any unit open without a key.
+        WordSets(242, "locktouchEveryone", "Opening without Locktouch", "Locktouch", "Who can open", 0, ["Locktouch, or a Door Key for doors", "Every unit, no key used"],
+            [0x001B9D34, 0x001DEA14, 0x001E4984, 0x0038CF5C], [[0x0C05F428u, 0x0C05F428u, 0x0C05F428u, 0x0C05F428u], [0x24020001u, 0x24020001u, 0x24020001u, 0x24020001u]], confirmed: false),
         // Robbery after a kill (0x003F9960): a percent roll below 25 (0x003F99B8), then the range below 2 (0x003F99C0).
         new GameRule(204, "robberyChance", "Robbery chance", "", RuleKind.Limit, 0, 100, 25, null,
             [new RuleSite(0x003F99B8, n => 0x28410000u | (uint)n, w => Imm(w, 0x28410000u, 100))], confirmed: true)
