@@ -1003,7 +1003,7 @@ public static class GameRules
         { Group = "Throw", Short = "Hit bonus", Section = SkillsSection },
         // Miracle: when a hit would kill, 0x0022B7C0 rolls it again with the attacker's hit lowered (addiu a1, s0, -10).
         new GameRule(139, "miracleReroll", "Miracle hit reduction", "", RuleKind.Limit, 0, 100, 10, null,
-            [new RuleSite(0x00227FD4, n => 0x26050000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26050000u && -(short)(w & 0xFFFF) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: false)
+            [new RuleSite(0x00227FD4, n => 0x26050000u | (uint)(-n & 0xFFFF), w => (w & 0xFFFF0000u) == 0x26050000u && -(short)(w & 0xFFFF) is >= 0 and <= 100 ? -(short)(w & 0xFFFF) : null)], confirmed: true)
         { Group = "Miracle", Short = "Hit taken off the second roll", Section = SkillsSection },
         // Mug and Mug+: the chance is level / 10 plus 3, each skill with its own copy.
         new GameRule(140, "mugChance", "Mug base chance", "", RuleKind.Limit, 0, 100, 3, null,
