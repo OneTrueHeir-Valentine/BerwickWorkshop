@@ -18,7 +18,7 @@ public sealed record CharacterRecord(
     public int ClassId { get; init; }
     public int Bracket { get; init; }
     public int Luck { get; init; }
-    public string BracketText => Bracket switch { 1 => "None", 2 => "Loose (±3)", 3 => "Tight", _ => $"Unknown ({Bracket})" };
+    public string BracketText => Bracket switch { 1 => "None", 2 => "Loose", 3 => "Tight", _ => $"Unknown ({Bracket})" };
     public string ClassName { get; init; } = "";
     public static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString(CultureInfo.InvariantCulture);
     public static string WeaponLevel(int raw) => (raw / 10.0).ToString(raw % 10 == 0 ? "0" : "0.0", CultureInfo.InvariantCulture);

@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Berwick.Core;
 
-public enum RuleKind { Choice, FixedAmount, Limit, Range }
+public enum RuleKind { Choice, FixedAmount, Limit, Range, Pair }
 
 /// <summary>One instruction a rule changes: how a setting becomes the instruction word, and back.</summary>
 public sealed record RuleSite(uint Address, Func<int, uint> Encode, Func<uint, int?> Decode)
@@ -34,6 +34,8 @@ public sealed class GameRule(int id, string key, string name, string description
     public string Short { get; init; } = "";
     /// <summary>Skills is shown on its own page; everything else on the Rules page.</summary>
     public string Section { get; init; } = "";
+    /// <summary>For a Pair rule: what each of the two numbers sets.</summary>
+    public IReadOnlyList<string> PairLabels { get; init; } = [];
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
 
@@ -84,6 +86,7 @@ public sealed class GameRule(int id, string key, string name, string description
         Choices is { } c && setting - Min >= 0 && setting - Min < c.Count ? c[setting - Min]
         : Kind == RuleKind.FixedAmount ? (setting == 0 ? "Normal" : setting.ToString())
         : Kind == RuleKind.Range ? $"{GameRules.RangeLow(setting)} to {GameRules.RangeHigh(setting)}{(setting == Default ? " (normal)" : "")}"
+        : Kind == RuleKind.Pair ? $"{PairLabels[0]} {GameRules.RangeLow(setting)}, {PairLabels[1]} {GameRules.RangeHigh(setting)}{(setting == Default ? " (normal)" : "")}"
         : setting == Default ? $"Normal ({setting})" : setting.ToString();
 
     public TableField Field => new(Key, Name, 0, 0, 1, Min, Max) { Choices = Choices };
@@ -319,12 +322,13 @@ public static class GameRules
         ["Lethargy"] = "When a unit with Lethargy begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
+        [GrowthBandGroup] = "Each character has a growth band. On every level up the game compares how much each stat has grown so far with the expected growth, levels gained times the growth rate divided by 100. A stat that is more than the band above that cannot rise this level, and one more than the band below it rises for sure. Loose keeps HP, Strength and Mind within 3 and Defense and Agility within 2; Tight keeps every stat within 1; characters without a band are not held at all.",
         [LuckGroup] = "Luck protects a unit in two ways. When a hit would defeat it and its Luck is at least the amount needed, the hit is cancelled and the unit loses Luck. After a fight, a unit hit for more damage than it had HP left faces a roll based on the excess; with 1 or more Luck it is spared and loses Luck instead. A level up that raises nothing else adds Luck. The game needs 5, takes 5 and 1, and adds 1. The highest Luck is set by the Luck limit.",
         [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
         [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
     };
 
-    public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level", LuckGroup = "Luck";
+    public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level", LuckGroup = "Luck", GrowthBandGroup = "Growth bands";
 
     private static int? Negative(uint word, uint upper, int max) =>
         (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
@@ -333,6 +337,38 @@ public static class GameRules
     // (slti at 0x00228540); the unit then loses 5 Luck (0x00225F28). In the fight results (0x0022CCC0), a roll from the damage beyond the
     // unit's HP sets state bit 0x80000000 unless Luck is 1 or more, which costs 1 Luck (0x0022CFA4, shown amount 0x0022CFB8).
     // A level up with no other gain adds 1 Luck (0x00223D60).
+    // Growth bands (0x002237D0): on a level up, each stat's gains so far are compared with levels gained x growth / 100. Over the band
+    // the stat cannot rise; under it the stat is forced to rise. Growth record byte 2 bits 5 to 7: 2 Loose (HP, Strength, Mind 3; Defense,
+    // Agility 2, stored at 0x00223870 from registers shared with the band compares), 3 Tight (1 for all, 0x00223880), anything else none.
+    // The Loose words are rewritten to load their own values; the Tight words drop a needless reload to hold a second value.
+    private const int BandMost = 30;
+    private static string? PairCheck(int s) => GameRules.RangeLow(s) > BandMost || GameRules.RangeHigh(s) > BandMost ? $"Each band value can be at most {BandMost}." : null;
+    private static readonly uint[] LooseOriginal = [0xAFA300B0u, 0x10000006u, 0xAFA200A0u, 0u], TightOriginal = [0x24020001u, 0xAFA200B0u, 0x8FA200B0u, 0xAFA200A0u];
+    private static uint[] LooseWords(int s) => s == GameRules.RangeSetting(3, 2) ? LooseOriginal
+        : [0x24030000u | (uint)GameRules.RangeLow(s), 0xAFA300B0u, 0x10000004u, 0x24020000u | (uint)GameRules.RangeHigh(s)];
+    private static uint[] TightWords(int s) => s == GameRules.RangeSetting(1, 1) ? TightOriginal
+        : [0x24020000u | (uint)GameRules.RangeLow(s), 0xAFA200B0u, 0x24020000u | (uint)GameRules.RangeHigh(s), 0xAFA200A0u];
+    private static int? PairDecode(IReadOnlyList<uint> w, uint[] original, int normal, Func<int, uint[]> words, int second)
+    {
+        if (w.SequenceEqual(original)) return normal;
+        int a = (int)(w[0] & 0xFFFF), b = (int)(w[second] & 0xFFFF);
+        if (a > BandMost || b > BandMost) return null;
+        int s = GameRules.RangeSetting(a, b);
+        return words(s).SequenceEqual(w) ? s : null;
+    }
+    private static IEnumerable<GameRule> GrowthBandRules()
+    {
+        string[] labels = ["HP, Strength and Mind", "Defense and Agility"];
+        yield return new GameRule(236, "growthBandLoose", "Loose growth band", "", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(3, 2), null,
+            Enumerable.Range(0, 4).Select(i => new RuleSite(0x00223870u + (uint)i * 4, s => LooseWords(s)[i], w => null)).ToList(), confirmed: false,
+            decode: w => PairDecode(w, LooseOriginal, GameRules.RangeSetting(3, 2), LooseWords, 3), check: PairCheck)
+            { Group = GrowthBandGroup, Short = "Loose band, how far from expected", PairLabels = labels };
+        yield return new GameRule(237, "growthBandTight", "Tight growth band", "", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(1, 1), null,
+            Enumerable.Range(0, 4).Select(i => new RuleSite(0x00223880u + (uint)i * 4, s => TightWords(s)[i], w => null)).ToList(), confirmed: false,
+            decode: w => PairDecode(w, TightOriginal, GameRules.RangeSetting(1, 1), TightWords, 2), check: PairCheck)
+            { Group = GrowthBandGroup, Short = "Tight band, how far from expected", PairLabels = labels };
+    }
+
     private static IEnumerable<GameRule> LuckRules()
     {
         yield return new GameRule(232, "luckLethalNeed", "Luck needed to cancel a defeating hit", "", RuleKind.Limit, 1, 32, 5, null,
@@ -696,6 +732,7 @@ public static class GameRules
             RuleKind.Choice, 0, 2, 0, ["Off", "Counts as a failed block", "Counts as a successful block"], VantageSites(), confirmed: true),
         ..DurabilityRules(),
         ..LuckRules(),
+        ..GrowthBandRules(),
         CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formulas below. A fixed amount replaces them and gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",

@@ -106,7 +106,7 @@ public static class Mechanics
 
         // Growth
         new("Growth", "Stat growth", "Expected stat = starting stat + growth rate × levels gained; the actual stat stays within the bracket around it",
-            "Growth is not purely random: each level the game keeps a stat near its expected value. The bracket sets how far it may drift: Loose ±3, Tight closer, None unlimited (only Daoud and Lynette).",
+            "Growth is not purely random: each level the game keeps a stat near its expected value. The band sets how far it may drift: Loose 3 for HP, Strength and Mind and 2 for Defense and Agility, Tight 1, None unlimited (only Daoud and Lynette).",
             MechanicStatus.Published, "Player write-up (West-East blog), matched against the discs",
             [new("Growth rates and bracket", Characters)], "The level-up routine is located in part; the bracket logic is not yet read."),
         new("Growth", "Weapon training", "After an attack: 1 or 2 training rolls (2 below level 10), plus 1 more on a hit; each passes when random < growth × 10 and random < 190 − 3 × level, and adds 0.1 of a level",

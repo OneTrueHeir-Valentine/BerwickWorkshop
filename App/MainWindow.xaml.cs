@@ -1661,12 +1661,15 @@ public partial class MainWindow : Window
         var levels=Enumerable.Range(c.Level+1,Math.Max(0,levelCap-c.Level)).Where(l=>l%5==0 || l==c.Level+1 || l==levelCap).Distinct().ToList();
         if(levels.Count==0)return;
         Section("Expected stats by level");
-        string band=c.Bracket switch{2=>"Level ups keep each stat within 3 of this.",3=>"Level ups keep each stat close to this (the Tight band's exact range is not measured).",_=>"This character has no band, so real stats can drift far from this."};
+        int bandRule=c.Bracket==2?236:c.Bracket==3?237:0;
+        string band=bandRule==0?"This character has no growth band, so real stats can drift far from this."
+            :$"The {(c.Bracket==2?"Loose":"Tight")} band keeps HP, Strength and Mind within {GameRules.RangeLow(RuleSetting(bandRule))} of this and Defense and Agility within {GameRules.RangeHigh(RuleSetting(bandRule))}.";
         Text($"Starting value plus growth rate times levels gained, in the current class, capped by the stat limits on the Rules page. {band}");
         var stats=new (string Name,int Start,int Growth,int Base,int Limit)[]
         {
             ("HP",k.Hp+c.HpBonus,c.HpGrowth,k.Hp,RuleSetting(3)),("Str",k.Strength+c.StrengthBonus,c.StrengthGrowth,k.Strength,RuleSetting(4)),
             ("Def",k.Defense+c.DefenseBonus,c.DefenseGrowth,k.Defense,RuleSetting(7)),("Agi",k.Agility+c.AgilityBonus,c.AgilityGrowth,k.Agility,RuleSetting(5)),
+            ("Mind",k.Mind+c.MindBonus,c.MindGrowth/2,k.Mind,RuleSetting(8)),
         };
         var table=new Grid {Margin=new Thickness(0,4,0,4)};
         for(int col=0;col<=stats.Length;col++)table.ColumnDefinitions.Add(new ColumnDefinition{Width=col==0?new GridLength(1.4,GridUnitType.Star):new GridLength(1,GridUnitType.Star)});
@@ -2289,7 +2292,27 @@ public partial class MainWindow : Window
                 }
                 catch(EditException ex){error.Text=ex.Message;}
             }
-            if(rule.Kind==RuleKind.Range)
+            if(rule.Kind==RuleKind.Pair)
+            {
+                TextBox Box(int v,string name){var b=new TextBox {Width=48,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=v.ToString()};System.Windows.Automation.AutomationProperties.SetName(b,name);return b;}
+                var first=Box(GameRules.RangeLow(current),rule.PairLabels[0]);var second=Box(GameRules.RangeHigh(current),rule.PairLabels[1]);
+                var applyPair=new Button {Content="Apply",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(8,0,0,0)};
+                int most=GameRules.RangeLow(rule.Max);
+                void ApplyPair()
+                {
+                    if(!int.TryParse(first.Text.Trim(),out int a) || !int.TryParse(second.Text.Trim(),out int b) || a<0 || b<0 || a>most || b>most){error.Text=$"Enter two whole numbers from 0 to {most}.";return;}
+                    error.Text="";Set(GameRules.RangeSetting(a,b));
+                }
+                applyPair.Click+=(_,_)=>ApplyPair();
+                first.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyPair();e.Handled=true;}};second.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){ApplyPair();e.Handled=true;}};
+                TextBlock Label(string t)=>new TextBlock {Text=t,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,6,0),FontSize=12};
+                var pairPanel=new WrapPanel();
+                pairPanel.Children.Add(Label(rule.PairLabels[0]));pairPanel.Children.Add(first);
+                var secondLabel=Label(rule.PairLabels[1]);secondLabel.Margin=new Thickness(12,0,6,0);pairPanel.Children.Add(secondLabel);pairPanel.Children.Add(second);pairPanel.Children.Add(applyPair);
+                row.Children.Add(pairPanel);
+                row.Children.Add(new TextBlock {Text=$"Game default {GameRules.RangeLow(rule.Default)} and {GameRules.RangeHigh(rule.Default)}",Foreground=(Brush)FindResource("Muted"),FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(12,0,0,0)});
+            }
+            else if(rule.Kind==RuleKind.Range)
             {
                 TextBox Box(int v,string name){var b=new TextBox {Width=56,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=v.ToString()};System.Windows.Automation.AutomationProperties.SetName(b,name);return b;}
                 var low=Box(GameRules.RangeLow(current),$"{rule.Name} low");var high=Box(GameRules.RangeHigh(current),$"{rule.Name} high");
@@ -2502,7 +2525,7 @@ public partial class MainWindow : Window
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
             ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
             ("New items","New item turns one of the disc's unused item slots into a new item. It starts as a full copy of an item you choose, including properties not shown in the editor, and can then be edited and given to characters as a starting item. Your name for it is saved in the project; until text editing is added, the game shows the slot's own name. Remove new item frees the slot again."),
-            ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps stats within 3 of it; Tight keeps them closer; None lets them drift (only Daoud and Lynette use None). Loose and None are confirmed from published play notes; the exact range of Tight is not yet measured."),
+            ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps HP, Strength and Mind within 3 of it and Defense and Agility within 2; Tight keeps every stat within 1; None lets them drift (only Daoud and Lynette use None). A stat too far ahead cannot rise, and one too far behind always rises. The Rules page can change both bands."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),
             ("Exporting a disc","Export disc writes a new ISO with your changes applied, ready to load in PCSX2. The original image is read, checked against the fingerprint taken when it was opened, and copied; it is never changed. Both copies of each changed table on the disc are updated, and the changed bytes are read back from the new file before it is kept. Exporting needs free space for a full copy of the disc. Cancel stops the export and removes the unfinished file."),
             ("Modified discs","A disc that is not an exact original release, such as an exported disc or another modification, is shown as a modified disc when its game program and data layout match a supported edition. Its data can be browsed, compared and edited, but it is read from the disc as it is, so values may differ from the original release."),

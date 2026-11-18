@@ -214,7 +214,7 @@ public static class CharacterFields
         new("defenseGrowth", "Defense growth", 1, 6, 7, 0, 127),
         new("agilityGrowth", "Agility growth", 4, 2, 7, 0, 127),
         new("mindGrowth", "Mind growth (stored value)", 5, 0, 7, 0, 127),
-        new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose (±3)", "Tight"] },
+        new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose", "Tight"] },
     }.Concat(CharacterDecoder.GrowthWeapons.Select((w, i) => new TableField(Key(w, "Growth"), w, 8 + i / 2, 4 * (i % 2), 4, 0, 15) { Display = 10, Group = "Weapon growth" })).ToArray());
 }
 
