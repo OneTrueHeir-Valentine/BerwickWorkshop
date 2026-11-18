@@ -2412,7 +2412,13 @@ public partial class MainWindow : Window
             int current=session.Value(EditSession.Rules,r.Id,r.Key);
             bool wide=r.Choices?.Any(c=>c.Length>10)==true;
             var cell=new StackPanel {Width=wide?168:118,Margin=new Thickness(0,0,10,12)};
-            cell.Children.Add(new TextBlock {Text=r.Short,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)});
+            var label=new TextBlock {Text=r.Short,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)};
+            if(r.Swatch.Length>0)
+            {
+                var dot=new System.Windows.Shapes.Ellipse {Width=10,Height=10,Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(r.Swatch)),Stroke=(Brush)FindResource("Line"),Margin=new Thickness(0,3,6,0),VerticalAlignment=VerticalAlignment.Top};
+                var head=new DockPanel();DockPanel.SetDock(dot,Dock.Left);head.Children.Add(dot);head.Children.Add(label);cell.Children.Add(head);
+            }
+            else cell.Children.Add(label);
             Control box=r.Choices is { } choices
                 ?new ComboBox {Width=wide?160:110,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(8,4,8,4),ItemsSource=choices,SelectedIndex=current-r.Min}
                 :new TextBox {Width=70,HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(6,4,6,4),HorizontalContentAlignment=HorizontalAlignment.Right,Text=current.ToString()};

@@ -505,7 +505,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(209,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(207,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));

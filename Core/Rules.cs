@@ -36,6 +36,8 @@ public sealed class GameRule(int id, string key, string name, string description
     public string Section { get; init; } = "";
     /// <summary>For a Pair rule: what each of the two numbers sets.</summary>
     public IReadOnlyList<string> PairLabels { get; init; } = [];
+    /// <summary>A colour shown beside the rule, as #RRGGBB (the durability band marks).</summary>
+    public string Swatch { get; init; } = "";
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
 
@@ -322,7 +324,6 @@ public static class GameRules
         ["Lethargy"] = "When a unit with Lethargy begins a move, it has this many hexes less to spend. The Move on its status screen does not change. The game takes off 1.",
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
-        [GrowthBandGroup] = "Each character has a growth band. On every level up the game compares how much each stat has grown so far with the expected growth, levels gained times the growth rate divided by 100. A stat that is more than the band above that cannot rise this level, and one more than the band below it rises for sure. Loose keeps HP, Strength and Mind within 3 and Defense and Agility within 2; Tight keeps every stat within 1; characters without a band are not held at all.",
         [LuckGroup] = "Luck protects a unit in two ways. When a hit would defeat it and its Luck is at least the amount needed, the hit is cancelled and the unit loses Luck. After a fight, a unit hit for more damage than it had HP left faces a roll based on the excess; with 1 or more Luck it is spared and loses Luck instead. A level up that raises nothing else adds Luck. The game needs 5, takes 5 and 1, and adds 1. The highest Luck is set by the Luck limit.",
         [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
         [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
@@ -359,14 +360,14 @@ public static class GameRules
     private static IEnumerable<GameRule> GrowthBandRules()
     {
         string[] labels = ["HP, Strength and Mind", "Defense and Agility"];
-        yield return new GameRule(236, "growthBandLoose", "Loose growth band", "", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(3, 2), null,
+        yield return new GameRule(236, "growthBandLoose", "Loose growth band", "How far a stat may drift from its expected growth for characters with the Loose band before a level up holds it back or forces it up. The game uses 3 for HP, Strength and Mind and 2 for Defense and Agility.", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(3, 2), null,
             Enumerable.Range(0, 4).Select(i => new RuleSite(0x00223870u + (uint)i * 4, s => LooseWords(s)[i], w => null)).ToList(), confirmed: false,
             decode: w => PairDecode(w, LooseOriginal, GameRules.RangeSetting(3, 2), LooseWords, 3), check: PairCheck)
-            { Group = GrowthBandGroup, Short = "Loose band, how far from expected", PairLabels = labels };
-        yield return new GameRule(237, "growthBandTight", "Tight growth band", "", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(1, 1), null,
+            { PairLabels = labels };
+        yield return new GameRule(237, "growthBandTight", "Tight growth band", "How far a stat may drift from its expected growth for characters with the Tight band before a level up holds it back or forces it up. The game uses 1 for every stat.", RuleKind.Pair, 0, GameRules.RangeSetting(BandMost, BandMost), GameRules.RangeSetting(1, 1), null,
             Enumerable.Range(0, 4).Select(i => new RuleSite(0x00223880u + (uint)i * 4, s => TightWords(s)[i], w => null)).ToList(), confirmed: false,
             decode: w => PairDecode(w, TightOriginal, GameRules.RangeSetting(1, 1), TightWords, 2), check: PairCheck)
-            { Group = GrowthBandGroup, Short = "Tight band, how far from expected", PairLabels = labels };
+            { PairLabels = labels };
     }
 
     private static IEnumerable<GameRule> LuckRules()
@@ -394,6 +395,9 @@ public static class GameRules
     private static readonly uint[] BandSites = [0x0016EB48u, 0x0016EB60u, 0x0016EB78u, 0x0016EB90u];
     private static readonly int[] BandLowest = [61, 41, 21, 1];
     private static readonly string[] BandNames = ["61 or more", "41 to 60", "21 to 40", "1 to 20", "0"];
+    // The condition mark colours in the item lists (sprite sheet 8, read from the game screen).
+    public static readonly string[] BandColors = ["#2F4F8F", "#3E9E4E", "#D8C23A", "#E0902E", "#9C3A2C"];
+    public static readonly string[] BandColorNames = ["blue", "green", "yellow", "orange", "red"];
     // Each band's percent is set in a branch delay slot; a changed setting becomes addiu v0, zero, n.
     private static readonly uint[] BreakSites = [0x0016E984u, 0x0016E98Cu, 0x0016E994u, 0x0016E99Cu, 0x0016E9A4u];
     private static readonly uint[] BreakOriginal = [0x0000102Du, 0x0060102Du, 0x0060102Du, 0x0080102Du, 0x24020064u];
@@ -418,14 +422,14 @@ public static class GameRules
         for (int b = 0; b < BandSites.Length; b++)
             yield return new GameRule(221 + b, $"durabilityBand{b + 1}", $"Lowest durability of the {BandNames[b]} band", "", RuleKind.Limit, 0, 126, BandLowest[b], null,
                 [new RuleSite(BandSites[b], s => 0x28410000u | (uint)(s + 1), w => (w & 0xFFFF0000u) == 0x28410000u && (w & 0xFFFF) is >= 1 and <= 127 ? (int)(w & 0xFFFF) - 1 : null)], confirmed: true)
-                { Group = DurabilityGroup, Short = $"Lowest durability, band {BandNames[b]}" };
+                { Group = DurabilityGroup, Short = $"Lowest durability, {BandColorNames[b]} band ({BandNames[b]})", Swatch = BandColors[b] };
         for (int b = 0; b < BreakSites.Length; b++)
         {
             int band = b;
             yield return new GameRule(225 + b, $"breakChance{b + 1}", $"Break chance, band {BandNames[b]}", "", RuleKind.Limit, 0, 100, BreakDefaults[b], null,
                 [new RuleSite(BreakSites[b], s => s == BreakDefaults[band] ? BreakOriginal[band] : 0x24020000u | (uint)s,
                     w => w == BreakOriginal[band] ? BreakDefaults[band] : Imm(w, 0x24020000u, 100))], confirmed: true)
-                { Group = DurabilityGroup, Short = $"Break chance (%), band {BandNames[b]}" };
+                { Group = DurabilityGroup, Short = $"Break chance (%), {BandColorNames[b]} band ({BandNames[b]})", Swatch = BandColors[b] };
         }
         yield return new GameRule(230, "reeseThrift", "Reese's chance to save a use", "", RuleKind.Limit, 0, 100, 20, null,
             [new RuleSite(0x0016D308, s => 0x26100000u | (uint)s, w => Imm(w, 0x26100000u, 100))], confirmed: false)
