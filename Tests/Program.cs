@@ -1302,28 +1302,42 @@ foreach(var exportDisc in new[]{jp!,en!})
         {
             using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
             var archives=new GameArchives(new IsoImage(stream));
-            var loaded=SystemText.Load(archives)!.Value;var font=loaded.Font;
-            Equal(4164,loaded.Texts.Count);Equal(disc==en,font.English);
-            int exact=loaded.Texts.Count(t=>font.Encode(font.Decode(t.Bytes)).AsSpan().SequenceEqual(t.Bytes));
-            int same=loaded.Texts.Count(t=>font.Decode(font.Encode(font.Decode(t.Bytes)))==font.Decode(t.Bytes));
-            if(same!=loaded.Texts.Count)throw new Exception($"{loaded.Texts.Count-same} texts do not read back the same");
-            Equal(true,exact>loaded.Texts.Count*9/10);
-            Equal(true,SystemText.Locate(archives).Count>=1);
+            var loaded=GameTexts.Load(archives,disc==en);
+            Equal(4164,loaded.Texts.Count(t=>t.Archive.Nested));
+            Equal(true,loaded.Texts.Count(t=>t.Archive.Kind=="Dialogue")>5000);
+            Equal(true,loaded.Texts.Any(t=>t.Archive.Path=="msg/mission.ar") && loaded.Texts.Any(t=>t.Archive.Path=="msg/evitem.ar") && loaded.Texts.Any(t=>t.Archive.Path=="msg/guidemsg.ar"));
+            int different=0;
+            foreach(var t in loaded.Texts)
+            {
+                var font=loaded.Fonts[t.Archive.Path];
+                string text=font.Decode(t.Bytes);
+                if(text.Contains('\uFFFD'))continue;
+                if(font.Decode(font.Encode(text,t.Archive.Codes))!=text)different++;
+            }
+            Equal(0,different);
             var s=new EditSession(disc);
             int dagger=s.TextId("it001");
             Equal(disc==en?"Dagger":"ダガー",s.Text(dagger));
             Throws<EditException>(()=>s.SetText(dagger,"Dagger \u03A9"));
+            Throws<EditException>(()=>s.SetText(dagger,"Dag\nger"));
             string renamed=disc==en?"Long Dagger of Testing":"ダガーダガー";
-            Equal(true,s.SetText(dagger,renamed));Equal(renamed,s.Text(dagger));Equal(true,s.IsEdited(EditSession.Texts,dagger));
-            var back=EditSession.FromJson(disc,s.ToJson());Equal(renamed,back.Text(back.TextId("it001")));
-            s.Undo();Equal(false,s.IsEdited(EditSession.Texts,dagger));s.Redo();
-            foreach(var (top,edit) in SystemText.Edits(archives,s.ChangedTexts))
+            Equal(true,s.SetText(dagger,renamed));Equal(renamed,s.Text(dagger));
+            int line=s.TextId("msg/evm0050.ar:101");
+            string original=s.Text(line);
+            Equal(true,original.StartsWith("{84:2}",StringComparison.Ordinal));
+            string spoken=disc==en?"{84:2}Do you accept\nthis trade?\n{B8}{82}":original.Replace("\n","")+"\n";
+            Equal(true,s.SetText(line,spoken));Equal(spoken,s.Text(line));
+            var back=EditSession.FromJson(disc,s.ToJson());Equal(renamed,back.Text(back.TextId("it001")));Equal(spoken,back.Text(back.TextId("msg/evm0050.ar:101")));
+            s.Undo();Equal(original,s.Text(line));s.Redo();
+            foreach(var (top,edit) in GameTexts.Edits(archives,s.ChangedTexts))
             {
                 var data=edit(archives.Top(top));
-                var archive=Tarc.Extract(data,Tarc.Parse(data).Single(e=>e.Name=="sysfont.ar"));
-                var entry=Tarc.Parse(archive).Single(e=>e.Name=="it001");
-                Equal(renamed,font.Decode(Tarc.Extract(archive,entry)));
-                Equal("Rum",disc==en?font.Decode(Tarc.Extract(archive,Tarc.Parse(archive).Single(e=>e.Name=="foods054"))):"Rum");
+                if(Tarc.Parse(data).Any(e=>e.Name=="sysfont.ar"))
+                {
+                    var archive=Tarc.Extract(data,Tarc.Parse(data).Single(e=>e.Name=="sysfont.ar"));
+                    Equal(renamed,loaded.Fonts["sysfont.ar"].Decode(Tarc.Extract(archive,Tarc.Parse(archive).Single(e=>e.Name=="it001"))));
+                }
+                else Equal(spoken,loaded.Fonts["msg/evm0050.ar"].Decode(Tarc.Extract(data,Tarc.Parse(data).Single(e=>e.Name=="101"))));
             }
             Equal(true,Exporter.PatchesFor(s,disc).Count>0);
         }

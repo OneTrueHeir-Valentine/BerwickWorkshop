@@ -204,7 +204,7 @@ public static class Exporter
                     return ArchiveEditing.ReplaceOrRepack(archive, "map", map);
                 }));
             // Game texts: every copy of sysfont.ar gets the changed entries.
-            if (changedTexts.Count > 0) other.AddRange(SystemText.Edits(archives, changedTexts));
+            if (changedTexts.Count > 0) other.AddRange(GameTexts.Edits(archives, changedTexts));
             patches.AddRange(ScriptPrices.Combined(archives, events, other, ArchiveEditing.FixedTops(archives, disc.Profile)));
         }
         return patches.AsReadOnly();

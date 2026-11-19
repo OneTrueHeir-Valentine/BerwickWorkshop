@@ -287,9 +287,9 @@ public sealed class EditSession
     // Events whose lines were changed: the whole new script, decoded.
     private readonly Dictionary<int, byte[]> scripts = [];
     private readonly ScriptValueRecords scriptRecords;
-    // Game texts that were changed (sysfont.ar entries, keyed by their place in the archive): the new glyphs.
+    // Game texts that were changed (keyed by their place in the list of the disc's texts): the new glyphs.
     private readonly Dictionary<int, byte[]> texts = [];
-    private readonly SystemTextRecords textRecords;
+    private readonly TextRecords textRecords;
     private readonly DeploymentRecords deploymentRecords, placementRecords;
     private readonly List<Step> steps = [];
     private HashSet<int>? armyClasses, armyItems;
@@ -303,7 +303,7 @@ public sealed class EditSession
         originalCharacters = disc.Characters.ToDictionary(c => c.Id);
         originalClasses = disc.Classes.ToDictionary(c => c.Id);
         scriptRecords = new ScriptValueRecords(disc.Path);
-        textRecords = new SystemTextRecords(disc.Path);
+        textRecords = new TextRecords(disc.Path, disc.Edition.Contains("English", StringComparison.OrdinalIgnoreCase));
         deploymentRecords = new DeploymentRecords(disc.Path);
         placementRecords = new DeploymentRecords(disc.Path, map => Placement.Read(map));
         tables = new()
@@ -587,25 +587,27 @@ public sealed class EditSession
 
     // Game texts
 
-    /// <summary>The disc's text names in archive order; a text's id is its place in this list.</summary>
-    public IReadOnlyList<string> TextNames => textRecords.Names;
-    public TextFont? TextFont => textRecords.Font;
-    public int TextId(string name) => TextNames.ToList().IndexOf(name) is int at and >= 0 ? at : throw new EditException($"This disc has no text named {name}.");
-    public string TextName(int id) => id >= 0 && id < TextNames.Count ? TextNames[id] : throw new EditException("There is no such text on this disc.");
-    public byte[] OriginalTextBytes(int id) => textRecords.Bytes(TextName(id)) ?? throw new EditException("There is no such text on this disc.");
+    /// <summary>The disc's texts; a text's id is its place in this list. Keys are entry names for sysfont.ar, else archive:entry.</summary>
+    public IReadOnlyList<TextEntry> TextList => textRecords.Texts;
+    public int TextId(string key) => textRecords.IdOf(key) ?? throw new EditException($"This disc has no text named {key}.");
+    public string TextName(int id) => id >= 0 && id < TextList.Count ? TextList[id].Key : throw new EditException("There is no such text on this disc.");
+    public TextFont? FontOfText(int id) => id >= 0 && id < TextList.Count ? textRecords.FontOf(TextList[id]) : null;
+    public byte[] OriginalTextBytes(int id) => id >= 0 && id < TextList.Count ? TextList[id].Bytes : throw new EditException("There is no such text on this disc.");
     public byte[] TextBytes(int id) => texts.TryGetValue(id, out var bytes) ? bytes : OriginalTextBytes(id);
-    public string Text(int id) => TextFont?.Decode(TextBytes(id)) ?? "";
-    public string OriginalText(int id) => TextFont?.Decode(OriginalTextBytes(id)) ?? "";
-    /// <summary>The changed texts by name, as glyph bytes.</summary>
+    public string Text(int id) => FontOfText(id)?.Decode(TextBytes(id)) ?? "";
+    public string OriginalText(int id) => FontOfText(id)?.Decode(OriginalTextBytes(id)) ?? "";
+    /// <summary>The changed texts by key, as glyph bytes.</summary>
     public IReadOnlyDictionary<string, byte[]> ChangedTexts => texts.ToDictionary(t => TextName(t.Key), t => t.Value, StringComparer.Ordinal);
+    /// <summary>The changed texts by key, as text.</summary>
+    public IReadOnlyDictionary<string, string> ChangedTextStrings => texts.ToDictionary(t => TextName(t.Key), t => Text(t.Key), StringComparer.Ordinal);
 
     /// <summary>Changes a text as one undoable step. Text equal to the disc's removes the change.</summary>
     public bool SetText(int id, string text)
     {
-        var font = TextFont ?? throw new EditException("This disc's texts could not be read.");
+        var font = FontOfText(id) ?? throw new EditException("This disc's texts could not be read.");
         if (text.Length == 0) throw new EditException("A text cannot be empty.");
-        if (text.Length > SystemText.MostCharacters) throw new EditException($"A text can have at most {SystemText.MostCharacters} characters.");
-        var bytes = font.Encode(text);
+        if (text.Length > GameTexts.MostCharacters) throw new EditException($"A text can have at most {GameTexts.MostCharacters} characters.");
+        var bytes = font.Encode(text, TextList[id].Archive.Codes);
         var original = OriginalTextBytes(id);
         return Record([(Texts, id)], () => { if (bytes.AsSpan().SequenceEqual(original)) texts.Remove(id); else texts[id] = bytes; });
     }
@@ -665,7 +667,7 @@ public sealed class EditSession
         Recipes => disc.Items.FirstOrDefault(i => i.Id == id)?.DisplayName,
         Dishes => DishData.Name(id),
         Deployments or Placements => $"Map archive {id}",
-        Texts => id >= 0 && id < TextNames.Count ? $"Text {TextNames[id]}" : null,
+        Texts => id >= 0 && id < TextList.Count ? $"Text {TextList[id].Key}" : null,
         Tastes => originalCharacters.TryGetValue(id, out var taster) ? taster.Name : null,
         Characters or Growths or Partners or Bags or Mercenaries => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,
@@ -803,8 +805,9 @@ public sealed class EditSession
             byte[] glyphs;
             try { glyphs = Convert.FromBase64String(text.Glyphs); }
             catch (FormatException) { throw new EditException($"This project's text {text.Name} is damaged."); }
-            if (glyphs.Length == 0 || glyphs.Length % 2 != 0 || glyphs.Length > SystemText.MostCharacters * 2 || session.TextFont is not { } font
-                || Enumerable.Range(0, glyphs.Length / 2).Any(i => BitConverter.ToUInt16(glyphs, i * 2) >= font.Count))
+            bool codes = session.TextList[id].Archive.Codes;
+            if (glyphs.Length == 0 || glyphs.Length % 2 != 0 || glyphs.Length > GameTexts.MostCharacters * 4 || session.FontOfText(id) is not { } font
+                || Enumerable.Range(0, glyphs.Length / 2).Any(i => BitConverter.ToUInt16(glyphs, i * 2) is var g && (g >= 0x8000 ? !codes : g >= font.Count)))
                 throw new EditException($"This project's text {text.Name} is damaged.");
             if (!session.texts.TryAdd(id, glyphs)) throw new EditException($"This project changes text {text.Name} twice.");
         }
