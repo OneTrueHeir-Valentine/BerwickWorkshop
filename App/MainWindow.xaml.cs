@@ -375,6 +375,7 @@ public partial class MainWindow : Window
             var made=AtelierRecipes(type);
             if(made.Count>0)rows.Insert(rows.Count(r=>r.Event<0),new ShopRow(rowId,$"Atelier, {RecipeData.Craftsman(type)}","At the base",made.Count,made.Any(id=>session?.IsEdited(EditSession.Recipes,id)==true)));
         }
+        if(events is not null)rows.Insert(rows.Count(r=>r.Event<0),new ShopRow(PavilionRow,"Kingfisher Pavilion","At the base",0,session?.HasScript(Pavilion.ServerEvent)==true));
         ShopGrid.ItemsSource=rows;
         ShopCount.Text=$"{rows.Count} shops, {rows.Count(r=>r.Where=="At the base")} at the base";
         if(rows.Count>0)ShopGrid.SelectedItem=rows.FirstOrDefault(r=>r.Event==selected)??rows[0];
@@ -386,6 +387,7 @@ public partial class MainWindow : Window
         ShopItemPicker.Visibility=Visibility.Collapsed;
         if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){ShowStable();return;}
         if(ShopGrid.SelectedItem is ShopRow{Event:AtelierWeapons or AtelierMagic} atelier){ShowAtelier(atelier.Event==AtelierWeapons?0:5);return;}
+        if(ShopGrid.SelectedItem is ShopRow{Event:PavilionRow}){ShowPavilion();return;}
         if(SelectedShop is not { } shop || ShopGrid.SelectedItem is not ShopRow row){ShopName.Text="Select a shop";ShopWhere.Text="";ShopItemList.ItemsSource=null;UpdateShopButtons();return;}
         int? keep=ShopItemList.SelectedIndex>=0?ShopItemList.SelectedIndex:null;
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -412,6 +414,7 @@ public partial class MainWindow : Window
         UpdateShopButtons();
         if(ShopGrid.SelectedItem is ShopRow{Event:StableRow}){StableHorseSelected();return;}
         if(ShopGrid.SelectedItem is ShopRow{Event:AtelierWeapons or AtelierMagic}){AtelierRecipeSelected();return;}
+        if(ShopGrid.SelectedItem is ShopRow{Event:PavilionRow}){ShopItemNote.Text="";return;}
         if(ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count){ShopItemNote.Text="";return;}
         var it=shownShopItems[ShopItemList.SelectedIndex];
         var catalog=(session?.EditedItems()??primary!.Items).ToDictionary(i=>i.Id);
@@ -534,6 +537,41 @@ public partial class MainWindow : Window
         row.Children.Add(box);row.Children.Add(apply);ShopNotes.Children.Add(row);
     }
     // The Atelier makes items from recipes in the game program; each recipe is edited on the Items page of the item it makes.
+    // The Kingfisher Pavilion serves meals; its options rewrite the server's event (659).
+    private const int PavilionRow=-659;
+    private void ShowPavilion()
+    {
+        shownShopItems=[];
+        ShopName.Text="Kingfisher Pavilion";ShopWhere.Text="At the base · meals · event 659";
+        ShopItemList.ItemsSource=null;
+        ShopNotes.Children.Clear();
+        AddText(ShopNotes,"The Pavilion serves meals while a mission is chosen. Units from your army sit at its eight seats, and talking to one lets it order from the menu. Each unit eats once a chapter, and the meal's effects last into the next battle. The seats stay the same until the game clears them.");
+        if(events is not { } library){UpdateShopButtons();return;}
+        byte[]? current=session?.EventScript(Pavilion.ServerEvent);
+        if(current is null){lock(library)current=library.Bytes(Pavilion.ServerEvent);}
+        bool anyUnit=Pavilion.IsAnyUnit(current,library.CommandNames);
+        bool other=session?.HasScript(Pavilion.ServerEvent)==true && !anyUnit;
+        var box=new CheckBox{Content="Any unit can order: the server opens the unit list, so every unit in your army can eat, one after another",IsChecked=anyUnit,IsEnabled=session is not null && !other,Margin=new Thickness(0,8,0,0)};
+        box.Click+=(_,_)=>
+        {
+            if(session is null)return;
+            if(box.IsChecked==true)
+            {
+                try
+                {
+                    var bytes=Pavilion.AnyUnitServer(library.CommandNames);
+                    CheckEventFits(library,Pavilion.ServerEvent,bytes);
+                    if(session.SetScript(Pavilion.ServerEvent,bytes)){RefreshDocument();Status.Text="The Pavilion's server now takes orders for any unit. Save the project to keep this change.";}
+                }
+                catch(EditException ex){Status.Text=ex.Message;box.IsChecked=false;}
+            }
+            else{session.Revert((EditSession.Scripts,Pavilion.ServerEvent));RefreshDocument();Status.Text="The Pavilion's server is back to the game's own event.";}
+        };
+        ShopNotes.Children.Add(box);
+        if(other)AddText(ShopNotes,"Event 659 is changed on the Events page in this project, so this option is off. Restore the event there to use it.");
+        AddText(ShopNotes,"With this option, talk to the server (not the owner) while the Pavilion is serving, choose a unit, and order. A unit that has eaten this chapter says so. Cancel the list to hear the server's usual line.");
+        UpdateShopButtons();
+    }
     private const int AtelierWeapons=-723,AtelierMagic=-732;
     private List<int> atelierShown=[];
     private List<int> AtelierRecipes(int type)=>primary is null?[]:primary.RecipeRows.OrderBy(p=>p.Value).Select(p=>p.Key).Where(id=>RecipeData.Type(primary.RecipeBytes[id].Span)==type).ToList();
@@ -3064,7 +3102,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Where the game's events show which battle places an army, its name says so, for example Army 371 (Quest 6: Cruel Brothers), and searching for a mission or quest title lists its armies. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
-            ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc. The Stable lists every horse it can sell with its price, and below it the horses offered each chapter: how many of each, when the Spry and Tough Horses come, the chances of the Strong Horse and of one rare horse, and how many horses in all."),
+            ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc. The Stable lists every horse it can sell with its price, and below it the horses offered each chapter: how many of each, when the Spry and Tough Horses come, the chances of the Strong Horse and of one rare horse, and how many horses in all. The Kingfisher Pavilion entry has Any unit can order, which lets the server take orders for any unit in your army."),
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and their sizes are set on the Game rules page under Furniture in Reese's room. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),

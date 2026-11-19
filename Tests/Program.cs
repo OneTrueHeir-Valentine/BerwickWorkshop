@@ -1263,6 +1263,20 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(5000,BinaryPrimitives.ReadInt32LittleEndian(MercenaryData.Read(edited).Single(r=>r.Id==0x90).Bytes.AsSpan(8)));
         }
     });
+    Test("Pavilion: any unit can order compiles on both discs and is recognised",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var library=new EventLibrary(new GameArchives(iso));
+            var original=library.Bytes(Pavilion.ServerEvent);
+            Equal(284,original.Length);Equal(false,Pavilion.IsAnyUnit(original,library.CommandNames));
+            var bytes=Pavilion.AnyUnitServer(library.CommandNames);
+            Equal(true,Pavilion.IsAnyUnit(bytes,library.CommandNames));
+            Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(bytes),library.CommandNames),library.CommandNames)).AsSpan().SequenceEqual(bytes));
+            var session=new EditSession(disc);Equal(true,session.SetScript(Pavilion.ServerEvent,bytes));Equal(true,session.HasScript(Pavilion.ServerEvent));
+        }
+    });
     Test("Stable stock numbers match event 138 on both discs and edit as script values",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
