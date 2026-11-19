@@ -29,6 +29,8 @@ public static class Exporter
                 ? [p.PartnerTable + row * (long)PartnerData.RowLength, p.SecondPartnerTable + row * (long)PartnerData.RowLength] : throw new EditException($"Character 0x{id:X3} has no partner row on this disc."),
             EditSession.Bags => disc.CharacterOffsets.TryGetValue(id, out int bagAt) && disc.BagBytes.ContainsKey(id)
                 ? [p.UnitTable + bagAt + BagData.OffsetFromRecord, p.SecondUnitTable + bagAt + BagData.OffsetFromRecord] : throw new EditException($"Character 0x{id:X3} has no starting bag on this disc."),
+            EditSession.AnimationSets or EditSession.AnimationPalettes => disc.AnimationRowOffsets.TryGetValue(id, out long row)
+                ? [row] : throw new EditException("This project changes a battle animation row that is not on this disc."),
             EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.ArmyUnits => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };

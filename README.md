@@ -17,7 +17,7 @@ An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (Pla
 
 - **Skills page:** what each of the 90 skills does, whether it is a command, who has it, and how that is known.
 - **Maps page:** every battle's map with terrain, spots, starting positions and later arrivals.
-- **Battle animations page:** the animation set each class plays and the colours each character wears, played back as in the game, plus the sets no class uses.
+- **Battle animations page:** the animation set each class plays and the colours each character wears, played back as in the game, plus the sets no class uses. Both can be changed.
 - **Mechanics page:** the game's formulas with how well each is verified and links to the values you can change.
 - **Compare:** open a second disc to compare items, characters and classes.
 - **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map (including giving or changing a horse), try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.

@@ -72,6 +72,12 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> StablePriceBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     /// <summary>Furniture shop price of each piece (4 bytes, little-endian), when the disc's furniture event has the known layout.</summary>
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> FurniturePriceBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    /// <summary>Battle animation rows of kirikae.db (12 bytes each, keyed by AnimationTable.RowId), set rows and palette rows,
+    /// where each row is in DATA3.DAT, and the animation sets on the disc.</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> AnimationSetBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> AnimationPaletteBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
+    public IReadOnlyDictionary<int, long> AnimationRowOffsets { get; init; } = new Dictionary<int, long>();
+    public IReadOnlySet<int> AnimationSetsOnDisc { get; init; } = new HashSet<int>();
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -268,8 +274,28 @@ public static class Inspector
             }
             catch (InvalidDataException) { furniturePrices.Clear(); }
         }
+        var animationSets=new Dictionary<int,ReadOnlyMemory<byte>>();var animationPalettes=new Dictionary<int,ReadOnlyMemory<byte>>();var animationOffsets=new Dictionary<int,long>();var setsOnDisc=new HashSet<int>();
+        if (profile is not null)
+        {
+            try
+            {
+                var archives=new GameArchives(iso);
+                int top=archives.Find(AnimationTable.Path);
+                if(top>=0)
+                {
+                    long start=archives.Row(top).Sector*(long)GameArchives.Sector;
+                    foreach(var (id,offset,rowBytes) in AnimationTable.Records(archives.Top(top)))
+                    {
+                        (AnimationTable.SplitId(id).Palette?animationPalettes:animationSets)[id]=rowBytes;
+                        animationOffsets[id]=start+offset;
+                    }
+                    setsOnDisc=AnimationSet.OnDisc(archives).Keys.ToHashSet();
+                }
+            }
+            catch (InvalidDataException) { animationSets.Clear();animationPalettes.Clear();animationOffsets.Clear(); }
+        }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,RecipeBytes=recipeBytes,RecipeRows=recipeRows,Armies=armies.AsReadOnly(),ArmyUnitBytes=armyUnitBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices,FurniturePriceBytes=furniturePrices };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,RecipeBytes=recipeBytes,RecipeRows=recipeRows,Armies=armies.AsReadOnly(),ArmyUnitBytes=armyUnitBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices,FurniturePriceBytes=furniturePrices,AnimationSetBytes=animationSets,AnimationPaletteBytes=animationPalettes,AnimationRowOffsets=animationOffsets,AnimationSetsOnDisc=setsOnDisc };
     }
 }

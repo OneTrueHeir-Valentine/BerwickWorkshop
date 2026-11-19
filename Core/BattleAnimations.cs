@@ -70,6 +70,29 @@ public sealed class AnimationTable
         return new AnimationTable(s, so, p, po);
     }
 
+    /// <summary>Every row as an editable record: key from <see cref="RowId"/>, the row's 12 bytes (unit, key word, set or palette)
+    /// and where the row starts in the file.</summary>
+    public static IReadOnlyList<(int Id, int Offset, byte[] Bytes)> Records(byte[] data)
+    {
+        var table = Parse(data);
+        var result = new List<(int, int, byte[])>();
+        for (int c = 1; c <= table.ClassCount; c++)
+        {
+            for (int r = 0; r < table.Sets(c).Count; r++) Add(false, c, r, table.SetOffset(c, r) - 8);
+            for (int r = 0; r < table.Palettes(c).Count; r++) Add(true, c, r, table.PaletteOffset(c, r) - 8);
+        }
+        return result;
+        void Add(bool palette, int c, int r, int at) => result.Add((RowId(palette, c, r), at, data.AsSpan(at, 12).ToArray()));
+    }
+
+    /// <summary>A record number for a row: palette rows have bit 24 set, then the class number and the row within the class.</summary>
+    public static int RowId(bool palette, int classId, int row) => (palette ? 1 << 24 : 0) | classId << 8 | row;
+    public static (bool Palette, int ClassId, int Row) SplitId(int id) => ((id & (1 << 24)) != 0, (id >> 8) & 0xFFFF, id & 0xFF);
+
+    /// <summary>The value an edit changes: word 2 of a row, the set number or the palette number.</summary>
+    public static TableField SetField { get; } = new("set", "Animation set", 8, 0, 32, 0, 999999) { Group = "Battle animation" };
+    public static TableField PaletteField { get; } = new("palette", "Colours", 8, 0, 32, 0, 99) { Group = "Battle animation" };
+
     /// <summary>What a key means: anything, a weapon type, or one item.</summary>
     public static string KeyText(int key)
     {

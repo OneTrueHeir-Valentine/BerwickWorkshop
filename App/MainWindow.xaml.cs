@@ -169,6 +169,7 @@ public partial class MainWindow : Window
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
         if(view==View.Events && events is { } library && EventList.SelectedValue is int shown)_=ShowEvent(library,shown,scrollHome:false);
         if(shops is not null)ApplyShopList();
+        if(animationTable is not null && editing?.Page!=View.Animations)RefreshAnimationClass();
     }
     private void PopulateDiscDetails()
     {
@@ -630,43 +631,106 @@ public partial class MainWindow : Window
 
     private void AnimationClassSelected(object sender,SelectionChangedEventArgs e)
     {
+        if(editing?.Page==View.Animations)EndEdit();
+        RefreshAnimationClass();
+    }
+
+    /// <summary>A row's set or palette number as the project has it.</summary>
+    private int AnimationValue(bool palette,int classId,int row,int disc)
+    {
+        int id=AnimationTable.RowId(palette,classId,row);
+        string table=palette?EditSession.AnimationPalettes:EditSession.AnimationSets;
+        var field=palette?AnimationTable.PaletteField:AnimationTable.SetField;
+        return session is not null && session.Table(table).Records.ContainsKey(id)?session.Value(table,id,field.Key):disc;
+    }
+
+    private bool AnimationEdited(bool palette,int classId,int row)=>session?.IsEdited(palette?EditSession.AnimationPalettes:EditSession.AnimationSets,AnimationTable.RowId(palette,classId,row))==true;
+
+    private void RefreshAnimationClass()
+    {
         if(animationTable is not { } table || AnimationList.SelectedValue is not int value)return;
+        int? keepSet=AnimationSetBox.SelectedValue as int?;
         AnimationDetails.Children.Clear();
         var muted=(Brush)FindResource("Muted");
         void Heading(string text)=>AnimationDetails.Children.Add(new TextBlock{Text=text,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,12,0,4)});
         void Line(string text,bool dim=false)=>AnimationDetails.Children.Add(new TextBlock{Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,3),Foreground=dim?muted:Brushes.Black});
+        void Row(string text,bool edited,Action change)
+        {
+            var line=new DockPanel{Margin=new Thickness(0,0,0,4)};
+            if(session is not null)
+            {
+                var button=new Button{Content="Change",Style=(Style)FindResource("SmallButton"),Padding=new Thickness(8,1,8,1),Margin=new Thickness(8,0,0,0),VerticalAlignment=VerticalAlignment.Top};
+                button.Click+=(_,_)=>change();
+                System.Windows.Automation.AutomationProperties.SetName(button,$"Change {text}");
+                DockPanel.SetDock(button,Dock.Right);line.Children.Add(button);
+            }
+            line.Children.Add(new TextBlock{Text=edited?$"{text} (changed)":text,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,FontWeight=edited?FontWeights.SemiBold:FontWeights.Normal});
+            AnimationDetails.Children.Add(line);
+        }
         var sets=new List<Choice>();
         if(value>0)
         {
             AnimationDetails.Children.Add(new TextBlock{Text=ClassTitle(value),FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap});
             Heading("Animation sets");
-            foreach(var row in table.Sets(value))
+            var setRows=table.Sets(value);
+            for(int r=0;r<setRows.Count;r++)
             {
+                var row=setRows[r];int number=AnimationValue(false,value,r,row.Value);int at=r;
                 string who=row.Unit==0?"Any unit":UnitName(row.Unit);
-                Line($"{who}, {AnimationTable.KeyText(row.Key).ToLowerInvariant()}: {SetLabel(row.Value)}{(animationSetsOnDisc.ContainsKey(row.Value)?"":" (not on the disc)")}");
-                if(!sets.Any(s=>s.Value==row.Value))sets.Add(new Choice(row.Value,SetLabel(row.Value)));
+                string text=$"{who}, {AnimationTable.KeyText(row.Key).ToLowerInvariant()}: {SetLabel(number)}{(animationSetsOnDisc.ContainsKey(number)?"":" (not on the disc)")}";
+                Row(text,AnimationEdited(false,value,r),()=>BeginAnimationEdit(false,value,at,text));
+                if(!sets.Any(s=>s.Value==number))sets.Add(new Choice(number,SetLabel(number)));
             }
             Heading("Colours");
             var palettes=table.Palettes(value);
             if(palettes.Count==0)Line("The set's own colours for everyone.",true);
-            foreach(var row in palettes)
+            for(int r=0;r<palettes.Count;r++)
             {
+                var row=palettes[r];int number=AnimationValue(true,value,r,row.Value);int at=r;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 string when=row.Key==0?"":$" holding {AnimationTable.KeyText(row.Key)}";
-                Line($"{who}{when}: {(row.Value==0?"the set's own colours":$"palette {row.Value}")}");
+                string text=$"{who}{when}: {(number==0?"the set's own colours":$"palette {number}")}";
+                Row(text,AnimationEdited(true,value,r),()=>BeginAnimationEdit(true,value,at,text));
             }
         }
         else
         {
             AnimationDetails.Children.Add(new TextBlock{Text=$"Unused set {SetLabel(-value)}",FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap});
-            Line("No class names this set, so the game never shows it.",true);
+            Line("No class names this set on the disc. Choose Change beside a class's row to give the class this set.",true);
             sets.Add(new Choice(-value,SetLabel(-value)));
         }
         AnimationSetBox.ItemsSource=sets;
-        AnimationSetBox.SelectedIndex=sets.Count>0?0:-1;
+        AnimationSetBox.SelectedIndex=keepSet is int k && sets.FindIndex(s=>s.Value==k) is int found && found>=0?found:sets.Count>0?0:-1;
+        if(AnimationSetBox.SelectedIndex>=0 && AnimationSetBox.SelectedValue is int same && same==keepSet)AnimationViewChanged(AnimationSetBox,null!);
     }
 
-    private async void AnimationViewChanged(object sender,SelectionChangedEventArgs e)
+    private async void BeginAnimationEdit(bool palette,int classId,int row,string text)
+    {
+        if(session is null || animationTable is not { } table)return;
+        TableField field;string? warning;
+        if(palette)
+        {
+            // Palettes the class's sets carry, and the row's current value.
+            var numbers=new SortedSet<int>{0};
+            for(int r=0;r<table.Sets(classId).Count;r++)
+                if(await AnimationSetFor(AnimationValue(false,classId,r,table.Sets(classId)[r].Value)) is { } set)numbers.UnionWith(set.Palettes);
+            if(animationTable!=table || session is null)return;
+            numbers.Add(AnimationValue(true,classId,row,table.Palettes(classId)[row].Value));
+            field=AnimationTable.PaletteField with {Choices=numbers.Select(n=>n==0?"Set's own colours":$"Palette {n}").ToList(),ChoiceValues=numbers.ToList()};
+            warning="Every unit this row applies to wears the chosen colours in all of this class's sets. Palettes are listed from the sets this class uses; a set without the chosen palette shows its own colours or wrong ones.";
+        }
+        else
+        {
+            var named=table.NamedSets;
+            var numbers=animationSetsOnDisc.Keys.ToList();
+            field=AnimationTable.SetField with {Choices=numbers.Select(n=>named.Contains(n)?SetLabel(n):$"{SetLabel(n)} (no class uses it)").ToList(),ChoiceValues=numbers};
+            warning="Every unit this row applies to plays the chosen set. A set made for another class may lack motions this class plays, so try the change in a running game.";
+        }
+        OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Colour row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
+            [new(text,palette?EditSession.AnimationPalettes:EditSession.AnimationSets,[field])],warning));
+    }
+
+    private async void AnimationViewChanged(object sender,SelectionChangedEventArgs? e)
     {
         if(AnimationSetBox.SelectedValue is not int number)return;
         var set=await AnimationSetFor(number);
@@ -690,11 +754,13 @@ public partial class MainWindow : Window
         // Colour choices: the set's own, each class row that picks a palette, and any palette no row uses.
         var colours=new List<Choice>{new(0,"Set's own colours")};
         if(animationTable is { } table && AnimationList.SelectedValue is int cls && cls>0)
-            foreach(var row in table.Palettes(cls).Where(r=>r.Value>0 && set.Palettes.Contains(r.Value)))
+            for(int r=0;r<table.Palettes(cls).Count;r++)
             {
+                var row=table.Palettes(cls)[r];int palNumber=AnimationValue(true,cls,r,row.Value);
+                if(palNumber<=0 || !set.Palettes.Contains(palNumber))continue;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 if(row.Key!=0)who+=$" holding {AnimationTable.KeyText(row.Key)}";
-                colours.Add(new Choice(row.Value,$"{who} (palette {row.Value})"));
+                colours.Add(new Choice(palNumber,$"{who} (palette {palNumber})"));
             }
         foreach(int pal in set.Palettes.Where(p=>!colours.Any(c=>c.Value==p)))colours.Add(new Choice(pal,$"Palette {pal}"));
         var seen=new HashSet<string>();
@@ -2833,7 +2899,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
-            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry."),
+            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A set made for another class may lack motions the class plays, so try such a change in a running game. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

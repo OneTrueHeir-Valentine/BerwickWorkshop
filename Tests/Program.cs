@@ -1280,6 +1280,37 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(0x217,BinaryPrimitives.ReadInt32LittleEndian(RecipeData.Read(edited).Single(r=>r.Id==0x59).Bytes.AsSpan(12)));
         }
     });
+    Test("Battle animation rows on both discs: read, edited, saved and exported in place",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            int adel=AnimationTable.RowId(true,150,2),spear=AnimationTable.RowId(false,150,2);
+            Equal(true,disc.AnimationSetBytes.Count>700 && disc.AnimationPaletteBytes.Count>700);
+            Equal(203,disc.AnimationSetsOnDisc.Count);
+            var s=new EditSession(disc);
+            Equal(5,s.Value(EditSession.AnimationPalettes,adel,"palette"));
+            Equal(91051,s.Value(EditSession.AnimationSets,spear,"set"));
+            Throws<EditException>(()=>s.Apply(EditSession.AnimationSets,spear,new Dictionary<string,int>{["set"]=91052}));
+            s.Apply(EditSession.AnimationPalettes,adel,new Dictionary<string,int>{["palette"]=6});
+            s.Apply(EditSession.AnimationSets,spear,new Dictionary<string,int>{["set"]=92051});
+            var back=EditSession.FromJson(disc,s.ToJson());
+            Equal("6,92051",$"{back.Value(EditSession.AnimationPalettes,adel,"palette")},{back.Value(EditSession.AnimationSets,spear,"set")}");
+            var patches=Exporter.PatchesFor(s,disc);
+            Equal(2,patches.Count);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));
+            int top=archives.Find(AnimationTable.Path);
+            long start=archives.TopOffset(top);var file=archives.Top(top);
+            foreach(var patch in patches)
+            {
+                Equal(true,patch.Offset>=start && patch.Offset+patch.Bytes.Length<=start+file.Length);
+                Equal(true,patch.Expected!.AsSpan().SequenceEqual(file.AsSpan((int)(patch.Offset-start),patch.Expected!.Length)));
+                patch.Bytes.CopyTo(file,(int)(patch.Offset-start));
+            }
+            var edited=AnimationTable.Parse(file);
+            Equal("6,92051",$"{edited.Palettes(150)[2].Value},{edited.Sets(150)[2].Value}");
+            Equal(87,edited.Palettes(150)[2].Unit);
+        }
+    });
     Test("Armies: every team file on both discs, names, bosses and edits written to every copy",()=>{
         foreach(var disc in new[]{jp!,en!})
         {
