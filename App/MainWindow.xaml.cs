@@ -1479,6 +1479,31 @@ public partial class MainWindow : Window
             skillGrid.Children.Add(box);inputs.Add((f,box));
         }
         panel.Children.Add(skillGrid);
+        AddSection(panel,"Horse");
+        int oldHorse=FieldCodec.Read(record,LiveHorse.Item),oldHorseHp=FieldCodec.Read(record,LiveHorse.Hp),oldHorseMax=FieldCodec.Read(record,LiveHorse.MaxHp);
+        var horseItems=(session?.EditedItems()??[]).Where(i=>LiveHorse.IsHorse(i.Id)).ToList();
+        var horseChoices=new List<Choice>{new(0,"No horse")};horseChoices.AddRange(horseItems.Select(i=>new Choice(i.Id,i.DisplayName)));
+        if(oldHorse!=0 && !horseChoices.Any(c=>c.Value==oldHorse)) horseChoices.Add(new(oldHorse,$"Item 0x{oldHorse:X3}"));
+        var horseBox=new ComboBox {ItemsSource=horseChoices,DisplayMemberPath="Text",SelectedValuePath="Value",SelectedValue=oldHorse,Margin=new Thickness(0,0,0,6)};
+        System.Windows.Automation.AutomationProperties.SetName(horseBox,"Horse");
+        panel.Children.Add(horseBox);
+        TextBox HorseNumber(string label,int value)
+        {
+            var grid=new Grid {Margin=new Thickness(0,0,0,6)};grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(72)});
+            grid.Children.Add(new TextBlock {Text=label,Foreground=(Brush)FindResource("Muted"),FontSize=13,VerticalAlignment=VerticalAlignment.Center});
+            var box=new TextBox {Text=value.ToString(),Padding=new Thickness(6,3,6,3),HorizontalContentAlignment=HorizontalAlignment.Right,ToolTip="0 to 1023"};
+            System.Windows.Automation.AutomationProperties.SetName(box,label);
+            Grid.SetColumn(box,1);grid.Children.Add(box);panel.Children.Add(grid);return box;
+        }
+        var horseHp=HorseNumber("Horse HP",oldHorseHp);var horseMax=HorseNumber("Horse most HP",oldHorseMax);
+        horseBox.SelectionChanged+=(_,_)=>
+        {
+            if(horseBox.SelectedValue is not int h || h==oldHorse) return;
+            int most=h==0?0:(horseItems.FirstOrDefault(i=>i.Id==h)?.Uses??0)*10;
+            horseMax.Text=most.ToString();horseHp.Text=most.ToString();
+        };
+        bool mounted=(session?.EditedClasses().FirstOrDefault(c=>c.Id==currentClass)?.Mount??0)==1;
+        panel.Children.Add(new TextBlock {Text=mounted?"Riding now. A different horse can be given; to take the horse away, choose Dismount in the game first.":"On foot. After a horse is given, the unit can choose Mount in the game.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=11,Margin=new Thickness(0,0,0,8)});
         AddSection(panel,"Items");
         var itemChoices=ItemChoices();
         var itemInputs=new List<(int Slot,ComboBox Item,TextBox Uses,LiveItem Old)>();
@@ -1506,6 +1531,13 @@ public partial class MainWindow : Window
                 else if(input is ComboBox combo){if(combo.SelectedValue is not int v){error.Text=$"Choose a value for {field.Label}.";return;}value=v;}
                 else if(!FieldCodec.TryParse(field,((TextBox)input).Text,out value,out string message)){error.Text=message;input.Focus();return;}
                 FieldCodec.Write(edited,field,value);
+            }
+            if(horseBox.SelectedValue is not int horse){error.Text="Choose a horse, or No horse.";return;}
+            if(!int.TryParse(horseHp.Text.Trim(),out int hHp)){error.Text="Horse HP must be a whole number.";horseHp.Focus();return;}
+            if(!int.TryParse(horseMax.Text.Trim(),out int hMax)){error.Text="Horse most HP must be a whole number.";horseMax.Focus();return;}
+            if(horse!=oldHorse || hHp!=oldHorseHp || hMax!=oldHorseMax)
+            {
+                if(LiveHorse.Apply(edited,horse,hHp,hMax,mounted) is { } horseError){error.Text=horseError;return;}
             }
             var itemEdits=new List<(int Slot,int Item,int Uses)>();
             foreach(var (slot,pick,usesBox,old) in itemInputs)

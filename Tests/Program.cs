@@ -114,6 +114,16 @@ Test("Class names read naturally",()=>{
     Equal("Wyvern Knight (Larentia) (mounted)",ClassDecoder.DisplayName("WyvernKnightLarentia_R"));Equal("Chevalier (mounted)",ClassDecoder.DisplayName("Chevalire_R"));
     Equal("Verian Knight 2",ClassDecoder.DisplayName("VerianKnight2"));
 });
+Test("Live horse: give, change, refuse removal while riding, remove on foot",()=>{
+    var r=new byte[CharacterDecoder.RecordLength];FieldCodec.Write(r,LiveHorse.Dismounted,1);
+    Equal(null,LiveHorse.Apply(r,0x206,50,50,false));
+    Equal("518,50,50,0",$"{FieldCodec.Read(r,LiveHorse.Item)},{FieldCodec.Read(r,LiveHorse.Hp)},{FieldCodec.Read(r,LiveHorse.MaxHp)},{FieldCodec.Read(r,LiveHorse.Dismounted)}");
+    Equal(0x0C832u,BitConverter.ToUInt32(r,0x1C) & 0xFFFFFu);Equal(0x206u,BitConverter.ToUInt32(r,0x4C) & 0x3FFu);
+    Equal(true,LiveHorse.Apply(r,0,0,0,true)!.Contains("Dismount"));
+    Equal(null,LiveHorse.Apply(r,0x20B,40,60,true));Equal(0,FieldCodec.Read(r,LiveHorse.Dismounted));
+    Equal(true,LiveHorse.Apply(r,0x206,70,60,false) is not null);Equal(true,LiveHorse.Apply(r,0x064,10,10,false) is not null);
+    Equal(null,LiveHorse.Apply(r,0,0,0,false));Equal("0,0,0,1",$"{FieldCodec.Read(r,LiveHorse.Item)},{FieldCodec.Read(r,LiveHorse.Hp)},{FieldCodec.Read(r,LiveHorse.MaxHp)},{FieldCodec.Read(r,LiveHorse.Dismounted)}");
+});
 Test("Class list has one entry per ID",()=>{var l=ClassDecoder.LoadList();Equal(l.Count,l.Select(c=>c.Id).Distinct().Count());Equal("Burglar (male)",l.Single(c=>c.Id==0x57).Name);Equal("Wyvern Knight (mounted) (2)",l.Single(c=>c.Id==0xF2).Name);});
 Test("Item encoder writes are exact inverses of the decoder",()=>{
     var rng=new Random(7);

@@ -19,7 +19,7 @@ An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (Pla
 - **Maps page:** every battle's map with terrain, spots, starting positions and later arrivals.
 - **Mechanics page:** the game's formulas with how well each is verified and links to the values you can change.
 - **Compare:** open a second disc to compare items, characters and classes.
-- **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map, try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.
+- **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map (including giving or changing a horse), try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.
 
 Changes are saved as a `.bwproj` project and exported as a new ISO for PCSX2. The original disc image is never written to.
 
