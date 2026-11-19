@@ -1289,6 +1289,8 @@ public static class GameRules
             }
         MercenaryData.Restore(copy);
         RecipeData.Restore(copy);
+        DishData.Restore(copy);
+        TasteData.Restore(copy);
         MapSpriteData.Restore(copy);
         return copy;
     }

@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -107,7 +107,7 @@ public partial class MainWindow : Window
         CompareButton.IsEnabled=!busy && primary?.Supported==true;
         OpenProjectButton.IsEnabled=!busy;SaveProjectButton.IsEnabled=!busy;
         ExportButton.IsEnabled=!busy && session?.ChangeCount>0;
-        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditArmyUnitButton,EditFurnitureButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
+        foreach(var b in new[]{EditItemButton,EditCharacterButton,EditArmyUnitButton,EditFurnitureButton,EditDishButton,EditClassButton,EditMovementButton,EditTerrainButton}) b.IsEnabled=!busy;
         if(busy){UndoButton.IsEnabled=false;RedoButton.IsEnabled=false;}
         else{UndoButton.IsEnabled=session?.CanUndo==true;RedoButton.IsEnabled=session?.CanRedo==true;}
         CancelButton.Visibility=busy?Visibility.Visible:Visibility.Collapsed;
@@ -162,10 +162,11 @@ public partial class MainWindow : Window
         terrainRows=(session?.EditedTerrainKinds()??primary.TerrainKinds).Select(k=>new TerrainKindRow(k){ Edited=session?.IsEdited(EditSession.TerrainKinds,k.Id)==true }).ToList();
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
+        DishesNav.IsEnabled=primary.Supported && primary.DishBytes.Count>0;
         ShopsNav.IsEnabled=primary.Supported;
         LiveNav.IsEnabled=primary.Supported;
         RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;AnimationsNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();ApplyDishList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
         if(view==View.Events && events is { } library && EventList.SelectedValue is int shown)_=ShowEvent(library,shown,scrollHome:false);
         if(shops is not null)ApplyShopList();
@@ -301,6 +302,7 @@ public partial class MainWindow : Window
     private void ShowCharacters(object sender,RoutedEventArgs e) { view=View.Characters;UpdatePage(); }
     private void ShowArmies(object sender,RoutedEventArgs e) { view=View.Armies;UpdatePage(); }
     private void ShowFurniture(object sender,RoutedEventArgs e) { view=View.Furniture;UpdatePage(); }
+    private void ShowDishes(object sender,RoutedEventArgs e) { view=View.Dishes;UpdatePage(); }
     private void ShowShops(object sender,RoutedEventArgs e) { view=View.Shops;UpdatePage();_=OpenShops(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
@@ -1628,13 +1630,14 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
         CharacterPage.Visibility=view==View.Characters && supported?Visibility.Visible:Visibility.Collapsed;
         ArmyPage.Visibility=view==View.Armies && supported?Visibility.Visible:Visibility.Collapsed;
         FurniturePage.Visibility=view==View.Furniture && supported?Visibility.Visible:Visibility.Collapsed;
+        DishesPage.Visibility=view==View.Dishes && supported?Visibility.Visible:Visibility.Collapsed;
         ShopsPage.Visibility=view==View.Shops && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
@@ -1654,6 +1657,7 @@ public partial class MainWindow : Window
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
         ArmiesNav.Background=view==View.Armies?active:Brushes.Transparent;
         FurnitureNav.Background=view==View.Furniture?active:Brushes.Transparent;
+        DishesNav.Background=view==View.Dishes?active:Brushes.Transparent;
         ShopsNav.Background=view==View.Shops?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
@@ -2102,6 +2106,51 @@ public partial class MainWindow : Window
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
         UpdateLiveButtons();
+    }
+    private byte[] DishBytes(int id)=>session?.EditedBytes(EditSession.Dishes,id)??primary!.DishBytes[id].ToArray();
+    private void ApplyDishList()
+    {
+        if(primary is null || primary.DishBytes.Count==0){DishGrid.ItemsSource=null;return;}
+        int? selected=(DishGrid.SelectedItem as DishRow)?.Id;
+        var rows=primary.DishBytes.Keys.Order().Select(id=>
+        {
+            var b=DishBytes(id);
+            return new DishRow(id,DishData.Name(id),System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(8)),System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(4)),DishData.Describe(b,0),session?.IsEdited(EditSession.Dishes,id)==true);
+        }).ToList();
+        DishGrid.ItemsSource=rows;
+        DishCount.Text=$"{rows.Count} dishes";
+        if(rows.Count>0)DishGrid.SelectedItem=rows.FirstOrDefault(r=>r.Id==selected)??rows[0];
+    }
+    private void DishSelected(object sender,SelectionChangedEventArgs e)
+    {
+        UpdateEditButtons();
+        if(DishGrid.SelectedItem is not DishRow row){DishName.Text="Select a dish";DishFields.Children.Clear();return;}
+        if(editing?.Page==View.Dishes && editing.Id!=row.Id) EndEdit();
+        DishName.Text=row.Name;DishFields.Children.Clear();
+        var b=DishBytes(row.Id);
+        AddPair(DishFields,"Price",row.PriceText);
+        AddPair(DishFields,"Menu tier",$"{row.Tier} (the random menu takes 1, 2, 3, 2 and 1 dishes from tiers 0 to 4)");
+        int kind=System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(b);AddPair(DishFields,"Kind",kind==4?"4 (never on the menu)":kind.ToString());
+        for(int s=0;s<DishData.Sets;s++)AddPair(DishFields,DishData.SetNames[s],DishData.Describe(b,s));
+        var names=(session?.EditedCharacters()??primary!.Characters).ToDictionary(c=>c.Id,c=>c.Name);
+        string Who(int choice)=>string.Join(", ",primary!.TasteBytes.Keys.Where(c=>TasteValue(c,row.Id)==choice).Select(c=>names.TryGetValue(c,out var n)?n:$"Character 0x{c:X3}").Order());
+        AddPair(DishFields,"Liked by",Who(0) is {Length:>0} liked?liked:"No one");
+        AddPair(DishFields,"Disliked by",Who(2) is {Length:>0} disliked?disliked:"No one");
+        AddText(DishFields,"Characters not listed find it neutral. A unit with no taste row, such as most mercenaries and guests, gets no effects from any dish.");
+        AddChangeList(DishFields,ch=>ch.Table==EditSession.Dishes && ch.Id==row.Id,()=>session!.Revert(EditSession.Dishes,row.Id));
+    }
+    private int TasteValue(int character,int dish)=>session?.Value(EditSession.Tastes,character,TasteData.Key(dish))
+        ??System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(primary!.TasteBytes[character].Span[(dish*4)..]);
+    private void BeginDishEdit(object sender,RoutedEventArgs e)
+    {
+        if(DishGrid.SelectedItem is not DishRow row)return;
+        OpenEditor(new(View.Dishes,row.Id,"Dish",DishEditorPanel,DishFields,EditDishButton,
+        [
+            new("",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Dish").ToList()),
+            new("Liked",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Liked").ToList()),
+            new("Neutral",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Neutral").ToList()),
+            new("Disliked",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Disliked").ToList()),
+        ],"Amounts apply in the next battle. An effect set to None is left out. The random menu takes dishes by menu tier and never offers kind 4, the drinks."));
     }
     private void ApplyFurnitureList()
     {
@@ -2559,6 +2608,7 @@ public partial class MainWindow : Window
             new("Bag contents",EditSession.Bags,session?.Disc.BagBytes.TryGetValue(row.Character.Id,out var bag)==true?BagData.EditableFor(BagData.Count(bag.Span)):[]),
             new("Partners",EditSession.Partners,session?.Disc.PartnerBytes.ContainsKey(row.Character.Id)==true?PartnerData.Editable:[]),
             new("Mercenary fee",EditSession.Mercenaries,session?.Disc.MercenaryBytes.ContainsKey(row.Character.Id)==true?MercenaryData.Fields:[]),
+            new("Dish tastes",EditSession.Tastes,session?.Disc.TasteBytes.ContainsKey(row.Character.Id)==true?TasteData.Fields.Take(47).ToList():[]),
         ],"Changing a character's class changes their base stats, movement and allowed weapons to the new class's. Weapon levels above the new class's caps stay as they are."));
     }
     private void BeginClassEdit(object sender,RoutedEventArgs e)
@@ -2729,6 +2779,7 @@ public partial class MainWindow : Window
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditArmyUnitButton.Visibility=can && ArmyGrid.SelectedItem is ArmyUnitRow?Visibility.Visible:Visibility.Collapsed;
         EditFurnitureButton.Visibility=can && FurnitureGrid.SelectedItem is FurnitureRow?Visibility.Visible:Visibility.Collapsed;
+        EditDishButton.Visibility=can && DishGrid.SelectedItem is DishRow?Visibility.Visible:Visibility.Collapsed;
         EditScriptNumberButton.Visibility=can && ScriptNumberList.SelectedValue is int?Visibility.Visible:Visibility.Collapsed;
         EditClassButton.Visibility=can && ClassGrid.SelectedItem is ClassRow?Visibility.Visible:Visibility.Collapsed;
         EditMovementButton.Visibility=can && MovementGrid.SelectedItem is MovementRow?Visibility.Visible:Visibility.Collapsed;
@@ -3083,7 +3134,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}

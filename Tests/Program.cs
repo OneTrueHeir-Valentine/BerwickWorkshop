@@ -1292,6 +1292,32 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,StableStock.Matches(after));
         }
     });
+    Test("Dishes and tastes read from the program on both discs, edited, exported and recognised",()=>{
+        Equal("Sauteed Veal",DishData.Name(1));Equal("Rum",DishData.Name(54));Equal("Strength",DishData.EffectName(21));Equal("Luck Up (42)",DishData.EffectName(42));
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(54,disc.DishBytes.Count);Equal(35,disc.TasteBytes.Count);
+            var s=new EditSession(disc);
+            Equal(1000,s.Value(EditSession.Dishes,1,"price"));Equal(1,s.Value(EditSession.Dishes,1,"effect00"));Equal(5,s.Value(EditSession.Dishes,1,"amount00"));
+            Equal(24,s.Value(EditSession.Dishes,1,"effect01"));Equal(0,s.Value(EditSession.Dishes,54,"price"));
+            Equal("HP +5, Defense +3, Strength +2",DishData.Describe(disc.DishBytes[1].Span,0));
+            Equal(-1,s.Value(EditSession.Dishes,14,"amount21"));
+            Equal(1,s.Value(EditSession.Tastes,83,"dish1"));Equal(0,s.Value(EditSession.Tastes,83,"dish3"));Equal(2,s.Value(EditSession.Tastes,83,"dish6"));
+            Throws<EditException>(()=>s.Apply(EditSession.Dishes,1,new Dictionary<string,int>{["effect00"]=47}));
+            s.Apply(EditSession.Dishes,1,new Dictionary<string,int>{["price"]=10,["effect03"]=36,["amount03"]=-4});
+            s.Apply(EditSession.Tastes,83,new Dictionary<string,int>{["dish1"]=0});
+            var back=EditSession.FromJson(disc,s.ToJson());Equal(-4,back.Value(EditSession.Dishes,1,"amount03"));Equal(0,back.Value(EditSession.Tastes,83,"dish1"));
+            var patches=Exporter.PatchesFor(s,disc);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
+            var edited=exe.ToArray();
+            foreach(var p in patches) p.Bytes.CopyTo(edited,(int)(p.Offset-disc.ExecutableFile.Offset));
+            Equal(4,Enumerable.Range(0,exe.Length/4).Count(i=>BitConverter.ToUInt32(exe,i*4)!=BitConverter.ToUInt32(edited,i*4)));
+            Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
+            Equal(10,BinaryPrimitives.ReadInt32LittleEndian(DishData.Read(edited).Single(r=>r.Id==1).Bytes.AsSpan(8)));
+            Equal(0,BinaryPrimitives.ReadInt32LittleEndian(TasteData.Read(edited).Single(r=>r.Id==83).Bytes.AsSpan(4)));
+        }
+    });
     Test("Atelier recipes read from the program on both discs, edited, exported and recognised",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

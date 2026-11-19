@@ -982,3 +982,103 @@ terrain,60,-
 terrain,61,Healstone
 terrain,62,Healstone
 terrain,63,-
+food,1,Sauteed Veal
+food,2,Roast Beef
+food,3,Beef Bourguignon
+food,4,Roast Duck
+food,5,Lamb Terrine
+food,6,Stuffat Tal-Fenek
+food,7,Orange Rabbit
+food,8,Meatloaf
+food,9,Braised Chicken
+food,10,Chicken Stew
+food,11,Chicken Fricassee
+food,12,Roast Chicken
+food,13,Sauteed Chicken
+food,14,Sauteed Pork
+food,15,Roast Chevon
+food,16,Beef Ribs
+food,17,Mutton Couscous
+food,18,Shell-Fried Crab
+food,19,Shrimp Bisque
+food,20,Butter Scallops
+food,21,Butter-Baked Cod
+food,22,Scallop Meuniere
+food,23,Marinated Shrimp
+food,24,Roast Flounder
+food,25,Steamed Clams
+food,26,Bouillabaisse
+food,27,Salmon Meuniere
+food,28,Butter Salmon
+food,29,Boiled Crab
+food,30,Fried Mackerel
+food,31,Squid Fritters
+food,32,Wild Game Salad
+food,33,Seafood Salad
+food,34,Pot-au-feu
+food,35,Vichyssoise
+food,36,Minestrone
+food,37,Narvia Salad
+food,38,Sinon Salad
+food,39,Papillote 'Shrooms
+food,40,Strawberries
+food,41,Pumpkin Salad
+food,42,Red Pepper
+food,43,Raquel Omelette
+food,44,Sinon Omelette
+food,45,Fried Rice
+food,46,Deviled Eggs
+food,47,Boiled Egg
+food,48,Brandy
+food,49,Red Wine
+food,50,White Wine
+food,51,Tequila
+food,52,Vodka
+food,53,Cider
+food,54,Rum
+foodeffect,1,HP became
+foodeffect,2,Level Up
+foodeffect,3,Avoid became
+foodeffect,4,Move when Crippled
+foodeffect,5,Sleep Recovery Up
+foodeffect,6,Confusion Recovery Up
+foodeffect,7,Critical Rate Up
+foodeffect,8,Critical became
+foodeffect,9,Hit became
+foodeffect,10,Skill "Counter"
+foodeffect,11,Weapon Failure Rate Down
+foodeffect,12,Weapon Usage Rate Down
+foodeffect,13,Non-Weapon Skills Boost
+foodeffect,14,Magical Damage Down
+foodeffect,15,Shield Usage Rate Up
+foodeffect,16,Healing Amount Up
+foodeffect,17,Crippled Rate Down
+foodeffect,18,Poison-Proof
+foodeffect,19,Confusion-Proof
+foodeffect,20,Sleep-Proof
+foodeffect,21,Strength became
+foodeffect,22,Speed became
+foodeffect,23,Magic became
+foodeffect,24,Defense became
+foodeffect,25,Move became
+foodeffect,26,Attack became
+foodeffect,27,Health Charm effectiveness
+foodeffect,28,Poison recovery up
+foodeffect,29,Skill "Counter"
+foodeffect,30,Skill "Vantage"
+foodeffect,31,Skill "Arrowbane"
+foodeffect,32,Skill "Magicbane"
+foodeffect,33,Injury-Proof
+foodeffect,34,Horse damage down
+foodeffect,35,Horse HP recovery
+foodeffect,36,Luck Up
+foodeffect,37,EXP Rate Up
+foodeffect,38,Swd/Spr/Axe/Shd Skill Up
+foodeffect,39,Orb Skill Up
+foodeffect,40,Bow/Crossbow Skill Up
+foodeffect,41,Skill "Adept"
+foodeffect,42,Luck Up
+foodeffect,43,Healing Orb Effect Up
+foodeffect,44,Cripple Rate Up
+foodeffect,45,Injury Rate Up
+foodeffect,46,Injured Rate Up

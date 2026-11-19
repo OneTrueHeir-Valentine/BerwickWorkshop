@@ -13,7 +13,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.107.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.108.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -33,6 +33,7 @@
      <Button x:Name="MovementNav" Content="Mo_vement" Style="{StaticResource NavButton}" Click="ShowMovement" IsEnabled="False"/>
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
      <Button x:Name="FurnitureNav" Content="_Furniture" Style="{StaticResource NavButton}" Click="ShowFurniture" IsEnabled="False"/>
+     <Button x:Name="DishesNav" Content="Dis_hes" Style="{StaticResource NavButton}" Click="ShowDishes" IsEnabled="False"/>
      <Button x:Name="ShopsNav" Content="_Shops" Style="{StaticResource NavButton}" Click="ShowShops" IsEnabled="False"/>
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
@@ -354,6 +355,32 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="2" x:Name="FurnitureCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="DishesPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="The dishes the Kingfisher Pavilion serves. Each dish has a price, a menu tier and three sets of effects: one for a unit that likes it, one for a unit that finds it neutral and one for a unit that dislikes it. The effects last into the next battle. Which dishes each character likes is edited on the Characters page under Dish tastes."/></Border>
+     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360"/></Grid.ColumnDefinitions>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <DataGrid x:Name="DishGrid" SelectionChanged="DishSelected" AutomationProperties.Name="Dishes">
+        <DataGrid.Columns>
+         <DataGridTextColumn Header="Dish" Binding="{Binding Name}" Width="*" MinWidth="160"/>
+         <DataGridTextColumn Header="Price" Binding="{Binding PriceText}" Width="80" MinWidth="70"/>
+         <DataGridTextColumn Header="Tier" Binding="{Binding Tier}" Width="50" MinWidth="45"/>
+         <DataGridTextColumn Header="Liked" Binding="{Binding Liked}" Width="2*" MinWidth="160"/>
+         <DataGridTextColumn Header="Status" Binding="{Binding EditedText}" Width="70" MinWidth="70"/>
+        </DataGrid.Columns>
+       </DataGrid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditDishButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginDishEdit" ToolTip="Edit this dish (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="DISH" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <TextBlock x:Name="DishName" Text="Select a dish" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
+        <StackPanel x:Name="DishFields" Margin="0,8,0,0"/>
+        <StackPanel x:Name="DishEditorPanel" Visibility="Collapsed"/>
+       </StackPanel></ScrollViewer>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="2" x:Name="DishCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <Grid x:Name="EventsPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

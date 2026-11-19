@@ -11,6 +11,8 @@ public static class GameNames
     public static string? Item(int id) => names.TryGetValue(("item", id), out var n) ? n : null;
     public static string? Class(int id) => names.TryGetValue(("class", id), out var n) ? n : null;
     public static string? Terrain(int kind) => names.TryGetValue(("terrain", kind), out var n) ? n : null;
+    public static string? Food(int dish) => names.TryGetValue(("food", dish), out var n) ? n : null;
+    public static string? FoodEffect(int code) => names.TryGetValue(("foodeffect", code), out var n) ? n : null;
     public static string? MovementType(int type) => names.TryGetValue(("movetype", type + 1), out var n) ? n : null;
 
     /// <summary>Adds " (2)", " (3)" and so on to names that appear more than once, in the order given.</summary>

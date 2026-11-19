@@ -17,6 +17,12 @@ public sealed record ArmyUnitRow(Army Army, ArmyUnit Unit, CharacterRecord Recor
     public string EditedText => Edited ? "Edited" : "";
 }
 
+public sealed record DishRow(int Id, string Name, int Price, int Tier, string Liked, bool Edited)
+{
+    public string PriceText => Price.ToString("N0");
+    public string EditedText => Edited ? "Edited" : "";
+}
+
 public sealed record FurnitureRow(int Id, string Name, int Price, int Original)
 {
     public string PriceText => Price.ToString("N0");
