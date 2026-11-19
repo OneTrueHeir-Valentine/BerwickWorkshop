@@ -13,7 +13,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.104.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.105.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -454,7 +454,7 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The animation each class shows in battle, and the colours each character wears in it. A class can have one set of animations for any weapon and others for certain weapon types; a character can have their own colours, or rarely a set of their own. Sets on the disc that no class uses are listed at the end. Choose Change beside a row to give it another set or other colours."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The animation each class shows in battle, and the colours each character wears in it. A class can have one set of animations for any weapon and others for certain weapon types; a character can have their own colours, or rarely a set of their own. Sets on the disc that no class uses are listed at the end. Choose Change beside a row to give it another set or other colours, or the class another map sprite."/>
      </Border>
      <ListBox Grid.Row="1" x:Name="AnimationList" SelectionChanged="AnimationClassSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Classes"/>
      <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">

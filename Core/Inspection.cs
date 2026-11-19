@@ -78,6 +78,8 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
     public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> AnimationPaletteBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public IReadOnlyDictionary<int, long> AnimationRowOffsets { get; init; } = new Dictionary<int, long>();
     public IReadOnlySet<int> AnimationSetsOnDisc { get; init; } = new HashSet<int>();
+    /// <summary>Map sprite row of each class (32 bytes in the game program).</summary>
+    public IReadOnlyDictionary<int, ReadOnlyMemory<byte>> MapSpriteBytes { get; init; } = new Dictionary<int, ReadOnlyMemory<byte>>();
     public bool ClassCopiesMatch { get; init; } = true;
     public ClassRecord? ClassOf(CharacterRecord character) => Classes.FirstOrDefault(c => c.Id == character.ClassId);
 }
@@ -222,6 +224,9 @@ public static class Inspector
         if (profile is not null)
             foreach(var (id,row,rowBytes) in MercenaryData.Read(exe)){mercenaryBytes[id]=rowBytes;mercenaryRows[id]=row;}
             foreach(var (id,row,rowBytes) in RecipeData.Read(exe)){recipeBytes[id]=rowBytes;recipeRows[id]=row;}
+        var mapSprites=new Dictionary<int,ReadOnlyMemory<byte>>();
+        if (profile is not null)
+            foreach(var (classId,rowBytes) in MapSpriteData.Read(exe)) mapSprites[classId]=rowBytes;
         var armies=new List<Army>();var armyUnitBytes=new Dictionary<int,ReadOnlyMemory<byte>>();
         if (profile is not null)
         {
@@ -296,6 +301,6 @@ public static class Inspector
         }
         string serial=Regex.Replace(bootName,"_","-").Replace(".","");
         string version=Regex.Match(config,@"(?im)^\s*VER\s*=\s*([^\r\n]+)").Groups[1].Value.Trim();
-        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,RecipeBytes=recipeBytes,RecipeRows=recipeRows,Armies=armies.AsReadOnly(),ArmyUnitBytes=armyUnitBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices,FurniturePriceBytes=furniturePrices,AnimationSetBytes=animationSets,AnimationPaletteBytes=animationPalettes,AnimationRowOffsets=animationOffsets,AnimationSetsOnDisc=setsOnDisc };
+        return new(System.IO.Path.GetFullPath(path),stream.Length,serial,version,$"{crc:X8}",hash,exeHash,profile,iso.Entries,items.AsReadOnly(),tableDifferences) { Characters=characters.AsReadOnly(),CharacterCopiesMatch=characterCopiesMatch,Classes=classes.AsReadOnly(),ClassCopiesMatch=classCopiesMatch,ItemBytes=itemBytes,UnitBytes=unitBytes,GrowthBytes=growthBytes,ClassBytes=classBytes,MovementTypes=movementTypes.AsReadOnly(),TerrainBytes=terrainBytes,TerrainCopiesMatch=terrainCopiesMatch,TerrainKinds=terrainKinds.AsReadOnly(),TerrainKindBytes=terrainKindBytes,TerrainKindCopiesMatch=terrainKindCopiesMatch,CharacterOffsets=characterOffsets,PartnerBytes=partnerBytes,PartnerRows=partnerRows,PartnerCopiesMatch=partnerCopiesMatch,BagBytes=bagBytes,MercenaryBytes=mercenaryBytes,MercenaryRows=mercenaryRows,RecipeBytes=recipeBytes,RecipeRows=recipeRows,Armies=armies.AsReadOnly(),ArmyUnitBytes=armyUnitBytes,IsModified=modified,RuleWords=ruleWords,ExecutableFile=exeEntry,StablePriceBytes=stablePrices,FurniturePriceBytes=furniturePrices,AnimationSetBytes=animationSets,AnimationPaletteBytes=animationPalettes,AnimationRowOffsets=animationOffsets,AnimationSetsOnDisc=setsOnDisc,MapSpriteBytes=mapSprites };
     }
 }

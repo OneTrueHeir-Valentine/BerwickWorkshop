@@ -1267,6 +1267,7 @@ public static class GameRules
             }
         MercenaryData.Restore(copy);
         RecipeData.Restore(copy);
+        MapSpriteData.Restore(copy);
         return copy;
     }
 }

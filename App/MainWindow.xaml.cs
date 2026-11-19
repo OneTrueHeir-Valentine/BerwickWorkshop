@@ -543,6 +543,7 @@ public partial class MainWindow : Window
     private string? animationsPath;
     private IReadOnlyDictionary<int,int> animationSetsOnDisc=new Dictionary<int,int>();
     private IReadOnlyDictionary<int,IReadOnlySet<string>> animationMotions=new Dictionary<int,IReadOnlySet<string>>();
+    private Dictionary<uint,string> spriteNames=[];
     private readonly Dictionary<int,AnimationSet?> animationSets=[];
     private AnimationSet? shownAnimationSet;
     private IReadOnlyList<AnimationFrame> animationFrames=[];
@@ -595,18 +596,28 @@ public partial class MainWindow : Window
         AnimationCount.Text="Reading the battle animations...";
         try
         {
-            var (table,onDisc,motions)=await Task.Run(()=>
+            var exeEntry=primary.ExecutableFile;
+            var (table,onDisc,motions,names)=await Task.Run(()=>
             {
                 lock(library)
                 {
                     int top=library.Archives.Find(AnimationTable.Path);
                     if(top<0)throw new InvalidDataException("The disc has no animation table.");
                     var sets=AnimationSet.OnDisc(library.Archives);
-                    return (AnimationTable.Parse(library.Archives.Top(top)),sets,AnimationSet.MotionLists(library.Archives,sets));
+                    var spriteNames=new Dictionary<uint,string>();
+                    if(exeEntry is not null)
+                    {
+                        byte[] exe;
+                        using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read))
+                        using(var iso=new IsoImage(stream)) exe=iso.ReadRange(exeEntry.Offset,(int)exeEntry.Length,(int)exeEntry.Length);
+                        foreach(var (_,row) in MapSpriteData.Read(exe))
+                            for(int w=0;w<2;w++){uint pointer=System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(w*4));if(MapSpriteData.Name(exe,pointer) is { } n)spriteNames[pointer]=n;}
+                    }
+                    return (AnimationTable.Parse(library.Archives.Top(top)),sets,AnimationSet.MotionLists(library.Archives,sets),spriteNames);
                 }
             });
             if(events!=library)return;
-            animationTable=table;animationSetsOnDisc=onDisc;animationMotions=motions;animationsPath=path;
+            animationTable=table;animationSetsOnDisc=onDisc;animationMotions=motions;spriteNames=names;animationsPath=path;
             var named=table.NamedSets;
             var choices=new List<Choice>();
             for(int c=1;c<=table.ClassCount;c++)
@@ -634,6 +645,7 @@ public partial class MainWindow : Window
     private void AnimationClassSelected(object sender,SelectionChangedEventArgs e)
     {
         if(editing?.Page==View.Animations)EndEdit();
+        CloseMapSpriteEditor();
         RefreshAnimationClass();
     }
 
@@ -694,6 +706,12 @@ public partial class MainWindow : Window
                 string text=$"{who}{when}: {(number==0?"the set's own colours":$"palette {number}")}";
                 Row(text,AnimationEdited(true,value,r),()=>BeginAnimationEdit(true,value,at,text));
             }
+            if(primary?.MapSpriteBytes.ContainsKey(value)==true)
+            {
+                Heading("Map sprite");
+                var (sprite,shield)=MapSpriteNames(value);
+                Row(shield is null?sprite:$"{sprite}, with a shield {shield}",session?.IsEdited(EditSession.MapSprites,value)==true,()=>BeginMapSpriteEdit(value));
+            }
         }
         else
         {
@@ -712,6 +730,71 @@ public partial class MainWindow : Window
         AnimationSetBox.ItemsSource=sets;
         AnimationSetBox.SelectedIndex=keepSet is int k && sets.FindIndex(s=>s.Value==k) is int found && found>=0?found:sets.Count>0?0:-1;
         if(AnimationSetBox.SelectedIndex>=0 && AnimationSetBox.SelectedValue is int same && same==keepSet)AnimationViewChanged(AnimationSetBox,null!);
+    }
+
+    private int MapSpriteWord(int classId,int word)
+    {
+        var field=MapSpriteData.Fields[word];
+        return session is not null?session.Value(EditSession.MapSprites,classId,field.Key):FieldCodec.Read(primary!.MapSpriteBytes[classId].Span,field);
+    }
+
+    private (string Sprite,string? Shield) MapSpriteNames(int classId)
+    {
+        uint sprite=(uint)MapSpriteWord(classId,0),shield=(uint)MapSpriteWord(classId,1);
+        return (spriteNames.TryGetValue(sprite,out var a)?a:"Unknown sprite",shield==0?null:spriteNames.TryGetValue(shield,out var b)?b:"Unknown sprite");
+    }
+
+    private void CloseMapSpriteEditor()
+    {
+        if(AnimationEditorPanel.Visibility!=Visibility.Visible || editing is not null)return;
+        AnimationEditorPanel.Children.Clear();AnimationEditorPanel.Visibility=Visibility.Collapsed;AnimationDetails.Visibility=Visibility.Visible;
+    }
+
+    private void BeginMapSpriteEdit(int classId)
+    {
+        if(session is null || primary is null)return;
+        EndEdit();
+        var rows=primary.MapSpriteBytes;
+        uint[] Row(int c)=>Enumerable.Range(0,MapSpriteData.Words).Select(w=>(uint)FieldCodec.Read(rows[c].Span,MapSpriteData.Fields[w])).ToArray();
+        var current=Enumerable.Range(0,MapSpriteData.Words).Select(w=>(uint)MapSpriteWord(classId,w)).ToArray();
+        // Each class's sprite on the disc, by class; the current one is the first class whose row matches.
+        var choices=rows.Keys.Order().Select(c=>
+        {
+            var row=Row(c);string name=spriteNames.TryGetValue(row[0],out var n)?n:"Unknown sprite";
+            return new Choice(c,$"{ClassTitle(c)}: {name}");
+        }).ToList();
+        int selected=rows.Keys.Order().FirstOrDefault(c=>c==classId && Row(c).SequenceEqual(current));
+        if(selected==0)selected=rows.Keys.Order().FirstOrDefault(c=>Row(c).SequenceEqual(current));
+        var panel=AnimationEditorPanel;panel.Children.Clear();
+        panel.Children.Add(new TextBlock{Text=$"Map sprite of {ClassTitle(classId)}",FontWeight=FontWeights.SemiBold,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,8)});
+        panel.Children.Add(new Border{Background=new SolidColorBrush(Color.FromRgb(255,241,217)),BorderBrush=new SolidColorBrush(Color.FromRgb(223,204,158)),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(4),Padding=new Thickness(10,8,10,8),Margin=new Thickness(0,0,0,10),
+            Child=new TextBlock{Text="Every unit of this class shows the chosen class's map sprite, with that class's frame count and size. Battle animations are set separately in the rows above.",TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=new SolidColorBrush(Color.FromRgb(114,82,33))}});
+        panel.Children.Add(new TextBlock{Text="Use the map sprite of",Foreground=(Brush)FindResource("Muted"),FontSize=13,Margin=new Thickness(0,0,0,4)});
+        var picker=new ComboBox{ItemsSource=choices,DisplayMemberPath="Text",SelectedValuePath="Value",IsTextSearchEnabled=true,Padding=new Thickness(6,4,6,4),Margin=new Thickness(0,0,0,10)};
+        picker.ItemsPanel=new ItemsPanelTemplate(new FrameworkElementFactory(typeof(VirtualizingStackPanel)));
+        if(selected!=0)picker.SelectedValue=selected;
+        System.Windows.Automation.AutomationProperties.SetName(picker,"Use the map sprite of");
+        panel.Children.Add(picker);
+        var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var cancel=new Button{Content="Cancel",Style=(Style)FindResource("SmallButton"),IsCancel=true};
+        var apply=new Button{Content="Apply",Style=(Style)FindResource("SmallButton"),IsDefault=true,Background=(Brush)FindResource("Accent"),Foreground=Brushes.White,BorderBrush=(Brush)FindResource("Accent")};
+        cancel.Click+=(_,_)=>{CloseMapSpriteEditor();Status.Text="Edit canceled.";};
+        apply.Click+=(_,_)=>
+        {
+            if(picker.SelectedValue is not int source || session is null)return;
+            var source_row=Row(source);
+            var values=Enumerable.Range(0,MapSpriteData.Words).ToDictionary(w=>MapSpriteData.Fields[w].Key,w=>(int)source_row[w]);
+            try
+            {
+                bool changed=session.Apply(EditSession.MapSprites,classId,values);
+                CloseMapSpriteEditor();RefreshDocument();
+                Status.Text=changed?"Map sprite updated. Save the project to keep your changes.":"No values were changed.";
+            }
+            catch(EditException ex){Status.Text=ex.Message;}
+        };
+        buttons.Children.Add(cancel);buttons.Children.Add(apply);panel.Children.Add(buttons);
+        AnimationDetails.Visibility=Visibility.Collapsed;panel.Visibility=Visibility.Visible;
+        picker.Focus();
     }
 
     private async void BeginAnimationEdit(bool palette,int classId,int row,string text)
@@ -2912,7 +2995,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
-            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A battle stops when a class plays a motion its set does not have, so only sets with every motion of the row's own set are offered (checked in a running game: the Spear Knight given the mounted winged set froze after riding in; on foot, given the winged set that has all his motions, the fight played through). Units keep their map sprites. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
+            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A battle stops when a class plays a motion its set does not have, so only sets with every motion of the row's own set are offered (checked in a running game: the Spear Knight given the mounted winged set froze after riding in; on foot, given the winged set that has all his motions, the fight played through). Units keep their map sprites. Each class also has a map sprite, the figure units of the class show on the battle map, with a second one while they hold a shield; Change gives the class another class's map sprite, copied whole with its frame count and size (checked in a running game: Spear Knights on foot given the Wyvern Knight's on-foot sprite showed it after dismounting). The sets of art 008, 021 (the winged rider), 023, 092, 103 and 120 have no map sprite of their own, so a class given one of them needs another class's map sprite. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

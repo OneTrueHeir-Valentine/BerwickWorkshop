@@ -1316,6 +1316,25 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(87,edited.Palettes(150)[2].Unit);
         }
     });
+    Test("Map sprites on both discs: read, copied from another class, exported and recognised",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            Equal(244,disc.MapSpriteBytes.Count);
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var exe=new byte[disc.ExecutableFile!.Length];stream.Position=disc.ExecutableFile.Offset;stream.ReadExactly(exe);
+            string Name(int c,int w)=>MapSpriteData.Name(exe,BinaryPrimitives.ReadUInt32LittleEndian(disc.MapSpriteBytes[c].Span[(w*4)..]))??"none";
+            Equal("om091h,om091sh,om091,om019h",$"{Name(150,0)},{Name(150,1)},{Name(151,0)},{Name(52,0)}");
+            var s=new EditSession(disc);
+            var source=MapSpriteData.Fields.ToDictionary(f=>f.Key,f=>FieldCodec.Read(disc.MapSpriteBytes[52].Span,f));
+            Throws<EditException>(()=>s.Apply(EditSession.MapSprites,150,new Dictionary<string,int>(source){["spriteWord5"]=123}));
+            s.Apply(EditSession.MapSprites,150,source);
+            Equal(source["sprite"],EditSession.FromJson(disc,s.ToJson()).Value(EditSession.MapSprites,150,"sprite"));
+            var edited=exe.ToArray();
+            foreach(var patch in Exporter.PatchesFor(s,disc)) patch.Bytes.CopyTo(edited,(int)(patch.Offset-disc.ExecutableFile.Offset));
+            Equal(true,edited.AsSpan((int)MapSpriteData.FileOffset+149*32,32).SequenceEqual(exe.AsSpan((int)MapSpriteData.FileOffset+51*32,32)));
+            Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
+        }
+    });
     Test("Armies: every team file on both discs, names, bosses and edits written to every copy",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

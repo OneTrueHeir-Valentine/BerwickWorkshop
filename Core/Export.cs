@@ -31,7 +31,7 @@ public static class Exporter
                 ? [p.UnitTable + bagAt + BagData.OffsetFromRecord, p.SecondUnitTable + bagAt + BagData.OffsetFromRecord] : throw new EditException($"Character 0x{id:X3} has no starting bag on this disc."),
             EditSession.AnimationSets or EditSession.AnimationPalettes => disc.AnimationRowOffsets.TryGetValue(id, out long row)
                 ? [row] : throw new EditException("This project changes a battle animation row that is not on this disc."),
-            EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.ArmyUnits => [],
+            EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.ArmyUnits or EditSession.MapSprites => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
         if (table == EditSession.Rules) throw new EditException("Rules are written instruction by instruction; use PatchesFor.");
@@ -40,6 +40,12 @@ public static class Exporter
             var exe = disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc.");
             return disc.RecipeRows.TryGetValue(id, out int recipeRow)
                 ? [(exe, RecipeData.FileOffset + recipeRow * (long)RecipeData.RowLength)] : throw new EditException($"Item 0x{id:X3} has no Atelier recipe on this disc.");
+        }
+        if (table == EditSession.MapSprites)
+        {
+            var exe = disc.ExecutableFile ?? throw new EditException("The game program was not found on this disc.");
+            return id >= 1 && id <= MapSpriteData.Classes && disc.MapSpriteBytes.ContainsKey(id)
+                ? [(exe, MapSpriteData.FileOffset + (id - 1) * (long)MapSpriteData.RowLength)] : throw new EditException($"Class {id} has no map sprite row on this disc.");
         }
         if (table == EditSession.Mercenaries)
         {

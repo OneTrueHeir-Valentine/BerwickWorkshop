@@ -264,8 +264,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, AnimationSets, AnimationPalettes, ScriptValues, Scripts];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes", MapSprites = "mapSprites";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, AnimationSets, AnimationPalettes, MapSprites, ScriptValues, Scripts];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name, byte[]? Script = null)
@@ -339,6 +339,7 @@ public sealed class EditSession
                 values.TryGetValue(AnimationTable.SetField.Key, out int set) && !disc.AnimationSetsOnDisc.Contains(set)
                     ? $"There is no animation set {AnimationSet.FileName(set)} on this disc." : ""),
             [AnimationPalettes] = new(AnimationPalettes, "colour row", [AnimationTable.PaletteField], disc.AnimationPaletteBytes),
+            [MapSprites] = new(MapSprites, "map sprite", MapSpriteData.Fields, disc.MapSpriteBytes, MapSpriteData.Validate),
             [Bags] = new(Bags, "character", BagData.Fields, disc.BagBytes, values =>
             {
                 foreach (var field in BagData.Fields.Where(f => f.ItemReference))
@@ -627,6 +628,7 @@ public sealed class EditSession
         FurniturePrices => Core.FurniturePrices.Names.TryGetValue(id, out var piece) ? piece : null,
         ScriptValues => $"Event {Core.ScriptValues.Split(id).Event}, number {Core.ScriptValues.Split(id).Index + 1}",
         AnimationSets or AnimationPalettes => AnimationRowName(id),
+        MapSprites => originalClasses.TryGetValue(id, out var spriteClass) ? spriteClass.Name : GameNames.Class(id),
         ArmyUnits => disc.Armies.SelectMany(a => a.Units).FirstOrDefault(u => u.Key == id) is { } unit ? $"{disc.Armies.First(a => a.Id == unit.Army).Label}, {unit.Name}" : null,
         _ => null,
     };
