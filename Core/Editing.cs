@@ -264,8 +264,8 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", Dishes = "dishes", Tastes = "tastes", Deployments = "deployments", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes", MapSprites = "mapSprites";
-    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, Dishes, Tastes, Deployments, AnimationSets, AnimationPalettes, MapSprites, ScriptValues, Scripts];
+    public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", Dishes = "dishes", Tastes = "tastes", Deployments = "deployments", Placements = "placements", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes", MapSprites = "mapSprites";
+    private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, Dishes, Tastes, Deployments, Placements, AnimationSets, AnimationPalettes, MapSprites, ScriptValues, Scripts];
 
     /// <summary>Everything the project says about one record: explicit field values, a record it was copied from, and a display name.</summary>
     private sealed record RecordState(IReadOnlyDictionary<string, int> Values, int? CopyFrom, string? Name, byte[]? Script = null)
@@ -287,7 +287,7 @@ public sealed class EditSession
     // Events whose lines were changed: the whole new script, decoded.
     private readonly Dictionary<int, byte[]> scripts = [];
     private readonly ScriptValueRecords scriptRecords;
-    private readonly DeploymentRecords deploymentRecords;
+    private readonly DeploymentRecords deploymentRecords, placementRecords;
     private readonly List<Step> steps = [];
     private HashSet<int>? armyClasses, armyItems;
     private int position, savedPosition;
@@ -301,6 +301,7 @@ public sealed class EditSession
         originalClasses = disc.Classes.ToDictionary(c => c.Id);
         scriptRecords = new ScriptValueRecords(disc.Path);
         deploymentRecords = new DeploymentRecords(disc.Path);
+        placementRecords = new DeploymentRecords(disc.Path, map => Placement.Read(map));
         tables = new()
         {
             [Items] = new(Items, "item", ItemEncoder.Fields, disc.ItemBytes, ItemEncoder.Validate),
@@ -329,6 +330,7 @@ public sealed class EditSession
             [Tastes] = new(Tastes, "character", TasteData.Fields, disc.TasteBytes),
             // Deployment hexes of each battle map, keyed by the map's top-level archive and read from the disc when first needed.
             [Deployments] = new(Deployments, "map", Deployment.Fields, deploymentRecords, Deployment.Validate),
+            [Placements] = new(Placements, "map", Placement.Fields, placementRecords, Placement.Validate),
             [ArmyUnits] = new(ArmyUnits, "unit", ArmyData.Fields, disc.ArmyUnitBytes, values =>
             {
                 // Some armies use classes and item numbers that are not in the lists; a unit may keep any value found in the armies.
@@ -627,7 +629,7 @@ public sealed class EditSession
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
         Recipes => disc.Items.FirstOrDefault(i => i.Id == id)?.DisplayName,
         Dishes => DishData.Name(id),
-        Deployments => $"Map archive {id}",
+        Deployments or Placements => $"Map archive {id}",
         Tastes => originalCharacters.TryGetValue(id, out var taster) ? taster.Name : null,
         Characters or Growths or Partners or Bags or Mercenaries => originalCharacters.TryGetValue(id, out var c) ? c.Name : null,
         Classes => originalClasses.TryGetValue(id, out var k) ? k.Name : null,

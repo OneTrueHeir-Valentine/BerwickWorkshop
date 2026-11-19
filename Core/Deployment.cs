@@ -110,11 +110,76 @@ public static class Deployment
 }
 
 /// <summary>
-/// Each battle map's deployment slots as edit records (keyed by the map's top-level archive), read from the disc when first
-/// asked for. Only lookups by key are supported.
+/// Where the battle's opening events place army units: placement groups 1 to 15 of the map file. AppearUnitEx(file, team,
+/// group) puts unit n of army file udNNN at slot n + 1 of the group. The record holds the x bytes of groups 1 to 15
+/// (64 slots each), then their y bytes; 0xFF is no slot. Group 0 (your deployment hexes) is kept in <see cref="Deployment"/>.
 /// </summary>
-public sealed class DeploymentRecords(string discPath) : IReadOnlyDictionary<int, ReadOnlyMemory<byte>>
+public static class Placement
 {
+    public const int FirstGroup = 1, Groups = 15, Slots = Deployment.Slots, Half = Groups * Slots, RecordLength = Half * 2;
+    private const int PlacementX = 0x22144, PlacementY = PlacementX + 0x400, NoSlot = Deployment.NoSlot;
+
+    public static IReadOnlyList<TableField> Fields { get; } = Array.AsReadOnly(Enumerable.Range(0, Half)
+        .SelectMany(i => new[]
+        {
+            new TableField($"g{FirstGroup + i / Slots}x{i % Slots}", $"Group {FirstGroup + i / Slots} slot {i % Slots} column", i, 0, 8, 0, 255) { Group = "Placement" },
+            new TableField($"g{FirstGroup + i / Slots}y{i % Slots}", $"Group {FirstGroup + i / Slots} slot {i % Slots} row", Half + i, 0, 8, 0, 255) { Group = "Placement" },
+        }).ToArray());
+
+    public static byte[]? Read(ReadOnlySpan<byte> map)
+    {
+        if (map.Length < PlacementY + Slots * (FirstGroup + Groups)) return null;
+        var record = new byte[RecordLength];
+        map.Slice(PlacementX + FirstGroup * Slots, Half).CopyTo(record);
+        map.Slice(PlacementY + FirstGroup * Slots, Half).CopyTo(record.AsSpan(Half));
+        return record;
+    }
+
+    public static byte[] Write(ReadOnlySpan<byte> map, ReadOnlySpan<byte> record)
+    {
+        if (map.Length < PlacementY + Slots * (FirstGroup + Groups) || record.Length != RecordLength) throw new EditException("The map file is not in the expected layout.");
+        var copy = map.ToArray();
+        record[..Half].CopyTo(copy.AsSpan(PlacementX + FirstGroup * Slots));
+        record[Half..].CopyTo(copy.AsSpan(PlacementY + FirstGroup * Slots));
+        return copy;
+    }
+
+    private static int At(int group, int slot) =>
+        group >= FirstGroup && group < FirstGroup + Groups && slot >= 0 && slot < Slots ? (group - FirstGroup) * Slots + slot : throw new EditException("There is no such placement slot.");
+
+    public static (int X, int Y)? Slot(ReadOnlySpan<byte> record, int group, int slot)
+    {
+        int i = At(group, slot);
+        return record[i] == NoSlot || record[Half + i] == NoSlot ? null : (record[i], record[Half + i]);
+    }
+
+    /// <summary>The record with one slot moved to a hex (inside the map border).</summary>
+    public static byte[] Move(ReadOnlySpan<byte> record, int group, int slot, int x, int y)
+    {
+        if (x <= 0 || y <= 0 || x >= BattleMaps.Side - 1 || y >= BattleMaps.Side - 1) throw new EditException("A unit must start inside the map.");
+        int i = At(group, slot);
+        var copy = record.ToArray();
+        copy[i] = (byte)x; copy[Half + i] = (byte)y;
+        return copy;
+    }
+
+    public static string Validate(IReadOnlyDictionary<string, int> values)
+    {
+        // Slot 0 of every group lies on the border and is never used, so any column or row on the map is accepted here;
+        // moves made on the Maps page are kept inside the border by Move.
+        foreach (var value in values.Values)
+            if (value != NoSlot && value >= BattleMaps.Side) return "A unit must start on the map.";
+        return "";
+    }
+}
+
+/// <summary>
+/// One part of each battle map file as edit records (keyed by the map's top-level archive), read from the disc when first
+/// asked for: the deployment slots or the army placement slots. Only lookups by key are supported.
+/// </summary>
+public sealed class DeploymentRecords(string discPath, Func<byte[], byte[]?>? reader = null) : IReadOnlyDictionary<int, ReadOnlyMemory<byte>>
+{
+
     private readonly object gate = new();
     private readonly Dictionary<int, byte[]?> records = [];
     private GameArchives? archives;
@@ -133,7 +198,7 @@ public sealed class DeploymentRecords(string discPath) : IReadOnlyDictionary<int
                 {
                     var archive = archives.Top(top);
                     if (Tarc.IsArchive(archive) && Tarc.Parse(archive).FirstOrDefault(e => e.Name == "map") is { } entry)
-                        record = Deployment.Read(Tarc.Extract(archive, entry));
+                        record = (reader ?? (map => Deployment.Read(map)))(Tarc.Extract(archive, entry));
                 }
             }
             catch (InvalidDataException) { }

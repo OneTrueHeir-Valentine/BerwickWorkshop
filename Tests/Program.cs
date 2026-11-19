@@ -1297,6 +1297,34 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,StableStock.Matches(after));
         }
     });
+    Test("Army placements read on both discs, moved and written into the map file with deployment",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));var library=new EventLibrary(archives);
+            string file=library.BattleMapFiles()[6];int top=archives.Find("bmap/"+file);
+            var map=BattleMaps.Load(archives,library,6,file)!;Equal(true,map.Units.Count>0);
+            var s=new EditSession(disc);
+            var record=s.Table(EditSession.Placements).Records[top];Equal(Placement.RecordLength,record.Length);
+            Equal(true,map.Units.All(u=>Placement.Slot(record.Span,u.Group,u.Index+1)==(u.X,u.Y)));
+            var unit=map.Units[0];
+            Throws<EditException>(()=>Placement.Move(record.Span,unit.Group,unit.Index+1,0,5));
+            s.Apply(EditSession.Placements,top,new Dictionary<string,int>{[$"g{unit.Group}x{unit.Index+1}"]=5,[$"g{unit.Group}y{unit.Index+1}"]=7});
+            Equal((5,7),Placement.Slot(s.EditedBytes(EditSession.Placements,top),unit.Group,unit.Index+1));
+            var hexes=Deployment.Hexes(s.Table(EditSession.Deployments).Records[top].Span).Skip(1).ToList();
+            var dep=Deployment.WithHexes(s.Table(EditSession.Deployments).Records[top].Span,hexes);
+            s.Apply(EditSession.Deployments,top,Deployment.Fields.ToDictionary(f=>f.Key,f=>FieldCodec.Read(dep,f)));
+            Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedBytes(EditSession.Placements,top).AsSpan().SequenceEqual(s.EditedBytes(EditSession.Placements,top)));
+            var patches=Exporter.PatchesFor(s,disc);
+            long start=archives.TopOffset(top);var archive=archives.Top(top);
+            foreach(var patch in patches)
+                for(int i=0;i<patch.Bytes.Length;i++){long at=patch.Offset+i-start;if(at>=0 && at<archive.Length)archive[at]=patch.Bytes[i];}
+            var written=Tarc.Extract(archive,Tarc.Parse(archive).First(e=>e.Name=="map"));
+            Equal((5,7),Placement.Slot(Placement.Read(written),unit.Group,unit.Index+1));
+            Equal(true,Deployment.Hexes(Deployment.Read(written)).SequenceEqual(hexes));
+            Equal(true,map.Units.Skip(1).Where(u=>u.Group!=unit.Group || u.Index!=unit.Index).All(u=>Placement.Slot(Placement.Read(written),u.Group,u.Index+1)==(u.X,u.Y)));
+        }
+    });
     Test("Deployment hexes and limits read on both discs, edited and written into the map file",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

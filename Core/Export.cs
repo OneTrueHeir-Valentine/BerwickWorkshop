@@ -31,7 +31,7 @@ public static class Exporter
                 ? [p.UnitTable + bagAt + BagData.OffsetFromRecord, p.SecondUnitTable + bagAt + BagData.OffsetFromRecord] : throw new EditException($"Character 0x{id:X3} has no starting bag on this disc."),
             EditSession.AnimationSets or EditSession.AnimationPalettes => disc.AnimationRowOffsets.TryGetValue(id, out long row)
                 ? [row] : throw new EditException("This project changes a battle animation row that is not on this disc."),
-            EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.Dishes or EditSession.Tastes or EditSession.Deployments or EditSession.ArmyUnits or EditSession.MapSprites => [],
+            EditSession.Rules or EditSession.Mercenaries or EditSession.Recipes or EditSession.Dishes or EditSession.Tastes or EditSession.Deployments or EditSession.Placements or EditSession.ArmyUnits or EditSession.MapSprites => [],
             _ => throw new EditException("This project contains changes this version cannot export."),
         };
         if (table == EditSession.Rules) throw new EditException("Rules are written instruction by instruction; use PatchesFor.");
@@ -79,6 +79,7 @@ public static class Exporter
         var scripts = new Dictionary<int, Dictionary<int, int>>();
         var replaced = new Dictionary<int, byte[]>();
         var deployments = new Dictionary<int, byte[]>();
+        var placements = new Dictionary<int, byte[]>();
         foreach (var (table, id) in session.EditedRecords)
         {
             if (table == EditSession.Scripts)
@@ -95,6 +96,11 @@ public static class Exporter
             if (table == EditSession.Deployments)
             {
                 deployments[id] = session.EditedBytes(table, id);
+                continue;
+            }
+            if (table == EditSession.Placements)
+            {
+                placements[id] = session.EditedBytes(table, id);
                 continue;
             }
             if (table == EditSession.StablePrices)
@@ -154,7 +160,7 @@ public static class Exporter
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
-        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0 || replaced.Count > 0 || deployments.Count > 0)
+        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0 || replaced.Count > 0 || deployments.Count > 0 || placements.Count > 0)
         {
             // Stable and furniture prices live in compressed event scripts, each stored several times and partly in the same
             // archives; every copy is rewritten in place, one archive at a time.
@@ -185,12 +191,15 @@ public static class Exporter
                 var (_, copies) = EventCopies.Load(archives, eventNumber);
                 foreach (var copy in copies) other.Add((copy.Top, top => EventCopies.Replace(top, eventNumber, copy, edited)));
             }
-            // Deployment hexes: the map file in the battle's archive is rewritten with its new placement slots.
-            foreach (var (top, record) in deployments.OrderBy(d => d.Key))
+            // Deployment hexes and army placements: the map file in the battle's archive is rewritten with its new slots.
+            foreach (int top in deployments.Keys.Union(placements.Keys).Order())
                 other.Add((top, archive =>
                 {
                     var entry = Tarc.Parse(archive).FirstOrDefault(e => e.Name == "map") ?? throw new EditException($"Map archive {top} has no map file.");
-                    return ArchiveEditing.ReplaceOrRepack(archive, "map", Deployment.Write(Tarc.Extract(archive, entry), record));
+                    var map = Tarc.Extract(archive, entry);
+                    if (deployments.TryGetValue(top, out var hexes)) map = Deployment.Write(map, hexes);
+                    if (placements.TryGetValue(top, out var slots)) map = Placement.Write(map, slots);
+                    return ArchiveEditing.ReplaceOrRepack(archive, "map", map);
                 }));
             patches.AddRange(ScriptPrices.Combined(archives, events, other, ArchiveEditing.FixedTops(archives, disc.Profile)));
         }

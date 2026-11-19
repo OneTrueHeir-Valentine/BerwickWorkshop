@@ -33,7 +33,11 @@ public sealed record BattleMap(int Battle, string File, int Width, int Height, I
 /// A unit placed when a battle starts: unit Index of army file udNNN (Army), on the given team (0 your army, 1 the enemy,
 /// 2 and 3 other armies), at hex X, Y.
 /// </summary>
-public sealed record MapUnit(int Team, int Army, int Index, int X, int Y);
+public sealed record MapUnit(int Team, int Army, int Index, int X, int Y)
+{
+    /// <summary>The placement group the unit stands in; its slot is Index + 1.</summary>
+    public int Group { get; init; }
+}
 
 /// <summary>A map's painted picture as 32-bit BGRA pixels, top row first.</summary>
 public sealed record MapPicture(int Width, int Height, byte[] Pixels);
@@ -140,7 +144,7 @@ public static class BattleMaps
             if (placement.Group is > 0 and < Groups)
                 for (int slot = 1; slot < Slots; slot++)
                     if (Slot(grid, placement.Group, slot) is { } hex && hex.X < width && hex.Y < height)
-                        units.Add(new MapUnit(placement.Team, placement.Army, slot - 1, hex.X, hex.Y));
+                        units.Add(new MapUnit(placement.Team, placement.Army, slot - 1, hex.X, hex.Y) { Group = placement.Group });
         var spots = events.MapEvents()
             .Where(r => r.Battle == battle && r.Type == 1 && r.Args.Length >= 4 && r.Args[2] >= 0 && r.Args[2] < width && r.Args[3] >= 0 && r.Args[3] < height)
             .Select(r => new MapSpot(r.Args[0], SpotName(r.Args[0]), r.Args[2], r.Args[3], r.Args[1], r.Event))
