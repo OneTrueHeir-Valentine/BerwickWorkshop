@@ -116,6 +116,7 @@ public partial class MainWindow : Window
     private void RefreshDocument()
     {
         if(primary is null)return;
+        if(selectedMapUnit is not null && editing?.Page!=View.Maps)ShowMapUnit(mapUnitWhere);
         DiscStrip.Visibility=Visibility.Visible;EmptyState.Visibility=Visibility.Collapsed;DiscNav.IsEnabled=true;
         EditionText.Text=primary.Edition;FileText.Text=Path.GetFileName(primary.Path);FileText.ToolTip=primary.Path;
         VerifiedText.Text=!primary.Supported?"Unknown disc":primary.IsModified?"Modified disc":"Verified disc";
@@ -1103,6 +1104,8 @@ public partial class MainWindow : Window
         }
         catch(Exception ex) when (ex is IOException or InvalidDataException){map=null;}
         if(events!=library || MapList.SelectedValue is not int now || now!=battle)return;
+        if(editing?.Page==View.Maps)EndEdit();
+        selectedMapUnit=null;MapUnitBox.Visibility=Visibility.Collapsed;UpdateEditButtons();
         shownMap=map;shownPicture=picture;shownTitle=entry.Text;
         DrawMap(map,picture,entry.Text);
     }
@@ -1128,7 +1131,15 @@ public partial class MainWindow : Window
     }
     private void MapCanvasClick(object sender,MouseButtonEventArgs e)
     {
-        if(MapMoveBox.IsChecked!=true || session is null || shownMap is not { } map || map.Battle<=0)return;
+        if(shownMap is not { } map || map.Battle<=0)return;
+        if(MapMoveBox.IsChecked!=true)
+        {
+            if(MapDeployBox.IsChecked==true && session is not null)return;
+            var (sx,sy)=HexAt(e.GetPosition(MapCanvas));
+            SelectMapUnit(map,sx,sy);
+            return;
+        }
+        if(session is null)return;
         e.Handled=true;
         var (x,y)=HexAt(e.GetPosition(MapCanvas));
         if(x<0 || y<0 || x>=map.Width || y>=map.Height)return;
@@ -1156,6 +1167,72 @@ public partial class MainWindow : Window
         }
         catch(EditException ex){Status.Text=ex.Message;}
         DrawMap(shownMap,shownPicture,shownTitle);
+    }
+    // Selecting a unit on the map: units that start on a hex and units that arrive there, with their army unit keys.
+    private int? selectedMapUnit;
+    private string mapUnitWhere="";
+    private (int X,int Y,int Turn)? lastMapClick;
+    private List<(int Key,string Name,string Text)> MapUnitsAt(BattleMap map,int x,int y)
+    {
+        var result=new List<(int,string,string)>();
+        if(primary is null)return result;
+        var armies=primary.Armies.ToDictionary(a=>a.Id);
+        foreach(var p in PlacedUnits(map).Where(p=>p.Place.X==x && p.Place.Y==y))
+            if(armies.TryGetValue(p.Place.Army,out var army) && p.Place.Index<army.Units.Count)result.Add((army.Units[p.Place.Index].Key,p.Name,"Starts here: "+p.Text));
+        var taken=new Dictionary<(int,int),int>();
+        foreach(var r in map.Arrivals)
+        {
+            if(!armies.TryGetValue(r.Army,out var army))continue;
+            var matches=army.Units.Where(u=>ArmyData.ScriptNumber(ArmyBytes(u))==r.Script).ToList();
+            if(matches.Count==0)continue;
+            int n=taken.TryGetValue((r.Army,r.Script),out var c)?c:0;taken[(r.Army,r.Script)]=n+1;
+            if(r.X!=x || r.Y!=y)continue;
+            var unit=matches[n%matches.Count];
+            result.Add((unit.Key,unit.Name,$"Arrives here: {unit.Name} (army {r.Army:000})"));
+        }
+        return result;
+    }
+    private void SelectMapUnit(BattleMap map,int x,int y)
+    {
+        var here=MapUnitsAt(map,x,y);
+        if(here.Count==0)return;
+        int turn=lastMapClick is { } last && last.X==x && last.Y==y?(last.Turn+1)%here.Count:0;
+        lastMapClick=(x,y,turn);
+        if(editing?.Page==View.Maps)EndEdit();
+        selectedMapUnit=here[turn].Key;
+        mapUnitWhere=here[turn].Text+(here.Count>1?$" ({turn+1} of {here.Count}; click again for the next)":"");
+        ShowMapUnit(mapUnitWhere);
+    }
+    private void ShowMapUnit(string where)
+    {
+        if(selectedMapUnit is not int key || primary is null){MapUnitBox.Visibility=Visibility.Collapsed;UpdateEditButtons();return;}
+        var unit=primary.Armies.SelectMany(a=>a.Units).FirstOrDefault(u=>u.Key==key);
+        if(unit is null){MapUnitBox.Visibility=Visibility.Collapsed;UpdateEditButtons();return;}
+        var record=ArmyRecord(unit,new Dictionary<int,string>());
+        MapUnitName.Text=unit.Name;
+        MapUnitFields.Children.Clear();
+        AddText(MapUnitFields,where);
+        string className=classLookup.TryGetValue(record.ClassId,out var k)?k.Name:$"Class 0x{record.ClassId:X2}";
+        AddPair(MapUnitFields,"Class",$"{className}, level {record.Level}");
+        AddPair(MapUnitFields,"Items",record.Items.Count==0?"None":string.Join(", ",record.Items.Select(i=>i.Name)));
+        AddPair(MapUnitFields,"Personal skills",record.Skills.Count==0?"None":string.Join(", ",record.Skills));
+        AddText(MapUnitFields,"Changes apply wherever this army is used.");
+        AddChangeList(MapUnitFields,ch=>ch.Table==EditSession.ArmyUnits && ch.Id==key,()=>session!.Revert(EditSession.ArmyUnits,key));
+        MapUnitBox.Visibility=Visibility.Visible;
+        UpdateEditButtons();
+    }
+    private void BeginMapUnitEdit(object sender,RoutedEventArgs e)
+    {
+        if(selectedMapUnit is not int key)return;
+        var fields=ArmyData.Fields;
+        OpenEditor(new(View.Maps,key,"Unit",MapUnitEditorPanel,MapUnitFields,EditMapUnitButton,
+        [
+            new("Unit record",EditSession.ArmyUnits,fields.Where(f=>f.Group.Length==0).ToList()),
+            new("Weapon levels",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Weapon levels").ToList()),
+            new("Personal skills",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Personal skills").ToList()),
+            new("Items",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Items").ToList()),
+            new("Dropped when defeated",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Drops").ToList()),
+        ],"This unit's changes apply wherever this army is used. A class change affects only this unit; its stats become the new class's base plus its own bonus."));
     }
     private int? DeployLimitValue(BattleMap map)
     {
@@ -2920,6 +2997,7 @@ public partial class MainWindow : Window
         if(editing is { } target)
         {
             editing=null;editors.Clear();target.Host.Children.Clear();target.Host.Visibility=Visibility.Collapsed;target.ViewPanel.Visibility=Visibility.Visible;
+            if(target.Page==View.Maps && selectedMapUnit is not null)ShowMapUnit(mapUnitWhere);
         }
         UpdateEditButtons();
     }
@@ -2932,6 +3010,7 @@ public partial class MainWindow : Window
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditArmyUnitButton.Visibility=can && ArmyGrid.SelectedItem is ArmyUnitRow?Visibility.Visible:Visibility.Collapsed;
+        EditMapUnitButton.Visibility=can && selectedMapUnit is not null?Visibility.Visible:Visibility.Collapsed;
         EditFurnitureButton.Visibility=can && FurnitureGrid.SelectedItem is FurnitureRow?Visibility.Visible:Visibility.Collapsed;
         EditDishButton.Visibility=can && DishGrid.SelectedItem is DishRow?Visibility.Visible:Visibility.Collapsed;
         EditScriptNumberButton.Visibility=can && ScriptNumberList.SelectedValue is int?Visibility.Visible:Visibility.Collapsed;
@@ -3288,7 +3367,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Maps)BeginMapUnitEdit(this,new());else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
@@ -3311,7 +3390,7 @@ public partial class MainWindow : Window
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and their sizes are set on the Game rules page under Furniture in Reese's room. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
-            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only. Edit deployment lets you click hexes to add or remove places where your units can start; the details show the most units you can deploy, which can be changed for each battle. The game marks only as many start hexes as that limit, the first ones in the order they were added, so extra hexes are drawn dashed. Move units lets you click a unit and then the hex where it should start the battle."),
+            ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only. Edit deployment lets you click hexes to add or remove places where your units can start; the details show the most units you can deploy, which can be changed for each battle. The game marks only as many start hexes as that limit, the first ones in the order they were added, so extra hexes are drawn dashed. Move units lets you click a unit and then the hex where it should start the battle. Clicking a unit on the map shows it under Selected unit, where Edit changes it as on the Armies page."),
             ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A battle stops when a class plays a motion its set does not have, so only sets with every motion of the row's own set are offered (checked in a running game: the Spear Knight given the mounted winged set froze after riding in; on foot, given the winged set that has all his motions, the fight played through). Units keep their map sprites. Each class also has a map sprite, the figure units of the class show on the battle map, with a second one while they hold a shield; Change gives the class another class's map sprite, copied whole with its frame count and size (checked in a running game: Spear Knights on foot given the Wyvern Knight's on-foot sprite showed it after dismounting). The sets of art 008, 021 (the winged rider), 023, 092, 103 and 120 have no map sprite of their own, so a class given one of them needs another class's map sprite. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),

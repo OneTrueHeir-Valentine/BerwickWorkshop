@@ -13,7 +13,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.110.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.111.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -475,7 +475,17 @@
       </DockPanel>
      </Border>
      <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="MapDetails" Margin="0,0,8,0"/></ScrollViewer>
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,8,0">
+       <Border x:Name="MapUnitBox" Visibility="Collapsed" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,12">
+        <StackPanel>
+         <DockPanel Margin="0,0,0,6"><Button x:Name="EditMapUnitButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginMapUnitEdit" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="SELECTED UNIT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+         <TextBlock x:Name="MapUnitName" FontFamily="Georgia" FontSize="18" TextWrapping="Wrap"/>
+         <StackPanel x:Name="MapUnitFields"/>
+         <StackPanel x:Name="MapUnitEditorPanel" Visibility="Collapsed"/>
+        </StackPanel>
+       </Border>
+       <StackPanel x:Name="MapDetails"/>
+      </StackPanel></ScrollViewer>
      </Border>
      <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="MapCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
