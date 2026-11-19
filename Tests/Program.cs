@@ -1297,6 +1297,35 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,StableStock.Matches(after));
         }
     });
+    Test("Deployment hexes and limits read on both discs, edited and written into the map file",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));var library=new EventLibrary(archives);
+            var own=Deployment.Limit(library,6)!.Value;Equal(true,own.Own);Equal(12,own.Number.Value);Equal("SetMapUnitMax",own.Number.Command);
+            Equal(true,library.BattleMapFiles().Keys.All(b=>Deployment.Limit(library,b) is {Own:true}));int shared=5;
+            var fallback=Deployment.Limit(library,shared)!.Value;Equal(false,fallback.Own);Equal(8,fallback.Number.Value);Equal(Deployment.DefaultEvent,fallback.Number.Event);
+            Equal<int?>(null,Deployment.OwnLimitEvent(library,shared));Equal<int?>(2395,Deployment.OwnLimitEvent(library,6));
+            var added=Deployment.AddOwnLimit(library.Bytes(2395),5,library.CommandNames);
+            Equal("5,12",string.Join(",",ScriptValues.Numbers(2395,ScriptParser.Parse(added),library.CommandNames).Where(n=>n.Command=="SetMapUnitMax").Select(n=>n.Value).Order()));
+            string file=library.BattleMapFiles()[6];int top=archives.Find("bmap/"+file);
+            var map=BattleMaps.Load(archives,library,6,file)!;
+            var s=new EditSession(disc);
+            var record=s.Table(EditSession.Deployments).Records[top];Equal(128,record.Length);
+            Equal(true,Deployment.Hexes(record.Span).SequenceEqual(map.Deployment));
+            var hexes=map.Deployment.Take(map.Deployment.Count-1).Append((1,1)).ToList();
+            var edited=Deployment.WithHexes(record.Span,hexes);
+            s.Apply(EditSession.Deployments,top,Deployment.Fields.ToDictionary(f=>f.Key,f=>FieldCodec.Read(edited,f)));
+            Equal(true,EditSession.FromJson(disc,s.ToJson()).EditedBytes(EditSession.Deployments,top).AsSpan().SequenceEqual(edited));
+            Throws<EditException>(()=>Deployment.WithHexes(record.Span,[(0,3)]));
+            var patches=Exporter.PatchesFor(s,disc);Equal(true,patches.Count>0);
+            long start=archives.TopOffset(top);var archive=archives.Top(top);
+            foreach(var patch in patches)
+                for(int i=0;i<patch.Bytes.Length;i++){long at=patch.Offset+i-start;if(at>=0 && at<archive.Length)archive[at]=patch.Bytes[i];}
+            var written=Tarc.Extract(archive,Tarc.Parse(archive).First(e=>e.Name=="map"));
+            Equal(true,Deployment.Hexes(Deployment.Read(written)).SequenceEqual(hexes));
+        }
+    });
     Test("Dishes and tastes read from the program on both discs, edited, exported and recognised",()=>{
         Equal("Sauteed Veal",DishData.Name(1));Equal("Rum",DishData.Name(54));Equal("Strength",DishData.EffectName(21));Equal("Luck Up (42)",DishData.EffectName(42));
         foreach(var disc in new[]{jp!,en!})
