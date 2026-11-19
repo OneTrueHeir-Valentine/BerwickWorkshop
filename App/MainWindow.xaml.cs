@@ -369,7 +369,7 @@ public partial class MainWindow : Window
         var rows=shops.Select(s=>{var items=ShopItems(s);var (name,where)=ShopTitle(s,items);return new ShopRow(s.Event,name,where,items.Count,session is not null && (session.HasScript(s.Event) || ScriptChanges(s.Event).Count>0));})
             .OrderBy(r=>r.Where=="At the base"?0:1).ThenBy(r=>r.Where).ThenBy(r=>r.Name).ToList();
         if(primary.StablePriceBytes.Count>0)
-            rows.Insert(0,new ShopRow(StableRow,"Stable","At the base",primary.StablePriceBytes.Count,primary.StablePriceBytes.Keys.Any(id=>session?.IsEdited(EditSession.StablePrices,id)==true)));
+            rows.Insert(0,new ShopRow(StableRow,"Stable","At the base",primary.StablePriceBytes.Count,primary.StablePriceBytes.Keys.Any(id=>session?.IsEdited(EditSession.StablePrices,id)==true) || ScriptChanges(StableStock.Event).Count>0));
         foreach(var (rowId,type) in new[]{(AtelierWeapons,0),(AtelierMagic,5)})
         {
             var made=AtelierRecipes(type);
@@ -444,8 +444,73 @@ public partial class MainWindow : Window
         ShopItemList.ItemsSource=stableHorses.Select((id,i)=>new Choice(i,$"{(catalog.TryGetValue(id,out var item)?item.DisplayName:$"Item 0x{id:X3}")}  {StablePrice(id):N0}{(session?.IsEdited(EditSession.StablePrices,id)==true?"  (edited)":"")}")).ToList();
         if(keep is int k && k<stableHorses.Count)ShopItemList.SelectedIndex=k;
         ShopNotes.Children.Clear();
-        AddText(ShopNotes,"The stable always sells these horses. The list is fixed; select a horse to change what the stable charges. Its item price does not affect the stable.");
+        AddText(ShopNotes,"These are all the horses the stable can sell. Select a horse to change what the stable charges. Its item price does not affect the stable.");
+        AddStableStock();
         UpdateShopButtons();StableHorseSelected();
+    }
+    // Which horses are for sale each chapter: numbers in event 138, edited as script values.
+    private IReadOnlyList<ScriptNumber>? StableStockNumbers()
+    {
+        if(events is not { } library || session?.HasScript(StableStock.Event)==true)return null;
+        byte[] bytes;
+        lock(library)bytes=library.Bytes(StableStock.Event);
+        var changes=ScriptChanges(StableStock.Event);
+        if(changes.Count>0)bytes=ScriptValues.Apply(bytes,changes);
+        return ScriptValues.Numbers(StableStock.Event,ScriptParser.Parse(bytes));
+    }
+    private void SetStableStock(Dictionary<int,int> values,string done)
+    {
+        if(session is null)return;
+        var fresh=values.Select(v=>(Key:ScriptValues.Key(StableStock.Event,v.Key),v.Value)).ToList();
+        foreach(var (key,value) in fresh)
+            if(ScriptFitProblem(key,value) is string problem){Status.Text=problem;return;}
+        bool any=false;
+        foreach(var (key,value) in fresh)any|=session.Apply(EditSession.ScriptValues,key,new Dictionary<string,int>{[ScriptValues.Field.Key]=value});
+        if(any){RefreshDocument();Status.Text=done+" Save the project to keep this change.";}
+    }
+    private void AddStableStock()
+    {
+        var numbers=StableStockNumbers();
+        AddText(ShopNotes,"Horses for sale each chapter (event 138)");
+        AddText(ShopNotes,"Each chapter the stable picks its horses: the Plain Horse always, the Spry and Tough Horses on the chosen chapters, the Strong Horse at its chance, and at another chance one rare horse picked at random from six. Thin Horses fill the rest up to the number in all. Each kind counts once toward that number, whatever its stock. The numbers below are how many of each horse are for sale; 0 leaves it out.");
+        if(numbers is null){AddText(ShopNotes,"This project replaces event 138's script, so these numbers are edited on the Events page.");return;}
+        if(numbers.Count<=StableStock.Numbers.Max(n=>n.Index)){AddText(ShopNotes,"Event 138 does not have the layout this editor expects. Edit it on the Events page.");return;}
+        bool edit=session is not null;
+        var chapter=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,6,0,0)};
+        chapter.Children.Add(new TextBlock{Text="Spry and Tough Horses",Width=260,VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap});
+        int? current=StableStock.ChapterChoice(numbers[StableStock.DivisorIndex].Value,numbers[StableStock.RemainderIndex].Value);
+        var pick=new ComboBox{Width=150,IsEnabled=edit && current is not null,ItemsSource=StableStock.ChapterChoices,SelectedIndex=current??-1};
+        System.Windows.Automation.AutomationProperties.SetName(pick,"Chapters with the Spry and Tough Horses");
+        pick.SelectionChanged+=(_,_)=>
+        {
+            if(pick.SelectedIndex<0 || pick.SelectedIndex==current)return;
+            var (d,r)=StableStock.ChapterWords(pick.SelectedIndex);
+            SetStableStock(new(){[StableStock.DivisorIndex]=d,[StableStock.RemainderIndex]=r},"Stable chapters changed.");
+        };
+        chapter.Children.Add(pick);
+        if(current is null)chapter.Children.Add(new TextBlock{Text="  (changed on the Events page)",VerticalAlignment=VerticalAlignment.Center});
+        ShopNotes.Children.Add(chapter);
+        foreach(var n in StableStock.Numbers)
+        {
+            var line=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,4,0,0)};
+            int value=numbers[n.Index].Value;
+            bool changed=value!=n.Original;
+            line.Children.Add(new TextBlock{Text=n.Label+(changed?$" (game: {n.Original})":""),Width=260,VerticalAlignment=VerticalAlignment.Center,TextWrapping=TextWrapping.Wrap});
+            var box=new TextBox{Width=60,Text=value.ToString(),IsEnabled=edit,Margin=new Thickness(0,0,6,0)};
+            System.Windows.Automation.AutomationProperties.SetName(box,n.Label);
+            line.Children.Add(box);
+            if(edit)
+            {
+                var set=new Button{Content="Set",Style=(Style)FindResource("SmallButton")};
+                set.Click+=(_,_)=>
+                {
+                    if(!int.TryParse(box.Text.Trim(),out int v) || v<n.Min || v>n.Max){Status.Text=$"{n.Label}: enter a whole number from {n.Min} to {n.Max}.";return;}
+                    SetStableStock(new(){[n.Index]=v},"Stable stock changed.");
+                };
+                line.Children.Add(set);
+            }
+            ShopNotes.Children.Add(line);
+        }
     }
     private void StableHorseSelected()
     {
@@ -2022,6 +2087,15 @@ public partial class MainWindow : Window
         FurnitureName.Text=row.Name;FurnitureFields.Children.Clear();
         if(row.Edited) AddPair(FurnitureFields,"Price on the disc",row.Original.ToString("N0"));
         AddPair(FurnitureFields,"Price",row.PriceText);
+        if(FurniturePrices.Effects.TryGetValue(row.Id,out var effect))
+        {
+            if(FurniturePrices.EffectRules.TryGetValue(row.Id,out int ruleId))
+            {
+                int value=RuleSetting(ruleId);
+                effect=string.Format(effect,ruleId==250?(value==1?"Reese has Miracle: a hit that would defeat him is rolled again at 10 less hit.":"No effect (turned off on the Game rules page)."):value.ToString());
+            }
+            AddPair(FurnitureFields,"While shown in Reese's room",effect);
+        }
         AddChangeList(FurnitureFields,ch=>ch.Table==EditSession.FurniturePrices && ch.Id==row.Id,()=>session!.Revert(EditSession.FurniturePrices,row.Id));
     }
     private void BeginFurnitureEdit(object sender,RoutedEventArgs e)
@@ -2990,8 +3064,8 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Where the game's events show which battle places an army, its name says so, for example Army 371 (Quest 6: Cruel Brothers), and searching for a mission or quest title lists its armies. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
-            ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc."),
-            ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
+            ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc. The Stable lists every horse it can sell with its price, and below it the horses offered each chapter: how many of each, when the Spry and Tough Horses come, the chances of the Strong Horse and of one rare horse, and how many horses in all."),
+            ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and their sizes are set on the Game rules page under Furniture in Reese's room. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),

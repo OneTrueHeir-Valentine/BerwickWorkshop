@@ -460,7 +460,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,142,143,144,145,146,147,160,161,178,198,210,242,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,243,244,245,246,247,248,249,250,142,143,144,145,146,147,160,161,178,198,210,242,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -535,7 +535,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(212,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(220,GameRules.All.Count(r=>r.Group.Length>0));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
@@ -1261,6 +1261,21 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,edited.AsSpan().SequenceEqual(exe));
             Equal(true,GameRules.Normalize(edited).AsSpan().SequenceEqual(exe));
             Equal(5000,BinaryPrimitives.ReadInt32LittleEndian(MercenaryData.Read(edited).Single(r=>r.Id==0x90).Bytes.AsSpan(8)));
+        }
+    });
+    Test("Stable stock numbers match event 138 on both discs and edit as script values",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            using var iso=new IsoImage(stream);
+            var library=new EventLibrary(new GameArchives(iso));
+            var bytes=library.Bytes(StableStock.Event);var numbers=ScriptValues.Numbers(StableStock.Event,ScriptParser.Parse(bytes));
+            if(!StableStock.Matches(numbers))throw new Exception("Event 138 numbers: "+string.Join(" ",numbers.Select(n=>$"{n.Index}={n.Value}")));
+            var (d,r)=StableStock.ChapterWords(2);
+            var edited=ScriptValues.Apply(bytes,new Dictionary<int,int>{[37]=60,[63]=8,[StableStock.DivisorIndex]=d,[StableStock.RemainderIndex]=r});
+            var after=ScriptValues.Numbers(StableStock.Event,ScriptParser.Parse(edited));
+            Equal(60,after[37].Value);Equal(8,after[63].Value);Equal<int?>(2,StableStock.ChapterChoice(after[StableStock.DivisorIndex].Value,after[StableStock.RemainderIndex].Value));
+            Equal(false,StableStock.Matches(after));
         }
     });
     Test("Atelier recipes read from the program on both discs, edited, exported and recognised",()=>{

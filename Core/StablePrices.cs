@@ -151,6 +151,31 @@ public static class FurniturePrices
         [1] = "Sword Mount", [2] = "Big Rug", [3] = "Porcelain Vase", [4] = "Deer Mount", [5] = "Coat of Arms", [7] = "Coffers", [8] = "Tapestry",
         [9] = "Bird Statue", [10] = "Art: \"Revival\"", [11] = "Maiden Statue", [12] = "Treasure Chest", [13] = "Art: \"Hope\"", [14] = "Luxury Bed",
     };
+
+    /// <summary>What each piece does while it is shown in Reese's room (event 1013 turns shown pieces into effect flags 3700 to 3709;
+    /// the battle code checks them for Reese only, unit 83). The values are editable on the Rules page.</summary>
+    public static IReadOnlyDictionary<int, string> Effects { get; } = new Dictionary<int, string>
+    {
+        [1] = "Reese's weapon level growth +{0} for every weapon type.",
+        [2] = "Reese's Adept extra attack chance +{0}, when he has Adept.",
+        [3] = "Female mercenaries gain 10 favor instead of 5 (events 136 and 152).",
+        [4] = "Enemy critical chance against Reese -{0}.",
+        [5] = "Reese's shield block chance +{0}.",
+        [7] = "Coffers in the room can be opened for an item.",
+        [8] = "Range of Reese's Commander and Leader auras +{0}.",
+        [9] = "Reese's hit +{0} in fights on forest terrain.",
+        [10] = "Reese's chance that a weapon use costs no durability +{0}.",
+        [11] = "{0}",
+        [12] = "The treasure chest in the room can be opened for an item or gold.",
+        [13] = "Enemy hit against Reese -{0}.",
+        [14] = "Meant to add 10 to Reese's HP growth, but the game ignores the check, so it does nothing.",
+    };
+
+    /// <summary>The game rule that sets each piece's bonus ({0} in its effect text).</summary>
+    public static IReadOnlyDictionary<int, int> EffectRules { get; } = new Dictionary<int, int>
+    {
+        [1] = 243, [2] = 244, [4] = 245, [5] = 246, [8] = 247, [9] = 248, [10] = 230, [11] = 250, [13] = 249,
+    };
 }
 
 /// <summary>

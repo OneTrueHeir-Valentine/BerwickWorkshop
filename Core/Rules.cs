@@ -304,6 +304,7 @@ public static class GameRules
     /// <summary>Group explanations: the game's own formula, with the editable numbers named.</summary>
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
+        [FurnitureGroup] = "Furniture bought from the furniture shop goes into Reese's room, where each piece can be shown or put away. While a piece is shown, Reese gets its bonus in every battle; the bonuses go to Reese only. Sword Mount adds to his weapon level growth for every weapon type, not only swords. Big Rug adds to the chance of his Adept extra attack when he has Adept. Deer Mount lowers enemy critical chance against him. Coat of Arms adds to his shield block chance. Tapestry adds to the range of his Commander and Leader auras. Bird Statue adds to his hit in fights on forest terrain. Art \"Hope\" lowers enemy hit against him. Maiden Statue gives him Miracle, a second roll against a hit that would defeat him, at 10 less hit. Art \"Revival\" adds to his chance that a weapon use costs no durability. Porcelain Vase raises the favor female mercenaries gain from 5 to 10 (events 136 and 152 on the Events page). Coffers and Treasure Chest can be opened in the room for items and gold. Luxury Bed is meant to add 10 to his HP growth, but the game checks it and ignores the result, so it does nothing.",
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
         ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Counter bonus after can also count a hit that does 0 damage, a parry, or a hit cancelled by a bane skill such as Swordbane. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
         ["Knock Away"] = "When the unit attacks, Knock Away activates at a chance of half the unit's weapon level plus the base chance. The game's base is 30. The roll is 0 to 99, so a total of 100 or more always activates.",
@@ -394,7 +395,7 @@ public static class GameRules
         [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
     };
 
-    public const string DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level", LuckGroup = "Luck", GrowthBandGroup = "Growth bands";
+    public const string FurnitureGroup = "Furniture in Reese's room", DurabilityGroup = "Durability", RankFailureGroup = "Items above the unit's level", LuckGroup = "Luck", GrowthBandGroup = "Growth bands";
 
     private static int? Negative(uint word, uint upper, int max) =>
         (word & 0xFFFF0000u) == upper && -(short)(word & 0xFFFF) is var n && n >= 0 && n <= max ? n : null;
@@ -433,6 +434,26 @@ public static class GameRules
             Enumerable.Range(0, 4).Select(i => new RuleSite(0x00223880u + (uint)i * 4, s => TightWords(s)[i], w => null)).ToList(), confirmed: false,
             decode: w => PairDecode(w, TightOriginal, GameRules.RangeSetting(1, 1), TightWords, 2), check: PairCheck)
             { PairLabels = labels };
+    }
+
+    // Furniture shown in Reese's room (event flags 3750 to 3763 clear) clears effect flags 3700 to 3709 (event 1013). Each bonus is
+    // checked for unit 83 (Reese) while effect flag 37xx is clear and story flag 99 is set, and set as addiu <reg>, zero, n.
+    private static IEnumerable<GameRule> FurnitureRules()
+    {
+        GameRule Bonus(int id, string key, string piece, string what, int normal, int max, params (uint At, uint Upper)[] sites) =>
+            new(id, key, $"{piece}: {what}", "", RuleKind.Limit, 0, max, normal, null,
+                sites.Select(x => new RuleSite(x.At, n => x.Upper | (uint)n, w => Imm(w, x.Upper, max))).ToList(), confirmed: false)
+            { Group = FurnitureGroup, Short = $"{piece}: {what}" };
+        yield return Bonus(243, "furnitureWeaponGrowth", "Sword Mount", "weapon level growth, every weapon type", 1, 100, (0x00171468, 0x24020000u));
+        yield return Bonus(244, "furnitureAdept", "Big Rug", "Adept chance", 10, 100, (0x00226C28, 0x24110000u));
+        yield return Bonus(245, "furnitureCritAvoid", "Deer Mount", "critical avoid", 3, 100, (0x002273D0, 0x24020000u));
+        yield return Bonus(246, "furnitureBlock", "Coat of Arms", "shield block chance", 10, 100, (0x0022A600, 0x24020000u));
+        yield return Bonus(247, "furnitureCommandRange", "Tapestry", "Commander and Leader range", 1, 10, (0x001B8EE8, 0x24020000u), (0x001B90C8, 0x24020000u));
+        yield return Bonus(248, "furnitureForestHit", "Bird Statue", "hit in forest", 13, 100, (0x00227300, 0x24020000u));
+        yield return Bonus(249, "furnitureAvoid", "Art \"Hope\"", "avoid", 3, 100, (0x00227368, 0x24020000u));
+        yield return new GameRule(250, "furnitureMiracle", "Maiden Statue: Miracle", "", RuleKind.Choice, 0, 1, 1, ["Off", "On"],
+            [new RuleSite(0x00227FC0, s => s == 1 ? 0x24020001u : 0x0000102Du, w => w switch { 0x24020001u => 1, 0x0000102Du => 0, _ => null })], confirmed: false)
+            { Group = FurnitureGroup, Short = "Maiden Statue: Reese has Miracle" };
     }
 
     private static IEnumerable<GameRule> LuckRules()
@@ -498,7 +519,7 @@ public static class GameRules
         }
         yield return new GameRule(230, "reeseThrift", "Reese's chance to save a use", "", RuleKind.Limit, 0, 100, 20, null,
             [new RuleSite(0x0016D308, s => 0x26100000u | (uint)s, w => Imm(w, 0x26100000u, 100))], confirmed: false)
-            { Group = DurabilityGroup, Short = "Reese's extra chance to save a use (%)" };
+            { Group = FurnitureGroup, Short = "Art \"Revival\": chance to save a weapon use (%)" };
         yield return new GameRule(231, "rankFailure", "Failure chance per level", "", RuleKind.Choice, 0, FailureChoices.Length - 1, 5, FailureChoices,
             [new RuleSite(0x0017C8D8, s => FailureWords[s][0], w => null), new RuleSite(0x0017C8E0, s => FailureWords[s][1], w => null)], confirmed: true,
             decode: found => Array.FindIndex(FailureWords, set => set.SequenceEqual(found)) is var k and >= 0 ? k : null)
@@ -807,6 +828,7 @@ public static class GameRules
         ..DurabilityRules(),
         ..LuckRules(),
         ..GrowthBandRules(),
+        ..FurnitureRules(),
         CriticalDamage(),
         new GameRule(2, "battleExperience", "Experience after a fight",
             "Normal uses the game's experience formulas below. A fixed amount replaces them and gives every unit exactly that much experience after each fight it takes part in (100 is a full level).",
