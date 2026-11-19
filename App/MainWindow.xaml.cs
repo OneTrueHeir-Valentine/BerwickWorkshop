@@ -2265,7 +2265,7 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, "furniture"=>View.Furniture, _=>View.Rules };UpdatePage();
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, "furniture"=>View.Furniture, "live"=>View.Live, _=>View.Rules };UpdatePage();
                         };
                         links.Children.Add(b);
                     }

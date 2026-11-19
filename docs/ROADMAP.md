@@ -181,8 +181,8 @@ Stable-price research is complete at the static level: event 602 supplies both m
 ### Horses
 How horses work is known and was checked in a running game (see `RESEARCH.md`, Horses). Planned, in this order:
 1. Live page horse editor: done in v0.100.0 (horse, horse HP and most HP; Mount and Dismount stay in the game; a riding unit keeps its horse until it dismounts). Checked in a running game.
-2. Characters page: show and edit each character's starting horse (disc record +0x4C). Needs a new game to check before it is offered.
-3. Mechanics help: mounting is a menu command, which terrain blocks it, horse HP from the horse item, and the mounted and dismounted class pairs.
+2. Characters page starting horse: dropped. The game replaces it when units are prepared (riders get a Thin Horse, item 0x205, from `0x00172C70`; others have the horse cleared), so the disc value has no effect.
+3. Mechanics help: done in v0.101.0 (Mounting, Horse HP, Horses at the start of a battle).
 
 ### Battle animation weapons (planned research)
 A Spear Knight holding a lance (through the Lance skill) uses the right motions but shows no weapon. Plan:

@@ -20,7 +20,7 @@ public sealed record Mechanic(string Section, string Name, string Formula, strin
 public static class Mechanics
 {
     private const string Wiki = "EmblemWiki, Berwick Saga Calculations";
-    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", SkillsPage = "skills", Rules = "rules", Furniture = "furniture";
+    private const string Items = "items", Characters = "characters", Classes = "classes", Movement = "movement", TerrainPage = "terrain", SkillsPage = "skills", Rules = "rules", Furniture = "furniture", Live = "live";
 
     public static IReadOnlyList<Mechanic> All { get; } = Array.AsReadOnly(new Mechanic[]
     {
@@ -174,9 +174,18 @@ public static class Mechanics
         new("Movement", "Movement range", "A unit can enter a hex while (costs paid so far + terrain cost) <= Move",
             "Each hex costs points by its terrain and by the class's movement type. Costs are kept in tenths of a point, so 1.5 works. Mounted and dismounted forms are separate classes with their own Move and movement type.",
             MechanicStatus.Confirmed, "Terrain cost table in the game data, checked in a running game", [new("Class Move", Classes), new("Terrain costs", Movement)]),
-        new("Movement", "Movement type", "Class record: one of 14 movement types (Cavalry, Horseman, Flying, Knight, Armor, Infantry, Thief, Civilian, Special, Snow, War priest, Fighter, Priest, and one unused)",
-            "Every class points to one row of the terrain cost table. Changing it changes where the class can go: a class given Flying crosses water and cliffs. The mount state (on foot, mounted, flying) is stored separately and always agrees with the type on the original discs.",
+        new("Movement", "Movement type", "Class record: one of 14 movement types, as the game names them: Cav, LtCav, Fly, Knt, Armor, Inf, Thief, Comm, Spec, Snowy, Cler+, LtInf, Cler and EX (unused)",
+            "Every class points to one row of the terrain cost table. Changing it changes where the class can go: a class given Fly crosses water and cliffs. The mount state (on foot, mounted, flying) is stored separately and always agrees with the type on the original discs.",
             MechanicStatus.Confirmed, "Class records and terrain table on the disc, checked in a running game", [new("Class movement type", Classes), new("Terrain costs", Movement)]),
+        new("Movement", "Mounting", "Mount and Dismount are commands in the unit's menu",
+            "Mounted and dismounted forms are separate classes. Mount is offered when the unit has a horse, its class has a mounted form and the terrain under it allows riding; Dismount works the other way. A rider's class, Move and movement type change with the form.",
+            MechanicStatus.Confirmed, "Program reading (menu checks 0x001BA1C0 and 0x001BA020, class pairs 0x0017DD00), checked in a running game", [new("Horse on the Live game page", Live), new("Class Move and movement type", Classes)]),
+        new("Movement", "Horse HP", "Most horse HP = the horse item's durability pool × 10",
+            "Each unit keeps its horse's HP with its own record. The 16 horses are items 0x205 to 0x214, from Thin Horse upward; giving a horse sets its HP to the most.",
+            MechanicStatus.Confirmed, "Program reading (0x0016DFD0), checked in a running game", [new("Horse durability pool", Items), new("Horse on the Live game page", Live)]),
+        new("Movement", "Horses at the start of a battle", "A unit that can ride gets a Thin Horse at full HP; a unit that cannot ride, or is marked dismounted, has no horse",
+            "The horse stored with each character on the disc (Sinon Stallion for every starting character) is replaced when units are prepared, so it is not offered for editing.",
+            MechanicStatus.Located, "Program reading (0x00172C70 gives item 0x205; the unit preparation clears the horse otherwise)", [new("Horse on the Live game page", Live)], "Which horse riders get is not editable yet."),
     });
 
     /// <summary>Published terrain costs (gamekouryaku.com terrain list). Null means the terrain cannot be entered.</summary>
