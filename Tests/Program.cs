@@ -699,6 +699,11 @@ if(args.Length>=2)
         int drawn=0;for(int i=3;i<image.Pixels.Length;i+=4)if(image.Pixels[i]!=0)drawn++;
         Equal(true,drawn>2000);
         var b=set.Bounds("m0_0");Equal(true,b.Width<AnimationSet.Canvas && b.Height<AnimationSet.Canvas);
+        // Checked live: Adel's mounted set swapped for bu021051 (lacks m1_6, m1_12) froze; Leon's on-foot set swapped for bu021050 played.
+        var motions=AnimationSet.MotionLists(archives,onDisc);
+        Equal(string.Join(",",set.Motions.Order()),string.Join(",",motions[91051].Order()));
+        Equal("False,True",$"{AnimationSet.Covers(motions[21051],motions[91051])},{AnimationSet.Covers(motions[21050],motions[91050])}");
+        Equal(0,motions[25020].Count);
     });
     Test("Edition comparison preserves all distinct IDs",()=>{
         var changes=ItemComparison.Compare(jp!.Items,en!.Items);

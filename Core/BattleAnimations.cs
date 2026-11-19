@@ -166,6 +166,35 @@ public sealed class AnimationSet
         return result;
     }
 
+    /// <summary>The motions of every set, read from the archive's file names only (the set files are not read whole).</summary>
+    public static IReadOnlyDictionary<int, IReadOnlySet<string>> MotionLists(GameArchives archives, IReadOnlyDictionary<int, int> onDisc)
+    {
+        var result = new Dictionary<int, IReadOnlySet<string>>();
+        foreach (var (number, top) in onDisc)
+        {
+            var head = archives.TopRange(top, 0, 16);
+            if (!Tarc.IsArchive(head)) { result[number] = new HashSet<string>(); continue; }
+            int count = BinaryPrimitives.ReadInt32LittleEndian(head.AsSpan(4)), names = BinaryPrimitives.ReadInt32LittleEndian(head.AsSpan(8));
+            var list = archives.TopRange(top, names, Math.Clamp(count * 40, 64, 1 << 20));
+            var motions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int p = 0;
+            for (int i = 0; i < count && p < list.Length; i++)
+            {
+                int end = Array.IndexOf(list, (byte)0, p);
+                if (end < 0) break;
+                string name = System.Text.Encoding.ASCII.GetString(list, p, end - p);
+                if (name.EndsWith("_0t.dat", StringComparison.OrdinalIgnoreCase) && name.Length > 7) motions.Add(name[..^7]);
+                p = end + 1;
+            }
+            result[number] = motions;
+        }
+        return result;
+    }
+
+    /// <summary>Whether a set can stand in for another: it has every motion the other has. A set that lacks a motion the
+    /// class plays stops the battle when that motion is called (checked in a running game).</summary>
+    public static bool Covers(IReadOnlySet<string> candidate, IReadOnlySet<string> needed) => needed.All(candidate.Contains);
+
     /// <summary>Motions that have frames, in the game's order (group, then number).</summary>
     public IReadOnlyList<string> Motions => files.Keys.Where(n => n.EndsWith("_0t.dat", StringComparison.OrdinalIgnoreCase) && n.Length > 7)
         .Select(n => n[..^7]).OrderBy(MotionGroup).ThenBy(MotionNumber).ToList();

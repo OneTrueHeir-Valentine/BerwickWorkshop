@@ -542,6 +542,7 @@ public partial class MainWindow : Window
     private AnimationTable? animationTable;
     private string? animationsPath;
     private IReadOnlyDictionary<int,int> animationSetsOnDisc=new Dictionary<int,int>();
+    private IReadOnlyDictionary<int,IReadOnlySet<string>> animationMotions=new Dictionary<int,IReadOnlySet<string>>();
     private readonly Dictionary<int,AnimationSet?> animationSets=[];
     private AnimationSet? shownAnimationSet;
     private IReadOnlyList<AnimationFrame> animationFrames=[];
@@ -563,7 +564,7 @@ public partial class MainWindow : Window
 
     private void CloseAnimations()
     {
-        animationTimer.Stop();animationTable=null;animationsPath=null;animationSetsOnDisc=new Dictionary<int,int>();animationSets.Clear();
+        animationTimer.Stop();animationTable=null;animationsPath=null;animationSetsOnDisc=new Dictionary<int,int>();animationMotions=new Dictionary<int,IReadOnlySet<string>>();animationSets.Clear();
         shownAnimationSet=null;animationFrames=[];AnimationList.ItemsSource=null;AnimationSetBox.ItemsSource=null;AnimationMotionBox.ItemsSource=null;
         AnimationPaletteBox.ItemsSource=null;AnimationImage.Source=null;AnimationDetails.Children.Clear();AnimationCount.Text="";AnimationFrameText.Text="";
     }
@@ -594,17 +595,18 @@ public partial class MainWindow : Window
         AnimationCount.Text="Reading the battle animations...";
         try
         {
-            var (table,onDisc)=await Task.Run(()=>
+            var (table,onDisc,motions)=await Task.Run(()=>
             {
                 lock(library)
                 {
                     int top=library.Archives.Find(AnimationTable.Path);
                     if(top<0)throw new InvalidDataException("The disc has no animation table.");
-                    return (AnimationTable.Parse(library.Archives.Top(top)),AnimationSet.OnDisc(library.Archives));
+                    var sets=AnimationSet.OnDisc(library.Archives);
+                    return (AnimationTable.Parse(library.Archives.Top(top)),sets,AnimationSet.MotionLists(library.Archives,sets));
                 }
             });
             if(events!=library)return;
-            animationTable=table;animationSetsOnDisc=onDisc;animationsPath=path;
+            animationTable=table;animationSetsOnDisc=onDisc;animationMotions=motions;animationsPath=path;
             var named=table.NamedSets;
             var choices=new List<Choice>();
             for(int c=1;c<=table.ClassCount;c++)
@@ -697,6 +699,14 @@ public partial class MainWindow : Window
         {
             AnimationDetails.Children.Add(new TextBlock{Text=$"Unused set {SetLabel(-value)}",FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap});
             Line("No class names this set on the disc. Choose Change beside a class's row to give the class this set.",true);
+            if(animationMotions.TryGetValue(-value,out var have) && have.Count>0)
+            {
+                var fits=new List<string>();
+                for(int c=1;c<=table.ClassCount;c++)
+                    if(table.Sets(c).Any(r=>animationMotions.TryGetValue(r.Value,out var need) && need.Count>0 && AnimationSet.Covers(have,need)))fits.Add(ClassTitle(c));
+                Heading("Has every motion of a set used by");
+                Line(fits.Count==0?"No class: every class plays a motion this set does not have.":fits.Count<=12?string.Join(", ",fits)+".":$"{string.Join(", ",fits.Take(12))} and {fits.Count-12} more.",fits.Count==0);
+            }
             sets.Add(new Choice(-value,SetLabel(-value)));
         }
         AnimationSetBox.ItemsSource=sets;
@@ -722,9 +732,12 @@ public partial class MainWindow : Window
         else
         {
             var named=table.NamedSets;
-            var numbers=animationSetsOnDisc.Keys.ToList();
-            field=AnimationTable.SetField with {Choices=numbers.Select(n=>named.Contains(n)?SetLabel(n):$"{SetLabel(n)} (no class uses it)").ToList(),ChoiceValues=numbers};
-            warning="Every unit this row applies to plays the chosen set. A set made for another class may lack motions this class plays, so try the change in a running game.";
+            int original=table.Sets(classId)[row].Value,current=AnimationValue(false,classId,row,original);
+            // Only sets with every motion of the row's own set: a motion the set lacks stops the battle when the class plays it.
+            var needed=animationMotions.TryGetValue(original,out var m)?m:new HashSet<string>();
+            var numbers=animationSetsOnDisc.Keys.Where(n=>n==original || n==current || animationMotions.TryGetValue(n,out var have) && have.Count>0 && AnimationSet.Covers(have,needed)).ToList();
+            field=AnimationTable.SetField with {Choices=numbers.Select(n=>n==original?$"{SetLabel(n)} (the disc's)":named.Contains(n)?SetLabel(n):$"{SetLabel(n)} (no class uses it)").ToList(),ChoiceValues=numbers};
+            warning=$"Every unit this row applies to plays the chosen set. Only the {numbers.Count} sets that have every motion of {SetLabel(original)} are listed, because a battle stops when a class plays a motion its set does not have. Units keep their map sprites.";
         }
         OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Colour row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
             [new(text,palette?EditSession.AnimationPalettes:EditSession.AnimationSets,[field])],warning));
@@ -2899,7 +2912,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
-            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A set made for another class may lack motions the class plays, so try such a change in a running game. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
+            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry. Choose Change beside a row to give it another set or other colours, for example a set no class uses or another character's palette; the change goes into the project and the exported disc. A battle stops when a class plays a motion its set does not have, so only sets with every motion of the row's own set are offered (checked in a running game: the Spear Knight given the mounted winged set froze after riding in; on foot, given the winged set that has all his motions, the fight played through). Units keep their map sprites. Changing a colour row was checked in a running game: Adel given palette 6 fought in Leon's colours."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
