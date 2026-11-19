@@ -4,10 +4,16 @@ namespace Berwick.Core;
 
 public enum RuleKind { Choice, FixedAmount, Limit, Range, Pair }
 
-/// <summary>One instruction a rule changes: how a setting becomes the instruction word, and back.</summary>
+/// <summary>
+/// One instruction a rule changes: how a setting becomes the instruction word, and back. File gives the place in the
+/// program file when it is not a loaded address (the program header). Live is false for a word a running game cannot
+/// take: the reserved page (heap memory until a disc with the new load segment is booted), the heap start and the header.
+/// </summary>
 public sealed record RuleSite(uint Address, Func<int, uint> Encode, Func<uint, int?> Decode)
 {
-    public long FileOffset => Address - GameRules.ProgramToFile;
+    public long? File { get; init; }
+    public bool Live { get; init; } = true;
+    public long FileOffset => File ?? GameRules.FileOf(Address);
 }
 
 /// <summary>
@@ -40,6 +46,29 @@ public sealed class GameRule(int id, string key, string name, string description
     public string Swatch { get; init; } = "";
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
+
+    /// <summary>The words a running game gets for a setting: sites it cannot take keep their original words.</summary>
+    public uint[] LiveEncode(int setting)
+    {
+        var words = Encode(setting);
+        var original = Original;
+        for (int i = 0; i < words.Length; i++) if (!Sites[i].Live) words[i] = original[i];
+        return words;
+    }
+
+    /// <summary>The setting of words read from a running game, where sites it cannot take hold their original words.</summary>
+    public int? LiveDecode(IReadOnlyList<uint> words)
+    {
+        if (Decode(words) is int found) return found;
+        if (Sites.All(s => s.Live) || Max - Min > 4096) return null;
+        for (int s = Min; s <= Max; s++)
+        {
+            uint[] candidate;
+            try { candidate = LiveEncode(s); } catch (EditException) { continue; }
+            if (candidate.SequenceEqual(words)) return s;
+        }
+        return null;
+    }
 
     public uint[] Encode(int setting)
     {
@@ -98,6 +127,25 @@ public static class GameRules
 {
     /// <summary>Program address minus file offset inside the executable (one load segment at file offset 0x100, address 0x100000).</summary>
     public const long ProgramToFile = 0xFFF00;
+
+    // A page of new code: the program's empty third load segment (header at file 0x74) is pointed at unused debug data
+    // (file 0x3B5000) and loads it to 0x00571000, and the heap start (addiu v0,v0,0x800 at 0x00126114) moves up one page so
+    // the heap begins at 0x00572000. 0x00570380 to 0x00571000 stays as it was: the library heap (SetupHeap at startup)
+    // grows into it. Both editions share these bytes.
+    public const uint ReservedAddress = 0x00571000;
+    public const long ReservedFile = 0x3B5000;
+    public const int ReservedLength = 0x1000;
+    public static long FileOf(uint address) =>
+        address >= ReservedAddress && address < ReservedAddress + ReservedLength ? ReservedFile + (address - ReservedAddress) : address - ProgramToFile;
+    internal const uint HeapStartSite = 0x00126114, HeapStartOriginal = 0x24420800u, HeapStartReserved = 0x24421800u;
+    internal const long SegmentHeader = 0x74;
+    internal static readonly uint[] SegmentOriginal = [1, 0x3B4780, 0x00570380, 0x00570380, 0, 0, 6, 0x10];
+    internal static readonly uint[] SegmentReserved = [1, (uint)ReservedFile, ReservedAddress, ReservedAddress, ReservedLength, ReservedLength, 7, 0x80];
+    /// <summary>The sites that load the reserved page, set whenever a rule places code there.</summary>
+    internal static IEnumerable<RuleSite> ReservedPageSites(Func<int, bool> uses) =>
+        new[] { new RuleSite(HeapStartSite, s => uses(s) ? HeapStartReserved : HeapStartOriginal, w => null) { Live = false } }
+        .Concat(Enumerable.Range(0, 8).Select(i => new RuleSite((uint)(SegmentHeader + i * 4), s => uses(s) ? SegmentReserved[i] : SegmentOriginal[i], w => null)
+            { File = SegmentHeader + i * 4, Live = false }));
 
     /// <summary>A site's answer when its word is shared by every setting except the default; another site names the setting.</summary>
     public const int AnyChanged = -1;
@@ -202,8 +250,17 @@ public static class GameRules
     // defense and shield Might) to padding at 0x001481C8, which moves part of the Might (+0xA8) into physical defense (+0x6C,
     // used for damage) and the defense against this opponent (+0x68, shown in the forecast). A successful block adds the rest.
     // The status screen (0x0019C1C4, 0x0019C214) and the equipment window (0x00324EDC, 0x00389B3C) call small routines placed
-    // in an unused routine at 0x0022E660 that do the same move for what they show. The damage routine stays original.
-    private const uint GuardHook = 0x0022C2C0, GuardHookOriginal = 0x8E550008u, GuardCave = 0x001481C8, GuardShow = 0x0022E660;
+    // in the reserved page at 0x00571000 that do the same move for what they show. The damage routine stays original.
+    // Versions 0.93 to 0.108 placed those routines at 0x0022E660, which is not free: the town calls it when leaving town.
+    // That routine is now always kept original, and discs made with the old layout are still recognised.
+    private const uint GuardHook = 0x0022C2C0, GuardHookOriginal = 0x8E550008u, GuardCave = 0x001481C8, GuardShow = GameRules.ReservedAddress, GuardShowOld = 0x0022E660;
+    // The unused debug bytes at the start of the reserved page in the program file (the same on both discs).
+    private static readonly uint[] ReservedOriginal =
+    [
+        0x08590012u, 0x00550000u, 0x00230008u, 0x02010005u, 0x38000000u, 0x6E654C00u, 0x00001F00u, 0x12000500u, 0x00087800u, 0x08005500u,
+        0x05002300u, 0x00020100u, 0x00380000u, 0x006D754Eu, 0x00000018u, 0x0012000Bu, 0x000008D1u, 0x1B100111u, 0x01210010u, 0x00101F30u,
+        0x00000020u, 0x0012000Cu, 0x000008B0u, 0x00090055u, 0x00050023u, 0x00000301u, 0x54003800u, 0x00455059u,
+    ];
     private const int GuardCaveLength = 14;
     private static readonly (uint Address, uint Original, int Routine)[] GuardShowHooks =
         [(0x00324EDC, 0x0260282Du, 0), (0x00389B3C, 0x02C0282Du, 1), (0x0019C1C4, 0x0200202Du, 2), (0x0019C214, 0xAFA20148u, 2)];
@@ -242,24 +299,40 @@ public static class GameRules
             .. split, 0xAFA20148u, 0x02A3A821u, 0x03E00008u, 0x0200202Du,                             // status screen: Might sp+328, Def s5
         ];
     }
-    private static uint[] GuardAll(int setting) =>
-    [
-        .. GuardWords(0), setting == 0 ? GuardHookOriginal : 0x08000000u | GuardCave >> 2, .. GuardCaveWords(setting),
-        .. GuardShowHooks.Select(h => setting == 0 ? h.Original : 0x0C000000u | (GuardShow + (uint)GuardShowStart[h.Routine] * 4) >> 2),
-        .. GuardShowWords(setting),
-    ];
+    private static uint[] GuardAll(int setting) => GuardLayout(setting, GuardShow);
+
+    // The words of every site for a setting, with the display routines at the given place (the reserved page, or the
+    // old place 0x0022E660 for recognising discs made by earlier versions).
+    private static uint[] GuardLayout(int setting, uint show)
+    {
+        bool reserved = show == GuardShow && setting != 0;
+        return
+        [
+            .. GuardWords(0), setting == 0 ? GuardHookOriginal : 0x08000000u | GuardCave >> 2, .. GuardCaveWords(setting),
+            .. GuardShowHooks.Select(h => setting == 0 ? h.Original : 0x0C000000u | (show + (uint)GuardShowStart[h.Routine] * 4) >> 2),
+            .. show == GuardShowOld ? GuardShowWords(setting) : GuardShowOriginal,
+            .. reserved ? GuardShowWords(setting) : ReservedOriginal,
+            reserved ? GameRules.HeapStartReserved : GameRules.HeapStartOriginal,
+            .. reserved ? GameRules.SegmentReserved : GameRules.SegmentOriginal,
+        ];
+    }
 
     private static IReadOnlyList<RuleSite> GuardSites()
     {
         var addresses = Enumerable.Range(0, GuardOriginal.Length + 1).Select(i => GuardSlot + (uint)i * 4)
-            .Append(GuardHook).Concat(Enumerable.Range(0, GuardCaveLength).Select(i => GuardCave + (uint)i * 4))
-            .Concat(GuardShowHooks.Select(h => h.Address)).Concat(Enumerable.Range(0, GuardShowOriginal.Length).Select(i => GuardShow + (uint)i * 4)).ToList();
-        return addresses.Select((address, i) => new RuleSite(address, s => GuardAll(s)[i], w => null)).ToList();
+            .Append(GuardHook).Concat(Enumerable.Range(0, GuardCaveLength).Select(i => GuardCave + (uint)i * 4)).ToList();
+        var sites = addresses.Select((address, i) => new RuleSite(address, s => GuardAll(s)[i], w => null)).ToList();
+        int at = sites.Count;
+        foreach (var h in GuardShowHooks) { int i = at++; sites.Add(new RuleSite(h.Address, s => GuardAll(s)[i], w => null) { Live = false }); }
+        for (int k = 0; k < GuardShowOriginal.Length; k++) { int i = at++; sites.Add(new RuleSite(GuardShowOld + (uint)k * 4, s => GuardAll(s)[i], w => null)); }
+        for (int k = 0; k < ReservedOriginal.Length; k++) { int i = at++; sites.Add(new RuleSite(GuardShow + (uint)k * 4, s => GuardAll(s)[i], w => null) { Live = false }); }
+        foreach (var site in GameRules.ReservedPageSites(s => s != 0)) sites.Add(site);
+        return sites;
     }
 
     private static int? GuardDecode(IReadOnlyList<uint> words)
     {
-        for (int s = 0; s <= 5; s++) if (GuardAll(s).SequenceEqual(words)) return s;
+        for (int s = 0; s <= 5; s++) if (GuardAll(s).SequenceEqual(words) || s > 0 && GuardLayout(s, GuardShowOld).SequenceEqual(words)) return s;
         int damage = GuardOriginal.Length + 1;
         var rest = words.Skip(damage).ToArray();
         if (!GuardAll(0).Skip(damage).SequenceEqual(rest)) return null;
@@ -801,7 +874,7 @@ public static class GameRules
                 s => s switch { 0 => 0x10200019u, 1 => 0x14000019u, _ => 0x10000019u },
                 w => w switch { 0x10200019u => 0, 0x14000019u => 1, 0x10000019u => 2, _ => null })], confirmed: true),
         new GameRule(10, "shieldGuard", "Shield guard on a failed block",
-            "Part of the shield's Might always counts as Defense against physical attacks, rounded down, and a successful block takes off the rest, so a block still takes off the full Might in total. The at least 1 choices never give less than 1, so a small shield still helps. The battle forecast shows the guard in Def and the rest of the Might as the shield bonus: with a quarter of Might 5, Def 7 +5 becomes Def 8 +4. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. A sleeping unit has no shield bonus. Attacks that ignore Defense, including knives, also ignore this guard. With Full Might a block adds nothing more. Off is the game's own behaviour.",
+            "Part of the shield's Might always counts as Defense against physical attacks, rounded down, and a successful block takes off the rest, so a block still takes off the full Might in total. The at least 1 choices never give less than 1, so a small shield still helps. The battle forecast shows the guard in Def and the rest of the Might as the shield bonus: with a quarter of Might 5, Def 7 +5 becomes Def 8 +4. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. A sleeping unit has no shield bonus. Attacks that ignore Defense, including knives, also ignore this guard. With Full Might a block adds nothing more. Off is the game's own behaviour. The Live page applies the battle part; the forecast, status screen and equipment windows show the guard on an exported disc.",
             RuleKind.Choice, 0, 5, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might", "Quarter of Might, at least 1", "Half of Might, at least 1"],
             GuardSites(), confirmed: true, decode: GuardDecode),
         Step(11, "shieldTraining", "Shield training speed",

@@ -468,13 +468,18 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     Equal("24050019,24060019",string.Join(",",crit.Encode(GameRules.RangeSetting(25,25)).Select(x=>x.ToString("X8"))));
     Throws<EditException>(()=>crit.Encode(GameRules.RangeSetting(30,20)));Equal<int?>(null,crit.Decode(new[]{0x2405001Eu,0x24060014u}));
     var failed=GameRules.ById(14);Equal(0x28A10002u,failed.Original[0]);Equal(0x28A10006u,failed.Encode(1)[0]);
-    var guard=GameRules.ById(10);Equal(74,guard.Sites.Count);Equal(0x0022A63Cu,guard.Sites[0].Address);Equal(0x0022C2C0u,guard.Sites[27].Address);Equal(0x001481FCu,guard.Sites[41].Address);
+    var guard=GameRules.ById(10);Equal(111,guard.Sites.Count);Equal(0x0022A63Cu,guard.Sites[0].Address);Equal(0x0022C2C0u,guard.Sites[27].Address);Equal(0x001481FCu,guard.Sites[41].Address);
     Equal(0x00324EDCu,guard.Sites[42].Address);Equal(0x0019C214u,guard.Sites[45].Address);Equal(0x0022E660u,guard.Sites[46].Address);Equal(0x0022E6CCu,guard.Sites[73].Address);
+    Equal(0x00571000u,guard.Sites[74].Address);Equal(0x3B5000L,guard.Sites[74].FileOffset);Equal(0x3B506CL,guard.Sites[101].FileOffset);Equal(0x00126114u,guard.Sites[102].Address);Equal(0x74L,guard.Sites[103].FileOffset);Equal(0x90L,guard.Sites[110].FileOffset);
+    Equal("False,True,False,False,False",string.Join(",",new[]{42,46,74,102,103}.Select(i=>guard.Sites[i].Live)));Equal(0x08590012u,guard.Original[74]);Equal(0x24420800u,guard.Original[102]);Equal(0x00570380u,guard.Original[105]);
     Equal(0u,guard.Original[0]);Equal(0x24020001u,guard.Original[1]);Equal(0x8E550008u,guard.Original[27]);Equal(0u,guard.Original[28]);Equal(0x27BDFFD0u,guard.Original[46]);
     foreach(int g in Enumerable.Range(1,5)){var w=guard.Encode(g);Equal(true,w.Take(27).SequenceEqual(guard.Original.Take(27)));Equal(0x08052072u,w[27]);Equal(0x0808B0B2u,w[40]);
-        Equal("0C08B998,0C08B9A2,0C08B9AC,0C08B9AC",string.Join(",",w.Skip(42).Take(4).Select(x=>x.ToString("X8"))));Equal(0x03E00008u,w[46+8]);Equal(0x0200202Du,w[73]);}
+        Equal("0C15C400,0C15C40A,0C15C414,0C15C414",string.Join(",",w.Skip(42).Take(4).Select(x=>x.ToString("X8"))));Equal(true,w.Skip(46).Take(28).SequenceEqual(guard.Original.Skip(46).Take(28)));
+        Equal(0x03E00008u,w[74+8]);Equal(0x0200202Du,w[101]);Equal(0x24421800u,w[102]);Equal("1,3B5000,571000,571000,1000,1000,7,80",string.Join(",",w.Skip(103).Select(x=>x.ToString("X"))));
+        var old=guard.Original.ToArray();Array.Copy(w,old,42);string[] oldCalls=["0C08B998","0C08B9A2","0C08B9AC","0C08B9AC"];for(int k=0;k<4;k++)old[42+k]=Convert.ToUInt32(oldCalls[k],16);Array.Copy(w,74,old,46,28);Equal<int?>(g,guard.Decode(old));
+        var live=guard.LiveEncode(g);Equal(true,live.Skip(42).SequenceEqual(guard.Original.Skip(42)));Equal(true,live.Take(42).SequenceEqual(w.Take(42)));Equal<int?>(g,guard.LiveDecode(live));}
     Equal("00021883,00021843,00021803,00021883,00021843",string.Join(",",Enumerable.Range(1,5).Select(x=>guard.Encode(x)[30].ToString("X8"))));
-    Equal("0002082B,0023180A",$"{guard.Encode(4)[31]:X8},{guard.Encode(4)[32]:X8}");Equal(0u,guard.Encode(1)[31]);Equal(0x00021843u,guard.Encode(5)[66]);
+    Equal("0002082B,0023180A",$"{guard.Encode(4)[31]:X8},{guard.Encode(4)[32]:X8}");Equal(0u,guard.Encode(1)[31]);Equal(0x00021843u,guard.Encode(5)[94]);
     foreach(int g in Enumerable.Range(0,6))Equal<int?>(g,guard.Decode(guard.Encode(g)));
     var mixed=guard.Encode(2);mixed[30]=guard.Original[30];Equal<int?>(null,guard.Decode(mixed));
     mixed=guard.Encode(4);mixed[44]=guard.Original[44];Equal<int?>(null,guard.Decode(mixed));
@@ -919,7 +924,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             {
                 var exeA=new byte[disc.ExecutableFile!.Length];a.Position=disc.ExecutableFile.Offset;a.ReadExactly(exeA);
                 var exeB=new byte[exeA.Length];b.Position=back.ExecutableFile!.Offset;b.ReadExactly(exeB);
-                Equal(4+1+45+34+1+2+1+2+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
+                Equal(4+1+53+34+1+2+1+2+2,Enumerable.Range(0,exeA.Length/4).Count(i=>BitConverter.ToUInt32(exeA,i*4)!=BitConverter.ToUInt32(exeB,i*4)));
                 Equal(true,GameRules.Normalize(exeB).AsSpan().SequenceEqual(exeA));
             }
             var original=Inspector.Inspect(disc.Path);Equal(disc.Sha256,original.Sha256);

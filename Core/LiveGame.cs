@@ -342,14 +342,19 @@ public sealed class LiveGame : IDisposable
         address >= MissionTable && address < MissionTable + MissionCount * MissionLength && (address - MissionTable) % MissionLength == 0 ||
         address >= QuestTable && address < QuestTable + QuestCount * QuestLength && (address - QuestTable) % QuestLength == 0;
 
-    /// <summary>Writes a rule's instructions for a setting, after checking that each site holds an instruction the rule knows.</summary>
+    /// <summary>
+    /// Writes a rule's instructions for a setting, after checking that each site holds an instruction the rule knows. Sites a
+    /// running game cannot take (code that needs the reserved page an exported disc loads) are left alone; such a rule's
+    /// other parts still apply.
+    /// </summary>
     public bool WriteRule(GameRule rule, int setting)
     {
-        var current = rule.Sites.Select(s => ReadWord(s.Address)).ToArray();
-        if (rule.Decode(current) is null) return false;
-        var words = rule.Encode(setting);
+        var original = rule.Original;
+        var current = rule.Sites.Select((s, i) => s.Live ? ReadWord(s.Address) : original[i]).ToArray();
+        if (rule.LiveDecode(current) is null) return false;
+        var words = rule.LiveEncode(setting);
         for (int i = 0; i < words.Length; i++)
-            if (current[i] != words[i]) WriteWord(rule.Sites[i].Address, words[i]);
+            if (rule.Sites[i].Live && current[i] != words[i]) WriteWord(rule.Sites[i].Address, words[i]);
         return true;
     }
 }
