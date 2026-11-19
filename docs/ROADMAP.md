@@ -190,6 +190,9 @@ A Spear Knight holding a lance (through the Lance skill) uses the right motions 
 2. Decode vuwppos.dat and compare the Spear Knight with a class that shows lances (Lance Knight).
 3. If the gap is a missing entry, offer to add weapon support to classes whose motions already fit (lances for Spear Knights first), checked in a running game with animations on. If the data cannot be added, warn instead.
 
+### Hidden statistics in the status screen
+The Luck display route is verified live on English; relevant templates and code match both original disc programs. A second view remains to be built. First verify an unused input across status-screen contexts, then a labeled Luck view with reliable return, unit switching and Info cursor behavior. Do not reuse callback results 6/7: these navigate the existing help cursor. Additional hidden fields follow after the first view works on both editions.
+
 ## Principles
 - Never modify the original ISOs, memory cards, save states or PCSX2 settings in place.
 - Offsets are per edition. Never reuse a Japanese address on English or the reverse.
