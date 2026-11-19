@@ -2128,7 +2128,7 @@ public partial class MainWindow : Window
         if(editing?.Page==View.Dishes && editing.Id!=row.Id) EndEdit();
         DishName.Text=row.Name;DishFields.Children.Clear();
         var b=DishBytes(row.Id);
-        AddPair(DishFields,"Price",row.PriceText);
+        AddPair(DishFields,"Price",$"{row.PriceText} (the menu rounds down to tens; as the daily special, 20% less, or 30% less after the arena quest)");
         AddPair(DishFields,"Menu tier",$"{row.Tier} (the random menu takes 1, 2, 3, 2 and 1 dishes from tiers 0 to 4)");
         int kind=System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(b);AddPair(DishFields,"Kind",kind==4?"4 (never on the menu)":kind.ToString());
         for(int s=0;s<DishData.Sets;s++)AddPair(DishFields,DishData.SetNames[s],DishData.Describe(b,s));
