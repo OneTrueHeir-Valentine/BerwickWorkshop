@@ -1297,6 +1297,32 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,StableStock.Matches(after));
         }
     });
+    Test("Reinforcement hexes and turns point at their own script numbers on both discs",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var library=new EventLibrary(new GameArchives(new IsoImage(stream)));
+            int arrivals=0,turns=0;
+            foreach(int battle in library.BattleMapFiles().Keys)
+                foreach(var r in library.Reinforcements(battle))
+                {
+                    if(r.Places is { } at)
+                    {
+                        var numbers=ScriptValues.Numbers(at.Event,ScriptParser.Parse(library.Bytes(at.Event)),library.CommandNames);
+                        if(numbers[at.X].Value!=r.X || numbers[at.Y].Value!=r.Y || numbers[at.FromX].Value!=r.FromX || numbers[at.FromY].Value!=r.FromY)
+                            throw new Exception($"Battle {battle}: arrival places in event {at.Event} do not hold {r.X},{r.Y}");
+                        arrivals++;
+                    }
+                    if(r.TurnPlace is { } turn && r.Turn is int first)
+                    {
+                        var numbers=ScriptValues.Numbers(turn.Event,ScriptParser.Parse(library.Bytes(turn.Event)),library.CommandNames);
+                        if(numbers[turn.Index].Value+turn.TurnOffset!=first)throw new Exception($"Battle {battle}: turn place in event {turn.Event} is not turn {first}");
+                        turns++;
+                    }
+                }
+            Equal(true,arrivals>300);Equal(true,turns>50);
+        }
+    });
     Test("Army placements read on both discs, moved and written into the map file with deployment",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

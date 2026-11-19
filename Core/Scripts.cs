@@ -342,6 +342,14 @@ public sealed record Reinforcement(int Army, int Script, int Team, int X, int Y,
 
     /// <summary>When a conversation sets the arrival off: the script numbers of the unit who talks (0 for any of yours) and the one talked to.</summary>
     public (int Speaker, int Listener)? Talk { get; init; }
+
+    /// <summary>
+    /// Where the arrival's numbers are in the scripts, as (event, place in reading order) the Events page edits: the hex it
+    /// arrives on, the hex it comes from (the same places as the arrival hex for AppearUnitOld), and the turn number of the
+    /// condition that gives its first turn with how that number relates to it (TurnOffset 1 for "above").
+    /// </summary>
+    public (int Event, int X, int Y, int FromX, int FromY)? Places { get; init; }
+    public (int Event, int Index, int TurnOffset)? TurnPlace { get; init; }
 }
 
 /// <summary>An army file (udNNN) placed when a battle opens, on a team, at a placement group of the map.</summary>
@@ -526,7 +534,7 @@ public sealed class EventLibrary
     // Type 5 events run when one unit talks to another (script numbers; 0 for any of your units).
     private const int SpotEvent = 1, TalkEvent = 5, EveryTurnEvent = 11;
 
-    private readonly record struct ArrivalCondition(int? First, int? Last, bool Other);
+    private readonly record struct ArrivalCondition(int? First, int? Last, bool Other, (int Event, int Index, int Offset)? FirstAt = null);
 
     /// <summary>
     /// Units a battle's events bring in after it opens, with the hex they arrive at, the turns the script allows (where it
@@ -540,7 +548,7 @@ public sealed class EventLibrary
         foreach (int number in records.Select(r => r.Event).Distinct().Order())
         {
             var found = new List<Reinforcement>();
-            CollectArrivals(number, number, new(null, null, false), turnCommands, found, [], 0);
+            CollectArrivals(number, number, new(null, null, false, null), turnCommands, found, [], 0);
             var spot = records.FirstOrDefault(r => r.Event == number && r.Type == SpotEvent && r.Args.Length >= 4);
             bool everyTurn = records.Any(r => r.Event == number && r.Type == EveryTurnEvent);
             var talk = records.FirstOrDefault(r => r.Event == number && r.Type == TalkEvent && r.Args.Length >= 2);
@@ -557,22 +565,36 @@ public sealed class EventLibrary
         IReadOnlyList<ScriptNode> nodes;
         try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { visiting.Remove(number); return; }
         var turnValues = new HashSet<int>();
+        // Each number's place in reading order, as ScriptValues.Numbers counts them.
+        var places = new Dictionary<ScriptNode, int>(ReferenceEqualityComparer.Instance);
+        void Count(IReadOnlyList<ScriptNode> list)
+        {
+            foreach (var n in list)
+            {
+                if (n.Command == ScriptParser.Number) { places[n] = places.Count; continue; }
+                foreach (var arg in n.Args) Count(arg);
+            }
+        }
+        Count(nodes);
+        int? PlaceOf(IReadOnlyList<ScriptNode> arg) => arg is [{ } only] && places.TryGetValue(only, out int at) ? at : null;
         ArrivalCondition Narrow(ArrivalCondition c, IReadOnlyList<ScriptNode> test)
         {
             if (test is not [{ } op] || op.Args.Count != 2) return c with { Other = true };
             if (op.Command == And) return Narrow(Narrow(c, op.Args[0]), op.Args[1]);
             if (op.Args[0] is not [{ Command: ScriptParser.Variable, Variable: int v }] || !turnValues.Contains(v) || op.Args[1] is not [{ Value: int t }]) return c with { Other = true };
             int? first = c.First, last = c.Last;
+            var firstAt = c.FirstAt;
+            (int, int, int)? Here(int offset) => PlaceOf(op.Args[1]) is int at ? (number, at, offset) : null;
             switch (op.Command)
             {
-                case EqualTo: first = Math.Max(first ?? t, t); last = Math.Min(last ?? t, t); break;
-                case AtLeast: first = Math.Max(first ?? t, t); break;
-                case Above: first = Math.Max(first ?? t + 1, t + 1); break;
+                case EqualTo: if (first is null || t >= first) firstAt = Here(0); first = Math.Max(first ?? t, t); last = Math.Min(last ?? t, t); break;
+                case AtLeast: if (first is null || t >= first) firstAt = Here(0); first = Math.Max(first ?? t, t); break;
+                case Above: if (first is null || t + 1 >= first) firstAt = Here(1); first = Math.Max(first ?? t + 1, t + 1); break;
                 case AtMost: last = Math.Min(last ?? t, t); break;
                 case Below: last = Math.Min(last ?? t - 1, t - 1); break;
                 default: return c with { Other = true };
             }
-            return c with { First = first, Last = last };
+            return c with { First = first, Last = last, FirstAt = firstAt };
         }
         void Walk(IEnumerable<ScriptNode> list, ArrivalCondition c)
         {
@@ -588,6 +610,10 @@ public sealed class EventLibrary
                 Reinforcement? found = n.Command == AppearUnit && n.Args.Count >= 7 ? Arrival(n, 3, 5) : n.Command == AppearUnitOld && n.Args.Count >= 5 ? Arrival(n, 3, 3) : null;
                 if (found is not null)
                 {
+                    int from = 3, to = n.Command == AppearUnit ? 5 : 3;
+                    if (PlaceOf(n.Args[to]) is int px && PlaceOf(n.Args[to + 1]) is int py && PlaceOf(n.Args[from]) is int pfx && PlaceOf(n.Args[from + 1]) is int pfy)
+                        found = found with { Places = (number, px, py, pfx, pfy) };
+                    if (c.FirstAt is { } turnAt) found = found with { TurnPlace = turnAt };
                     // A turn range that cannot happen (first after last) means the call is not reached by the turn alone.
                     bool possible = c.First is null || c.Last is null || c.First <= c.Last;
                     result.Add(found with { Turn = possible ? c.First ?? (c.Last is not null ? 1 : null) : null, LastTurn = possible ? c.Last : null, Conditional = c.Other || !possible, Event = source });
