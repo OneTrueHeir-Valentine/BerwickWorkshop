@@ -7,10 +7,29 @@
      <Border Width="36" Height="40" HorizontalAlignment="Left" BorderBrush="#B7C7AD" BorderThickness="1" CornerRadius="4,4,14,14" Margin="0,0,0,18"><TextBlock Text="B" FontFamily="Georgia" FontSize="25" Foreground="#DAD8B8" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
      <TextBlock Text="BERWICK" Foreground="#F7F6EC" FontFamily="Georgia" FontSize="22"/>
      <TextBlock Text="WORKSHOP" Foreground="#C1CBB9" FontSize="11" Margin="1,5,0,38"/>
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
+     <Border Height="1" Background="#496050" Margin="0,0,0,18"/>
+     <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
+     <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
+     <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
+     <TextBlock Text="Version 0.102.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+    </StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
+     <ScrollViewer.Resources>
+      <Style TargetType="ScrollBar">
+       <Setter Property="Width" Value="6"/><Setter Property="MinWidth" Value="6"/><Setter Property="Margin" Value="6,0,0,0"/>
+       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+        <Track x:Name="PART_Track" IsDirectionReversed="True"><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#5F7766" CornerRadius="3"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb></Track>
+       </ControlTemplate></Setter.Value></Setter>
+      </Style>
+     </ScrollViewer.Resources>
+     <StackPanel>
      <Button x:Name="ItemsNav" Content="_Items" Style="{StaticResource NavButton}" Background="#3C5445" Click="ShowItems"/>
      <Button x:Name="CharactersNav" Content="C_haracters" Style="{StaticResource NavButton}" Click="ShowCharacters" IsEnabled="False"/>
      <Button x:Name="ArmiesNav" Content="_Armies" Style="{StaticResource NavButton}" Click="ShowArmies" IsEnabled="False"/>
      <Button x:Name="ClassesNav" Content="C_lasses" Style="{StaticResource NavButton}" Click="ShowClasses" IsEnabled="False"/>
+     <Button x:Name="AnimationsNav" Content="_Battle animations" Style="{StaticResource NavButton}" Click="ShowAnimations" IsEnabled="False"/>
      <Button x:Name="MovementNav" Content="Mo_vement" Style="{StaticResource NavButton}" Click="ShowMovement" IsEnabled="False"/>
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
      <Button x:Name="FurnitureNav" Content="_Furniture" Style="{StaticResource NavButton}" Click="ShowFurniture" IsEnabled="False"/>
@@ -22,15 +41,8 @@
      <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
      <Button x:Name="MechanicsNav" Content="_Mechanics" Style="{StaticResource NavButton}" Click="ShowMechanics"/>
      <Button x:Name="DiscNav" Content="_Disc details" Style="{StaticResource NavButton}" Click="ShowDisc"/>
-    </StackPanel>
-    <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
-     <Border Height="1" Background="#496050" Margin="0,0,0,18"/>
-     <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
-     <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
-     <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.101.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
-    </StackPanel>
-    <Grid/>
+     </StackPanel>
+    </ScrollViewer>
    </DockPanel>
   </Border>
   <Grid Grid.Column="1" Margin="28,24,28,16">
@@ -437,6 +449,32 @@
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="MapDetails" Margin="0,0,8,0"/></ScrollViewer>
      </Border>
      <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="MapCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="AnimationsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+     <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The animation each class shows in battle, and the colours each character wears in it. A class can have one set of animations for any weapon and others for certain weapon types; a character can have their own colours, or rarely a set of their own. Sets on the disc that no class uses are listed at the end. This page is for reading."/>
+     </Border>
+     <ListBox Grid.Row="1" x:Name="AnimationList" SelectionChanged="AnimationClassSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Classes"/>
+     <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
+      <DockPanel>
+       <WrapPanel DockPanel.Dock="Top" Margin="12,10,12,0">
+        <StackPanel Margin="0,0,12,8"><TextBlock Text="Set" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationSetBox" Width="200" SelectionChanged="AnimationViewChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Animation set"/></StackPanel>
+        <StackPanel Margin="0,0,12,8"><TextBlock Text="Motion" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationMotionBox" Width="120" SelectionChanged="AnimationMotionChanged" AutomationProperties.Name="Motion"/></StackPanel>
+        <StackPanel Margin="0,0,12,8"><TextBlock Text="Colours" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationPaletteBox" Width="190" SelectionChanged="AnimationPaletteChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Colours"/></StackPanel>
+        <StackPanel Margin="0,0,12,8"><TextBlock Text="Size" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationSizeBox" Width="80" SelectedIndex="1" SelectionChanged="AnimationSizeChanged" AutomationProperties.Name="Size"><ComboBoxItem Content="1x"/><ComboBoxItem Content="2x"/><ComboBoxItem Content="3x"/></ComboBox></StackPanel>
+        <Button x:Name="AnimationPlayButton" Content="Pause" Click="ToggleAnimation" VerticalAlignment="Bottom" Margin="0,0,8,8" MinWidth="70" ToolTip="Play or pause the motion"/>
+        <Button x:Name="AnimationStepButton" Content="Next frame" Click="StepAnimation" VerticalAlignment="Bottom" Margin="0,0,0,8" ToolTip="Show the next frame"/>
+       </WrapPanel>
+       <TextBlock DockPanel.Dock="Bottom" x:Name="AnimationFrameText" Style="{StaticResource Caption}" Margin="12,0,12,10"/>
+       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Border Background="#3A3D4A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"><Image x:Name="AnimationImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Animation frame"/></Border></ScrollViewer>
+      </DockPanel>
+     </Border>
+     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel x:Name="AnimationDetails" Margin="0,0,8,0"/></ScrollViewer>
+     </Border>
+     <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="AnimationCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <ScrollViewer x:Name="MechanicsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="MechanicsList" Margin="0,0,8,0" MaxWidth="860" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="SkillsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SkillsList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>

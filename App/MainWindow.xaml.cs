@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -164,7 +164,7 @@ public partial class MainWindow : Window
         FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
         ShopsNav.IsEnabled=primary.Supported;
         LiveNav.IsEnabled=primary.Supported;
-        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;
+        RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;AnimationsNav.IsEnabled=primary.Supported;
         PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
         if(view==View.Events && events is { } library && EventList.SelectedValue is int shown)_=ShowEvent(library,shown,scrollHome:false);
@@ -309,6 +309,7 @@ public partial class MainWindow : Window
     private void ShowMechanics(object sender,RoutedEventArgs e) { view=View.Mechanics;UpdatePage(); }
     private void ShowEvents(object sender,RoutedEventArgs e) { view=View.Events;UpdatePage();_=OpenEvents(); }
     private void ShowMaps(object sender,RoutedEventArgs e) { view=View.Maps;UpdatePage();_=OpenMaps(); }
+    private void ShowAnimations(object sender,RoutedEventArgs e) { view=View.Animations;UpdatePage();_=OpenAnimations(); }
 
     // Shops: read from the event scripts through the event library; each item change is a script change in the project.
     private List<Shop>? shops;
@@ -534,6 +535,235 @@ public partial class MainWindow : Window
         if(SelectedShop is not { } shop || ShopItemList.SelectedIndex<0 || ShopItemList.SelectedIndex>=shownShopItems.Count)return;
         var it=shownShopItems[ShopItemList.SelectedIndex];
         ChangeShop(shop,b=>ScriptLines.Remove(b,it.Path),"Item removed.");
+    }
+
+    // Battle animations: kirikae.db and the buAAAWWV.ar sets, read through the event library (which keeps the disc open).
+    private AnimationTable? animationTable;
+    private string? animationsPath;
+    private IReadOnlyDictionary<int,int> animationSetsOnDisc=new Dictionary<int,int>();
+    private readonly Dictionary<int,AnimationSet?> animationSets=[];
+    private AnimationSet? shownAnimationSet;
+    private IReadOnlyList<AnimationFrame> animationFrames=[];
+    private string animationMotion="";
+    private int animationFrame,animationTicksLeft,animationPalette;
+    private (int X,int Y,int Width,int Height) animationBounds=(0,0,AnimationSet.Canvas,AnimationSet.Canvas);
+    private bool animationPlaying=true;
+    private System.Windows.Threading.DispatcherTimer? animationTimerField;
+    private System.Windows.Threading.DispatcherTimer animationTimer
+    {
+        get
+        {
+            if(animationTimerField is null){animationTimerField=new(){Interval=TimeSpan.FromMilliseconds(1000.0/60)};animationTimerField.Tick+=AnimationTick;}
+            return animationTimerField;
+        }
+    }
+    private Dictionary<int,string>? unitNames;
+    private static readonly Dictionary<int,string> SetWeapons=new(){[0]="none",[1]="knife",[2]="sword",[4]="mace",[5]="spear",[6]="lance",[7]="axe",[8]="bow",[9]="crossbow",[10]="ballista",[11]="magic",[14]="staff"};
+
+    private void CloseAnimations()
+    {
+        animationTimer.Stop();animationTable=null;animationsPath=null;animationSetsOnDisc=new Dictionary<int,int>();animationSets.Clear();
+        shownAnimationSet=null;animationFrames=[];AnimationList.ItemsSource=null;AnimationSetBox.ItemsSource=null;AnimationMotionBox.ItemsSource=null;
+        AnimationPaletteBox.ItemsSource=null;AnimationImage.Source=null;AnimationDetails.Children.Clear();AnimationCount.Text="";AnimationFrameText.Text="";
+    }
+
+    private string UnitName(int unit)
+    {
+        unitNames??=CharacterDecoder.LoadRoster().GroupBy(c=>c.Id).ToDictionary(g=>g.Key,g=>g.First().Name);
+        if(unitNames.TryGetValue(unit,out var name))return name;
+        return ArmyData.Names.TryGetValue(unit,out var other)?other:$"Unit {unit}";
+    }
+
+    private string ClassTitle(int id)
+    {
+        // The Classes page's names, which mark mounted classes; game names for classes outside the class table.
+        string? name=primary?.Classes.FirstOrDefault(k=>k.Id==id)?.Name;
+        if(string.IsNullOrWhiteSpace(name) || name=="--")name=GameNames.Class(id);
+        return name is { } n && n!="--"?$"{n} (class {id})":$"Class {id}";
+    }
+    private static string SetLabel(int number)=>AnimationSet.FileName(number)[..^3];
+
+    private async Task OpenAnimations()
+    {
+        if(primary is null || !primary.Supported)return;
+        if(animationsPath==primary.Path && animationTable is not null)return;
+        await OpenEvents();
+        if(events is not { } library || primary is null)return;
+        string path=primary.Path;
+        AnimationCount.Text="Reading the battle animations...";
+        try
+        {
+            var (table,onDisc)=await Task.Run(()=>
+            {
+                lock(library)
+                {
+                    int top=library.Archives.Find(AnimationTable.Path);
+                    if(top<0)throw new InvalidDataException("The disc has no animation table.");
+                    return (AnimationTable.Parse(library.Archives.Top(top)),AnimationSet.OnDisc(library.Archives));
+                }
+            });
+            if(events!=library)return;
+            animationTable=table;animationSetsOnDisc=onDisc;animationsPath=path;
+            var named=table.NamedSets;
+            var choices=new List<Choice>();
+            for(int c=1;c<=table.ClassCount;c++)
+                if(table.Sets(c).Count>0)choices.Add(new Choice(c,ClassTitle(c)));
+            var unused=onDisc.Keys.Where(n=>!named.Contains(n)).ToList();
+            choices.AddRange(unused.Select(n=>new Choice(-n,$"Unused set {SetLabel(n)}")));
+            AnimationList.ItemsSource=choices;
+            AnimationCount.Text=$"{choices.Count-unused.Count} classes, {onDisc.Count} animation sets on the disc, {unused.Count} not used by any class";
+            if(choices.Count>0)AnimationList.SelectedIndex=0;
+        }
+        catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException){AnimationCount.Text="The battle animations could not be read from this disc.";}
+    }
+
+    private async Task<AnimationSet?> AnimationSetFor(int number)
+    {
+        if(animationSets.TryGetValue(number,out var cached))return cached;
+        if(events is not { } library)return null;
+        AnimationSet? set;
+        try{set=await Task.Run(()=>{lock(library)return AnimationSet.Load(library.Archives,number);});}
+        catch(Exception ex) when (ex is IOException or InvalidDataException){set=null;}
+        animationSets[number]=set;
+        return set;
+    }
+
+    private void AnimationClassSelected(object sender,SelectionChangedEventArgs e)
+    {
+        if(animationTable is not { } table || AnimationList.SelectedValue is not int value)return;
+        AnimationDetails.Children.Clear();
+        var muted=(Brush)FindResource("Muted");
+        void Heading(string text)=>AnimationDetails.Children.Add(new TextBlock{Text=text,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,12,0,4)});
+        void Line(string text,bool dim=false)=>AnimationDetails.Children.Add(new TextBlock{Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,3),Foreground=dim?muted:Brushes.Black});
+        var sets=new List<Choice>();
+        if(value>0)
+        {
+            AnimationDetails.Children.Add(new TextBlock{Text=ClassTitle(value),FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap});
+            Heading("Animation sets");
+            foreach(var row in table.Sets(value))
+            {
+                string who=row.Unit==0?"Any unit":UnitName(row.Unit);
+                Line($"{who}, {AnimationTable.KeyText(row.Key).ToLowerInvariant()}: {SetLabel(row.Value)}{(animationSetsOnDisc.ContainsKey(row.Value)?"":" (not on the disc)")}");
+                if(!sets.Any(s=>s.Value==row.Value))sets.Add(new Choice(row.Value,SetLabel(row.Value)));
+            }
+            Heading("Colours");
+            var palettes=table.Palettes(value);
+            if(palettes.Count==0)Line("The set's own colours for everyone.",true);
+            foreach(var row in palettes)
+            {
+                string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
+                string when=row.Key==0?"":$" holding {AnimationTable.KeyText(row.Key)}";
+                Line($"{who}{when}: {(row.Value==0?"the set's own colours":$"palette {row.Value}")}");
+            }
+        }
+        else
+        {
+            AnimationDetails.Children.Add(new TextBlock{Text=$"Unused set {SetLabel(-value)}",FontFamily=new FontFamily("Georgia"),FontSize=18,TextWrapping=TextWrapping.Wrap});
+            Line("No class names this set, so the game never shows it.",true);
+            sets.Add(new Choice(-value,SetLabel(-value)));
+        }
+        AnimationSetBox.ItemsSource=sets;
+        AnimationSetBox.SelectedIndex=sets.Count>0?0:-1;
+    }
+
+    private async void AnimationViewChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(AnimationSetBox.SelectedValue is not int number)return;
+        var set=await AnimationSetFor(number);
+        if(AnimationSetBox.SelectedValue is not int now || now!=number)return;
+        shownAnimationSet=set;
+        // Set details go under the class rows, replacing any shown for the previous set.
+        while(AnimationDetails.Children.Count>0 && AnimationDetails.Children[^1] is FrameworkElement { Tag: "set" })AnimationDetails.Children.RemoveAt(AnimationDetails.Children.Count-1);
+        var muted=(Brush)FindResource("Muted");
+        void Add(string text,bool bold=false)=>AnimationDetails.Children.Add(new TextBlock{Text=text,Tag="set",TextWrapping=TextWrapping.Wrap,FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,Margin=new Thickness(0,bold?12:0,0,bold?4:3),Foreground=bold?Brushes.Black:muted});
+        Add(AnimationSet.FileName(number),true);
+        int weapon=number/10%100,variant=number%10;
+        if(set is null)
+        {
+            Add("This set could not be read from the disc.");
+            AnimationMotionBox.ItemsSource=null;AnimationPaletteBox.ItemsSource=null;AnimationImage.Source=null;AnimationFrameText.Text="";animationFrames=[];animationTimer.Stop();
+            return;
+        }
+        Add($"Class art {number/1000}, weapon art {(SetWeapons.TryGetValue(weapon,out var w)?w:weapon.ToString())}, variant {variant}.");
+        Add(set.HasFrames?$"{set.Motions.Count} motions: {string.Join(", ",set.Motions)}.":"This set has pictures but no frames, so it cannot be shown.");
+        Add(set.Palettes.Count==0?"No numbered palettes.":$"Palettes: {string.Join(", ",set.Palettes)}.");
+        // Colour choices: the set's own, each class row that picks a palette, and any palette no row uses.
+        var colours=new List<Choice>{new(0,"Set's own colours")};
+        if(animationTable is { } table && AnimationList.SelectedValue is int cls && cls>0)
+            foreach(var row in table.Palettes(cls).Where(r=>r.Value>0 && set.Palettes.Contains(r.Value)))
+            {
+                string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
+                if(row.Key!=0)who+=$" holding {AnimationTable.KeyText(row.Key)}";
+                colours.Add(new Choice(row.Value,$"{who} (palette {row.Value})"));
+            }
+        foreach(int pal in set.Palettes.Where(p=>!colours.Any(c=>c.Value==p)))colours.Add(new Choice(pal,$"Palette {pal}"));
+        var seen=new HashSet<string>();
+        AnimationPaletteBox.ItemsSource=colours.Where(c=>seen.Add(c.Text)).ToList();
+        AnimationPaletteBox.SelectedIndex=0;
+        AnimationMotionBox.ItemsSource=set.Motions;
+        AnimationMotionBox.SelectedIndex=set.Motions.Count>0?0:-1;
+        if(set.Motions.Count==0){AnimationImage.Source=null;animationFrames=[];animationTimer.Stop();AnimationFrameText.Text="";}
+    }
+
+    private void AnimationMotionChanged(object sender,SelectionChangedEventArgs e)
+    {
+        if(shownAnimationSet is not { } set || AnimationMotionBox.SelectedItem is not string motion)return;
+        animationMotion=motion;animationFrames=set.Frames(motion);animationFrame=0;animationBounds=set.Bounds(motion);
+        animationTicksLeft=animationFrames.Count>0?animationFrames[0].Time:0;
+        DrawAnimationFrame();
+        if(animationPlaying && animationFrames.Count>1 && view==View.Animations)animationTimer.Start();else animationTimer.Stop();
+    }
+
+    private void AnimationPaletteChanged(object sender,SelectionChangedEventArgs e)
+    {
+        animationPalette=AnimationPaletteBox.SelectedValue is int p?p:0;
+        DrawAnimationFrame();
+    }
+
+    private void AnimationSizeChanged(object sender,SelectionChangedEventArgs e)=>SizeAnimationImage();
+
+    private void SizeAnimationImage()
+    {
+        if(AnimationImage is null || AnimationSizeBox is null)return;
+        int scale=AnimationSizeBox.SelectedIndex+1;
+        AnimationImage.Width=animationBounds.Width*scale;AnimationImage.Height=animationBounds.Height*scale;
+    }
+
+    private void DrawAnimationFrame()
+    {
+        if(shownAnimationSet is not { } set || animationFrames.Count==0){AnimationImage.Source=null;AnimationFrameText.Text="";return;}
+        var frame=animationFrames[Math.Clamp(animationFrame,0,animationFrames.Count-1)];
+        var image=set.Draw(animationMotion,frame.Picture,animationPalette);
+        var bitmap=BitmapSource.Create(image.Width,image.Height,96,96,PixelFormats.Bgra32,null,image.Pixels,image.Width*4);
+        var (x,y,w,h)=animationBounds;
+        var shown=new CroppedBitmap(bitmap,new Int32Rect(x,y,w,h));
+        shown.Freeze();
+        AnimationImage.Source=shown;SizeAnimationImage();
+        AnimationFrameText.Text=$"Frame {animationFrame+1} of {animationFrames.Count}, picture {frame.Picture}, shown for {frame.Time}/60 s";
+    }
+
+    private void AnimationTick(object? sender,EventArgs e)
+    {
+        if(animationFrames.Count<2){animationTimer.Stop();return;}
+        if(--animationTicksLeft>0)return;
+        animationFrame=(animationFrame+1)%animationFrames.Count;
+        animationTicksLeft=animationFrames[animationFrame].Time;
+        DrawAnimationFrame();
+    }
+
+    private void ToggleAnimation(object sender,RoutedEventArgs e)
+    {
+        animationPlaying=!animationPlaying;
+        AnimationPlayButton.Content=animationPlaying?"Pause":"Play";
+        if(animationPlaying && animationFrames.Count>1)animationTimer.Start();else animationTimer.Stop();
+    }
+
+    private void StepAnimation(object sender,RoutedEventArgs e)
+    {
+        if(animationFrames.Count==0)return;
+        animationPlaying=false;AnimationPlayButton.Content="Play";animationTimer.Stop();
+        animationFrame=(animationFrame+1)%animationFrames.Count;animationTicksLeft=animationFrames[animationFrame].Time;
+        DrawAnimationFrame();
     }
 
     // Maps: each battle's terrain and spots, read through the event library (which keeps the disc open).
@@ -840,7 +1070,7 @@ public partial class MainWindow : Window
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";CloseAnimations();events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
@@ -1133,7 +1363,7 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -1148,6 +1378,8 @@ public partial class MainWindow : Window
         SkillsPage.Visibility=view==View.Skills && supported?Visibility.Visible:Visibility.Collapsed;
         EventsPage.Visibility=view==View.Events && supported?Visibility.Visible:Visibility.Collapsed;
         MapsPage.Visibility=view==View.Maps && supported?Visibility.Visible:Visibility.Collapsed;
+        AnimationsPage.Visibility=view==View.Animations && supported?Visibility.Visible:Visibility.Collapsed;
+        if(view!=View.Animations)animationTimer.Stop();else if(animationPlaying && animationFrames.Count>1)animationTimer.Start();
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         LivePage.Visibility=view==View.Live && supported?Visibility.Visible:Visibility.Collapsed;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
@@ -1165,6 +1397,7 @@ public partial class MainWindow : Window
         SkillsNav.Background=view==View.Skills?active:Brushes.Transparent;
         EventsNav.Background=view==View.Events?active:Brushes.Transparent;
         MapsNav.Background=view==View.Maps?active:Brushes.Transparent;
+        AnimationsNav.Background=view==View.Animations?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         LiveNav.Background=view==View.Live?active:Brushes.Transparent;
         if(view==View.Live)UpdateLiveButtons();
@@ -2600,6 +2833,7 @@ public partial class MainWindow : Window
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors colors each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. The page is for reading only."),
+            ("Battle animations","The Battle animations page shows which animation set each class plays in battle and the colours each character wears in it. The game first looks for rows made for the unit itself, then for rows for any unit in the class; within each it prefers a row for the exact item held, then one for the weapon type, then the row for any weapon. Colours follow the same order, with rows for the player, enemy and allied sides in between. Choose a set, a motion and colours to see it play at the game's speed. Motion names are the ones in the game files; m0_0 is the standing pose. Sets that no class uses are listed at the end, with every palette they carry."),
             ("Events","The Events page shows the game's event scripts as readable commands: story scenes, map events and base events. Type an event number and press Enter to jump to it, or text to list every event that contains it. Commands carry the names the game itself gives them, such as SetEventFlag or GUnitCalcMercenaryCost, read from the opened disc. Searching for a name lists the events that use it. The numbers in a script can be changed: the list on the right shows each number with the command it belongs to; select one and choose Edit. A turn, a hex, a unit, an item or an amount of gold in a script are all numbers. The change is saved in the project and written into every copy of the event when you export a disc. A script that becomes larger than its space on the disc makes room by moving the files stored after it, and when its archive runs out of room the archive moves to unused space on the disc. Events that are also stored with the game's base data can only grow a little. The Lines tab lists the event's commands: Add after adds a command chosen by name, with numbers, text in double quotes or local values such as v0 as its arguments (only argument counts the game's own scripts use are accepted); Duplicate copies a line; Remove deletes it, with the lines under it for if and while; Up and Down move it within its part of the script. Restore the event's lines puts the disc's version back. The shop price events are changed on their own pages. Edit text, above the script, lets you change the whole script as text: keep four spaces of indent for each level and the forms the page shows, then choose Apply text. A mistake is reported with its line, and the cursor moves there. Changing lines changes what the game does, so test the exported disc."),
             ("Terrain","Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and a flag that keeps flying units from ending their move there (houses and other buildings have it). Edit a terrain on the Terrain page. A flyer can only stop where its movement type can also enter, so check the Movement page too."),
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),

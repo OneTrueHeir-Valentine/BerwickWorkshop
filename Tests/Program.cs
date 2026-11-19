@@ -114,6 +114,26 @@ Test("Class names read naturally",()=>{
     Equal("Wyvern Knight (Larentia) (mounted)",ClassDecoder.DisplayName("WyvernKnightLarentia_R"));Equal("Chevalier (mounted)",ClassDecoder.DisplayName("Chevalire_R"));
     Equal("Verian Knight 2",ClassDecoder.DisplayName("VerianKnight2"));
 });
+Test("Animation table: rows, keys and flags",()=>{
+    var w=new List<int>{2,2,18,152,6,5,3,11,64};
+    w.AddRange([2, 0,2,91051, 87,-18,91050]); w.AddRange([1, 0,-22,118061]);
+    w.AddRange([1, 87,2,5]); w.AddRange([0]);
+    var bytes=w.SelectMany(BitConverter.GetBytes).ToArray();
+    var t=AnimationTable.Parse(bytes);
+    Equal(2,t.ClassCount);
+    Equal("0,0,-2,91051|87,-5,-2,91050",string.Join("|",t.Sets(1).Select(e=>$"{e.Unit},{e.Key},{e.Flag},{e.Value}")));
+    Equal("-6",t.Sets(2).Single().Key.ToString());
+    Equal("87,5",$"{t.Palettes(1).Single().Unit},{t.Palettes(1).Single().Value}");
+    Equal(0,t.Palettes(2).Count);
+    Equal(48,t.SetOffset(1,0));
+    Equal("Any weapon|Sword|Spear or Fork|Lance|Axe|Bow|Healing|Dark healing",string.Join("|",new[]{0,-2,-5,-6,-7,-8,-16,-17}.Select(AnimationTable.KeyText)));
+    Throws<InvalidDataException>(()=>AnimationTable.Parse(bytes[..40]));
+});
+Test("Animation palettes swap the PS2 colour blocks",()=>{
+    var raw=new byte[1024];for(int i=0;i<256;i++)raw[i*4]=(byte)i;
+    var pal=AnimationSet.ReadPalette(raw);
+    Equal("7,16,23,8,24,40",$"{pal[7]&0xFF},{pal[8]&0xFF},{pal[15]&0xFF},{pal[16]&0xFF},{pal[24]&0xFF},{pal[48]&0xFF}");
+});
 Test("Live horse: give, change, refuse removal while riding, remove on foot",()=>{
     var r=new byte[CharacterDecoder.RecordLength];FieldCodec.Write(r,LiveHorse.Dismounted,1);
     Equal(null,LiveHorse.Apply(r,0x206,50,50,false));
@@ -660,6 +680,25 @@ if(args.Length>=2)
         en=Inspector.Inspect(args[1]);Equal("English v2.3",en.Edition);Equal("C8CFA4E1",en.Crc);Equal(646,en.Items.Count);
         Equal(600,en.Items.Single(i=>i.Id==1).Price);Equal(100,en.Items.Single(i=>i.Id==506).Price);
         Console.WriteLine($"English mirror differences: {en.DifferentTableRecords}");
+    });
+    Test("English battle animations: Spear Knight sets, colours and frames",()=>{
+        using var iso=new IsoImage(File.OpenRead(args[1]));
+        var archives=new GameArchives(iso);
+        var table=AnimationTable.Parse(archives.Top(archives.Find(AnimationTable.Path)));
+        Equal(244,table.ClassCount);
+        Equal("0:0:91051|0:-2:91021|0:-5:91051",string.Join("|",table.Sets(150).Select(e=>$"{e.Unit}:{e.Key}:{e.Value}")));
+        Equal("87:5|88:6",string.Join("|",table.Palettes(150).Where(e=>e.Unit>0).Select(e=>$"{e.Unit}:{e.Value}")));
+        var onDisc=AnimationSet.OnDisc(archives);
+        Equal(203,onDisc.Count);
+        Equal(0,table.NamedSets.Count(n=>!onDisc.ContainsKey(n)));
+        Equal(24,onDisc.Keys.Count(n=>!table.NamedSets.Contains(n)));
+        var set=AnimationSet.Load(archives,91051)!;
+        Equal("5,6",string.Join(",",set.Palettes));
+        Equal(13,set.Frames("m0_0").Count);
+        var image=set.Draw("m0_0",1,5);
+        int drawn=0;for(int i=3;i<image.Pixels.Length;i+=4)if(image.Pixels[i]!=0)drawn++;
+        Equal(true,drawn>2000);
+        var b=set.Bounds("m0_0");Equal(true,b.Width<AnimationSet.Canvas && b.Height<AnimationSet.Canvas);
     });
     Test("Edition comparison preserves all distinct IDs",()=>{
         var changes=ItemComparison.Compare(jp!.Items,en!.Items);
