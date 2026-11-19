@@ -7,11 +7,24 @@ namespace Berwick.Core;
 public static class GameNames
 {
     private static readonly Dictionary<(string Kind, int Id), string> names = Load();
+    private static Dictionary<(string Kind, int Id), string> overrides = [];
 
-    public static string? Item(int id) => names.TryGetValue(("item", id), out var n) ? n : null;
+    /// <summary>Names a project changes on the Text page (entries it### and foods###), shown in place of the game's own.</summary>
+    public static void SetOverrides(IReadOnlyDictionary<string, string> texts)
+    {
+        var map = new Dictionary<(string, int), string>();
+        foreach (var (entry, text) in texts)
+            foreach (var (prefix, kind) in new[] { ("foods", "food"), ("it", "item") })
+                if (entry.StartsWith(prefix, StringComparison.Ordinal) && int.TryParse(entry[prefix.Length..], out int id)) { map[(kind, id)] = text; break; }
+        overrides = map;
+    }
+
+    private static string? Find(string kind, int id) => overrides.TryGetValue((kind, id), out var o) ? o : names.TryGetValue((kind, id), out var n) ? n : null;
+
+    public static string? Item(int id) => Find("item", id);
     public static string? Class(int id) => names.TryGetValue(("class", id), out var n) ? n : null;
     public static string? Terrain(int kind) => names.TryGetValue(("terrain", kind), out var n) ? n : null;
-    public static string? Food(int dish) => names.TryGetValue(("food", dish), out var n) ? n : null;
+    public static string? Food(int dish) => Find("food", dish);
     public static string? FoodEffect(int code) => names.TryGetValue(("foodeffect", code), out var n) ? n : null;
     public static string? MovementType(int type) => names.TryGetValue(("movetype", type + 1), out var n) ? n : null;
 

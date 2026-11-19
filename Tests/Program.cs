@@ -1297,6 +1297,37 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(false,StableStock.Matches(after));
         }
     });
+    Test("Game texts read, encode back, edit, save and export on both discs",()=>{
+        foreach(var disc in new[]{jp!,en!})
+        {
+            using var stream=new FileStream(disc.Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+            var archives=new GameArchives(new IsoImage(stream));
+            var loaded=SystemText.Load(archives)!.Value;var font=loaded.Font;
+            Equal(4164,loaded.Texts.Count);Equal(disc==en,font.English);
+            int exact=loaded.Texts.Count(t=>font.Encode(font.Decode(t.Bytes)).AsSpan().SequenceEqual(t.Bytes));
+            int same=loaded.Texts.Count(t=>font.Decode(font.Encode(font.Decode(t.Bytes)))==font.Decode(t.Bytes));
+            if(same!=loaded.Texts.Count)throw new Exception($"{loaded.Texts.Count-same} texts do not read back the same");
+            Equal(true,exact>loaded.Texts.Count*9/10);
+            Equal(true,SystemText.Locate(archives).Count>=1);
+            var s=new EditSession(disc);
+            int dagger=s.TextId("it001");
+            Equal(disc==en?"Dagger":"ダガー",s.Text(dagger));
+            Throws<EditException>(()=>s.SetText(dagger,"Dagger \u03A9"));
+            string renamed=disc==en?"Long Dagger of Testing":"ダガーダガー";
+            Equal(true,s.SetText(dagger,renamed));Equal(renamed,s.Text(dagger));Equal(true,s.IsEdited(EditSession.Texts,dagger));
+            var back=EditSession.FromJson(disc,s.ToJson());Equal(renamed,back.Text(back.TextId("it001")));
+            s.Undo();Equal(false,s.IsEdited(EditSession.Texts,dagger));s.Redo();
+            foreach(var (top,edit) in SystemText.Edits(archives,s.ChangedTexts))
+            {
+                var data=edit(archives.Top(top));
+                var archive=Tarc.Extract(data,Tarc.Parse(data).Single(e=>e.Name=="sysfont.ar"));
+                var entry=Tarc.Parse(archive).Single(e=>e.Name=="it001");
+                Equal(renamed,font.Decode(Tarc.Extract(archive,entry)));
+                Equal("Rum",disc==en?font.Decode(Tarc.Extract(archive,Tarc.Parse(archive).Single(e=>e.Name=="foods054"))):"Rum");
+            }
+            Equal(true,Exporter.PatchesFor(s,disc).Count>0);
+        }
+    });
     Test("Reinforcement hexes and turns point at their own script numbers on both discs",()=>{
         foreach(var disc in new[]{jp!,en!})
         {

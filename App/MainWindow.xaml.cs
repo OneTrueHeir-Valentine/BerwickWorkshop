@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Texts, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -116,6 +116,7 @@ public partial class MainWindow : Window
     private void RefreshDocument()
     {
         if(primary is null)return;
+        GameNames.SetOverrides(session is null?new Dictionary<string,string>():session.ChangedTexts.ToDictionary(t=>t.Key,t=>session.TextFont?.Decode(t.Value)??""));
         if(selectedMapUnit is not null && editing?.Page!=View.Maps)ShowMapUnit(mapUnitWhere);
         DiscStrip.Visibility=Visibility.Visible;EmptyState.Visibility=Visibility.Collapsed;DiscNav.IsEnabled=true;
         EditionText.Text=primary.Edition;FileText.Text=Path.GetFileName(primary.Path);FileText.ToolTip=primary.Path;
@@ -164,10 +165,11 @@ public partial class MainWindow : Window
         TerrainNav.IsEnabled=primary.Supported && terrainRows.Count>0;
         FurnitureNav.IsEnabled=primary.Supported && primary.FurniturePriceBytes.Count>0;
         DishesNav.IsEnabled=primary.Supported && primary.DishBytes.Count>0;
+        TextNav.IsEnabled=primary.Supported;
         ShopsNav.IsEnabled=primary.Supported;
         LiveNav.IsEnabled=primary.Supported;
         RulesNav.IsEnabled=primary.Supported;SkillsNav.IsEnabled=primary.Supported;EventsNav.IsEnabled=primary.Supported;MapsNav.IsEnabled=primary.Supported;AnimationsNav.IsEnabled=primary.Supported;
-        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();ApplyDishList();BuildRules();UpdatePage();
+        PopulateDiscDetails();ApplyFilter();ApplyCharacterFilter();ApplyArmyFilter();ApplyClassFilter();ApplyMovementList();ApplyTerrainList();ApplyFurnitureList();ApplyDishList();ApplyTextList();BuildRules();UpdatePage();
         if(primary.DifferentTableRecords>0) Notify($"The disc contains {primary.DifferentTableRecords} items with differing table copies. Values shown are from the first copy.");
         if(view==View.Events && events is { } library && EventList.SelectedValue is int shown)_=ShowEvent(library,shown,scrollHome:false);
         if(shops is not null)ApplyShopList();
@@ -304,6 +306,7 @@ public partial class MainWindow : Window
     private void ShowArmies(object sender,RoutedEventArgs e) { view=View.Armies;UpdatePage(); }
     private void ShowFurniture(object sender,RoutedEventArgs e) { view=View.Furniture;UpdatePage(); }
     private void ShowDishes(object sender,RoutedEventArgs e) { view=View.Dishes;UpdatePage(); }
+    private void ShowTexts(object sender,RoutedEventArgs e) { view=View.Texts;UpdatePage();ApplyTextList(); }
     private void ShowShops(object sender,RoutedEventArgs e) { view=View.Shops;UpdatePage();_=OpenShops(); }
     private void ShowClasses(object sender,RoutedEventArgs e) { view=View.Classes;UpdatePage(); }
     private void ShowMovement(object sender,RoutedEventArgs e) { view=View.Movement;UpdatePage(); }
@@ -2027,7 +2030,7 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Texts=>"Text", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -2035,6 +2038,7 @@ public partial class MainWindow : Window
         ArmyPage.Visibility=view==View.Armies && supported?Visibility.Visible:Visibility.Collapsed;
         FurniturePage.Visibility=view==View.Furniture && supported?Visibility.Visible:Visibility.Collapsed;
         DishesPage.Visibility=view==View.Dishes && supported?Visibility.Visible:Visibility.Collapsed;
+        TextsPage.Visibility=view==View.Texts && supported?Visibility.Visible:Visibility.Collapsed;
         ShopsPage.Visibility=view==View.Shops && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
@@ -2055,6 +2059,7 @@ public partial class MainWindow : Window
         ArmiesNav.Background=view==View.Armies?active:Brushes.Transparent;
         FurnitureNav.Background=view==View.Furniture?active:Brushes.Transparent;
         DishesNav.Background=view==View.Dishes?active:Brushes.Transparent;
+        TextNav.Background=view==View.Texts?active:Brushes.Transparent;
         ShopsNav.Background=view==View.Shops?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
@@ -2503,6 +2508,75 @@ public partial class MainWindow : Window
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
         UpdateLiveButtons();
+    }
+    // Text page: the game's short texts (sysfont.ar), read from the disc when first shown.
+    private List<TextRow> textRows=[];
+    private (IReadOnlyList<(string Name,byte[] Bytes)> Texts,TextFont Font)? discTexts;
+    private string? discTextsPath;
+    private void ApplyTextList()
+    {
+        if(primary is null || view!=View.Texts)return;
+        if(discTextsPath!=primary.Path)
+        {
+            try{using var stream=new FileStream(primary.Path,FileMode.Open,FileAccess.Read,FileShare.Read);discTexts=SystemText.Load(new GameArchives(new IsoImage(stream)));}
+            catch(Exception ex) when (ex is IOException or InvalidDataException){discTexts=null;}
+            discTextsPath=primary.Path;
+            var kinds=new List<string>{"Every kind"};
+            if(discTexts is { } all)kinds.AddRange(all.Texts.Select(t=>SystemText.Kind(t.Name)).Distinct().Order());
+            TextKindBox.ItemsSource=kinds;TextKindBox.SelectedIndex=0;
+        }
+        if(discTexts is not { } loaded){TextGrid.ItemsSource=null;TextCount.Text="This disc's texts could not be read.";return;}
+        int? selected=(TextGrid.SelectedItem as TextRow)?.Id;
+        textRows=loaded.Texts.Select((t,i)=>new TextRow(i,t.Name,SystemText.Kind(t.Name),session?.Text(i) ?? loaded.Font.Decode(t.Bytes),session?.IsEdited(EditSession.Texts,i)==true)).ToList();
+        string query=TextSearch.Text.Trim();
+        string kind=TextKindBox.SelectedItem as string ?? "Every kind";
+        var shown=textRows.Where(r=>(kind=="Every kind" || r.Kind==kind) && (query.Length==0 || r.Text.Contains(query,StringComparison.OrdinalIgnoreCase) || r.Name.Contains(query,StringComparison.OrdinalIgnoreCase))).ToList();
+        TextGrid.ItemsSource=shown;
+        TextCount.Text=$"{shown.Count:N0} of {textRows.Count:N0} texts{(session is not null && textRows.Any(r=>r.Edited)?$", {textRows.Count(r=>r.Edited)} changed":"")}";
+        if(shown.Count>0)TextGrid.SelectedItem=shown.FirstOrDefault(r=>r.Id==selected)??shown[0];
+    }
+    private void TextFilterChanged(object sender,EventArgs e){if(ready)ApplyTextList();}
+    private void TextSelected(object sender,SelectionChangedEventArgs e)
+    {
+        GameTextFields.Children.Clear();
+        if(TextGrid.SelectedItem is not TextRow row || discTexts is not { } loaded){GameTextName.Text="Select a text";GameTextEditor.Visibility=ApplyGameTextButton.Visibility=RestoreGameTextButton.Visibility=Visibility.Collapsed;GameTextNote.Text="";return;}
+        GameTextName.Text=row.Kind;
+        AddPair(GameTextFields,"Entry",row.Name);
+        string original=loaded.Font.Decode(loaded.Texts[row.Id].Bytes);
+        AddPair(GameTextFields,"On the disc",original);
+        if(row.Edited)AddPair(GameTextFields,"In this project",row.Text);
+        bool can=session is not null;
+        GameTextEditor.Visibility=can?Visibility.Visible:Visibility.Collapsed;
+        ApplyGameTextButton.Visibility=can?Visibility.Visible:Visibility.Collapsed;
+        RestoreGameTextButton.Visibility=can && row.Edited?Visibility.Visible:Visibility.Collapsed;
+        GameTextEditor.Text=row.Text;
+        if(!can)GameTextNote.Text="Open or start a project to change texts.";
+    }
+    private void GameTextChanged(object sender,TextChangedEventArgs e)
+    {
+        if(discTexts is not { } loaded || TextGrid.SelectedItem is not TextRow row)return;
+        string text=GameTextEditor.Text;
+        var missing=loaded.Font.Missing(text);
+        int originalLength=loaded.Font.Decode(loaded.Texts[row.Id].Bytes).Length;
+        GameTextNote.Text=missing.Count>0?$"The game's font has no {string.Join(" ",missing)}. Use other characters."
+            :$"{text.Length} characters (the disc's text has {originalLength}). Longer names may not fit the space the game draws them in.";
+        GameTextNote.Foreground=missing.Count>0?new SolidColorBrush(Color.FromRgb(154,59,46)):(Brush)FindResource("Muted");
+        ApplyGameTextButton.IsEnabled=missing.Count==0 && text.Length>0;
+    }
+    private void ApplyGameText(object sender,RoutedEventArgs e)
+    {
+        if(session is null || TextGrid.SelectedItem is not TextRow row)return;
+        try
+        {
+            if(session.SetText(row.Id,GameTextEditor.Text)){Status.Text="Text changed. Save the project to keep this change.";RefreshDocument();ApplyTextList();}
+            else Status.Text="Nothing was changed.";
+        }
+        catch(EditException ex){Status.Text=ex.Message;}
+    }
+    private void RestoreGameText(object sender,RoutedEventArgs e)
+    {
+        if(session is null || TextGrid.SelectedItem is not TextRow row)return;
+        session.Revert(EditSession.Texts,row.Id);Status.Text="Text restored. Save the project to keep this change.";RefreshDocument();ApplyTextList();
     }
     private byte[] DishBytes(int id)=>session?.EditedBytes(EditSession.Dishes,id)??primary!.DishBytes[id].ToArray();
     private void ApplyDishList()
@@ -3552,6 +3626,7 @@ public partial class MainWindow : Window
             ("Browsing items","Search by name, decimal ID, or hexadecimal ID such as 0x022. Names follow the English translation catalogue for both editions. Show unused includes placeholder entries. Base prices and durability grades come from the disc; shop prices and remaining durability may differ in play. Horses also show their stable price, which is what the stable charges."),
             ("Characters","Shows each recruitable character's starting record: level, stat bonuses added to the class base, growth rates, weapon growth, weapon levels, personal skills, skills learned on level up, starting items with their durability or uses, bag contents, partners with their bond, and the fee of each mercenary. Class skills belong to the class and are not listed here. Mind growth is shown exactly as stored on the disc; published tables list half of this value."),
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Where the game's events show which battle places an army, its name says so, for example Army 371 (Quest 6: Cruel Brothers), and searching for a mission or quest title lists its armies. Each unit has a class, level, stat bonuses, weapon levels, personal skills, up to seven items, and which items it drops when defeated. An army is stored twice on the disc; both copies are changed together."),
+            ("Text","The Text page lists the game's short texts: names, skill explanations, quest titles and summaries, chapter and town texts and status words. Search or pick a kind, select a text and type the new wording. Characters the game's font does not have are named before anything changes. Apply keeps the change in the project; Restore original puts the disc's text back. Changed item and dish names show on the other pages too."),
             ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc. The Stable lists every horse it can sell with its price, and below it the horses offered each chapter: how many of each, when the Spry and Tough Horses come, the chances of the Strong Horse and of one rare horse, and how many horses in all. The Kingfisher Pavilion entry has Any unit can order, which lets the server take orders for any unit in your army."),
             ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and their sizes are set on the Game rules page under Furniture in Reese's room. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),

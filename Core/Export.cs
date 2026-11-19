@@ -80,6 +80,7 @@ public static class Exporter
         var replaced = new Dictionary<int, byte[]>();
         var deployments = new Dictionary<int, byte[]>();
         var placements = new Dictionary<int, byte[]>();
+        var changedTexts = session.ChangedTexts;
         foreach (var (table, id) in session.EditedRecords)
         {
             if (table == EditSession.Scripts)
@@ -98,6 +99,7 @@ public static class Exporter
                 deployments[id] = session.EditedBytes(table, id);
                 continue;
             }
+            if (table == EditSession.Texts) continue;
             if (table == EditSession.Placements)
             {
                 placements[id] = session.EditedBytes(table, id);
@@ -160,7 +162,7 @@ public static class Exporter
                     patches.Add(new(file.Offset + location + start, edited.AsSpan(start, length).ToArray(), original.Slice(start, length).ToArray()));
             }
         }
-        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0 || replaced.Count > 0 || deployments.Count > 0 || placements.Count > 0)
+        if (stable.Count > 0 || furniture.Count > 0 || scripts.Count > 0 || replaced.Count > 0 || deployments.Count > 0 || placements.Count > 0 || changedTexts.Count > 0)
         {
             // Stable and furniture prices live in compressed event scripts, each stored several times and partly in the same
             // archives; every copy is rewritten in place, one archive at a time.
@@ -201,6 +203,8 @@ public static class Exporter
                     if (placements.TryGetValue(top, out var slots)) map = Placement.Write(map, slots);
                     return ArchiveEditing.ReplaceOrRepack(archive, "map", map);
                 }));
+            // Game texts: every copy of sysfont.ar gets the changed entries.
+            if (changedTexts.Count > 0) other.AddRange(SystemText.Edits(archives, changedTexts));
             patches.AddRange(ScriptPrices.Combined(archives, events, other, ArchiveEditing.FixedTops(archives, disc.Profile)));
         }
         return patches.AsReadOnly();
