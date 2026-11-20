@@ -553,9 +553,15 @@ public partial class MainWindow : Window
         ShopNotes.Children.Clear();
         AddText(ShopNotes,"The Pavilion serves meals while a mission is chosen. Units from your army sit at its eight seats, and talking to one lets it order from the menu. Each unit eats once a chapter, and the meal's effects last into the next battle. The seats stay the same until the game clears them.");
         if(events is not { } library){UpdateShopButtons();return;}
+        if(library.CommandNames is not { } commandNames)
+        {
+            AddText(ShopNotes,"The Pavilion server event cannot be edited because its command list is unavailable.");
+            UpdateShopButtons();
+            return;
+        }
         byte[]? current=session?.EventScript(Pavilion.ServerEvent);
         if(current is null){lock(library)current=library.Bytes(Pavilion.ServerEvent);}
-        bool anyUnit=Pavilion.IsAnyUnit(current,library.CommandNames);
+        bool anyUnit=Pavilion.IsAnyUnit(current,commandNames);
         bool other=session?.HasScript(Pavilion.ServerEvent)==true && !anyUnit;
         var box=new CheckBox{Content="Any unit can order: the server opens the unit list, so every unit in your army can eat, one after another",IsChecked=anyUnit,IsEnabled=session is not null && !other,Margin=new Thickness(0,8,0,0)};
         box.Click+=(_,_)=>
@@ -565,7 +571,7 @@ public partial class MainWindow : Window
             {
                 try
                 {
-                    var bytes=Pavilion.AnyUnitServer(library.CommandNames);
+                    var bytes=Pavilion.AnyUnitServer(commandNames);
                     CheckEventFits(library,Pavilion.ServerEvent,bytes);
                     if(session.SetScript(Pavilion.ServerEvent,bytes)){RefreshDocument();Status.Text="The Pavilion's server now takes orders for any unit. Save the project to keep this change.";}
                 }
@@ -1478,7 +1484,7 @@ public partial class MainWindow : Window
                         var target=Deployment.OwnLimitEvent(library,map.Battle) ?? throw new EditException("This battle has no opening event to hold its own limit.");
                         opening=target;
                         var current=session.EventScript(target) ?? library.Bytes(target);
-                        updated=Deployment.AddOwnLimit(current,n,library.CommandNames);
+                        updated=Deployment.AddOwnLimit(current,n,library.CommandNames ?? throw new EditException("This battle's deployment limit cannot be edited because its command list is unavailable."));
                     }
                     CheckEventFits(library,opening,updated);
                     if(session.SetScript(opening,updated)){Status.Text=$"This battle now sets its own limit in event {opening}. Save the project to keep this change.";RefreshDocument();DrawMap(shownMap,shownPicture,shownTitle);}
