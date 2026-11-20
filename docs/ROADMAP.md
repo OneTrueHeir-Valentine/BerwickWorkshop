@@ -1,6 +1,6 @@
 # Berwick Workshop roadmap
 
-Current release scope and priorities: [Current status](STATUS.md). The milestone notes below include historical plans and research.
+This roadmap records implemented features, remaining work and earlier research. The milestone notes below include historical plans.
 
 Goal: one offline, single-player Windows tool for Berwick Saga (PS2) that covers everything useful from **FEBuilderGBA** (GBA Fire Emblem ROM suite) and **ReWeaver** (Fire Emblem: Fortune's Weave mod and save editor), adapted to this game. It must support both the Japanese retail disc and the English v2.3 translation, each with its own verified offsets.
 
