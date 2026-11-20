@@ -661,7 +661,7 @@ public sealed class EditSession
 
     private static string Sha(byte[] data) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
 
-    private string? RecordName(string table, int id) => CustomName(table, id) ?? table switch
+    public string? RecordName(string table, int id, bool original = false) => (!original ? CustomName(table, id) : null) ?? table switch
     {
         Items => originalItems.TryGetValue(id, out var i) ? i.DisplayName : null,
         Recipes => disc.Items.FirstOrDefault(i => i.Id == id)?.DisplayName,

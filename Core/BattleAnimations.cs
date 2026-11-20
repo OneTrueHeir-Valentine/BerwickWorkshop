@@ -122,15 +122,21 @@ public sealed class AnimationTable
 public sealed record AnimationFrame(int Picture, int Time);
 
 /// <summary>A drawn frame: 32-bit BGRA pixels, transparent where nothing is drawn.</summary>
-public sealed record AnimationImage(int Width, int Height, byte[] Pixels);
+public sealed record AnimationImage(int Width, int Height, byte[] Pixels)
+{
+    /// <summary>Original coordinate of the image's top-left pixel, before cropping or sheet placement.</summary>
+    public int OriginX { get; init; }
+    public int OriginY { get; init; }
+}
 
 /// <summary>A battle animation set, kirikae/buAAAWWV.ar: class art AAA, weapon WW, variant V (0 on foot, 1 mounted).
 /// Each layer is an 8-bit texture 1024 pixels wide with a table of pictures; a picture is a list of 8 by 8 tiles.</summary>
-public sealed class AnimationSet
+public sealed partial class AnimationSet
 {
     public const int Canvas = 288;
     private const int TextureWidth = 1024;
     private readonly Dictionary<string, byte[]> files;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, AnimationRect> canvases = new();
     public int Number { get; }
 
     private AnimationSet(int number, Dictionary<string, byte[]> files) { Number = number; this.files = files; }
@@ -231,9 +237,34 @@ public sealed class AnimationSet
 
     /// <summary>Draws one picture of a motion. Body and shield use the chosen palette (0 for the set's own colours);
     /// the weapon keeps the set's colours. Layers are drawn in the order of the depth byte in each layer's header.</summary>
-    public AnimationImage Draw(string motion, int picture, int palette)
+    public AnimationRect CanvasFor(string motion) => canvases.GetOrAdd(motion, key => AnimationCanvas.Expand(MotionTiles(key)));
+
+    private IEnumerable<AnimationRect> MotionTiles(string motion)
     {
-        var pixels = new byte[Canvas * Canvas * 4];
+        foreach (int picture in Frames(motion).Select(f => f.Picture).Distinct())
+            foreach (var (positions, texture) in new[] { ("vupos.dat", "0.tex"), ("vuwppos.dat", "2.tex"), ("vusdpos.dat", "3.tex") })
+                if (files.TryGetValue(positions, out var p) && files.TryGetValue(texture, out var t))
+                    foreach (var tile in RenderTiles(p, t, picture)) yield return new(tile.X, tile.Y, 8, 8);
+    }
+
+    private static IEnumerable<(int X, int Y, int U, int V)> RenderTiles(byte[] positions, byte[] texture, int picture)
+    {
+        int rows = texture.Length / TextureWidth;
+        foreach (var tile in Tiles(positions, picture))
+        {
+            var (x, y, u, v) = tile;
+            if (u < 0 || v < 0 || (long)u + 8 > TextureWidth || (long)v + 8 > rows) continue;
+            // The first sixteen colours are frame markers, as in the original preview renderer.
+            bool art = false;
+            for (int i = 0; i < 64 && !art; i++) art = texture[(v + i / 8) * TextureWidth + u + i % 8] >= 0x10;
+            if (art) yield return tile;
+        }
+    }
+
+    public AnimationImage Draw(string motion, int picture, int palette, bool legacyCanvas = false)
+    {
+        var canvas = legacyCanvas ? new AnimationRect(0, 0, Canvas, Canvas) : CanvasFor(motion);
+        var pixels = new byte[checked(canvas.Width * canvas.Height * 4)];
         var own = ReadPalette(files.GetValueOrDefault("common.pal"));
         var chosen = palette > 0 && files.TryGetValue($"{palette}.pal", out var p) ? ReadPalette(p) : own;
         var layers = new List<(int Depth, int Order, string Positions, string Texture, uint[] Colors)>();
@@ -247,28 +278,29 @@ public sealed class AnimationSet
         Add("wa", "vuwppos.dat", "2.tex", own, 1);
         Add("sa", "vusdpos.dat", "3.tex", chosen, 2);
         foreach (var layer in layers.OrderBy(l => l.Depth).ThenBy(l => l.Order))
-            DrawPicture(files[layer.Positions], files[layer.Texture], picture, layer.Colors, pixels);
-        return new AnimationImage(Canvas, Canvas, pixels);
+            DrawPicture(files[layer.Positions], files[layer.Texture], picture, layer.Colors, pixels, canvas);
+        return new AnimationImage(canvas.Width, canvas.Height, pixels) { OriginX = canvas.X, OriginY = canvas.Y };
     }
 
     /// <summary>The area every frame of a motion draws in, with a small margin, so a viewer can show the motion without empty canvas.</summary>
     public (int X, int Y, int Width, int Height) Bounds(string motion)
     {
-        int left = Canvas, top = Canvas, right = -1, bottom = -1;
+        var canvas = CanvasFor(motion);
+        int left = canvas.Width, top = canvas.Height, right = -1, bottom = -1;
         foreach (var frame in Frames(motion).DistinctBy(f => f.Picture))
         {
             var image = Draw(motion, frame.Picture, 0);
-            for (int y = 0; y < Canvas; y++)
-                for (int x = 0; x < Canvas; x++)
-                    if (image.Pixels[(y * Canvas + x) * 4 + 3] != 0)
+            for (int y = 0; y < image.Height; y++)
+                for (int x = 0; x < image.Width; x++)
+                    if (image.Pixels[(y * image.Width + x) * 4 + 3] != 0)
                     {
                         left = Math.Min(left, x); right = Math.Max(right, x); top = Math.Min(top, y); bottom = Math.Max(bottom, y);
                     }
         }
-        if (right < 0) return (0, 0, Canvas, Canvas);
+        if (right < 0) return (0, 0, canvas.Width, canvas.Height);
         const int margin = 6;
         left = Math.Max(0, left - margin); top = Math.Max(0, top - margin);
-        right = Math.Min(Canvas - 1, right + margin); bottom = Math.Min(Canvas - 1, bottom + margin);
+        right = Math.Min(canvas.Width - 1, right + margin); bottom = Math.Min(canvas.Height - 1, bottom + margin);
         return (left, top, right - left + 1, bottom - top + 1);
     }
 
@@ -303,32 +335,19 @@ public sealed class AnimationSet
         return result;
     }
 
-    private static void DrawPicture(byte[] positions, byte[] texture, int picture, uint[] colors, byte[] pixels)
+    private static void DrawPicture(byte[] positions, byte[] texture, int picture, uint[] colors, byte[] pixels, AnimationRect canvas)
     {
-        int rows = texture.Length / TextureWidth;
-        Span<byte> tile = stackalloc byte[64];
-        foreach (var (x, y, u, v) in Tiles(positions, picture))
-        {
-            if (u < 0 || v < 0 || u + 8 > TextureWidth || v + 8 > rows) continue;
-            bool art = false;
+        foreach (var (x, y, u, v) in RenderTiles(positions, texture, picture))
             for (int i = 0; i < 64; i++)
             {
-                byte c = texture[(v + i / 8) * TextureWidth + u + i % 8];
-                tile[i] = c;
-                art |= c >= 0x10;
-            }
-            // Tiles that only use the first sixteen colours are frame markers for the artists, not part of the picture.
-            if (!art) continue;
-            for (int i = 0; i < 64; i++)
-            {
-                if (tile[i] == 0) continue;
-                int px = x + i % 8, py = y + i / 8;
-                if (px < 0 || py < 0 || px >= Canvas || py >= Canvas) continue;
-                uint c = colors[tile[i]];
-                int at = (py * Canvas + px) * 4;
+                byte index = texture[(v + i / 8) * TextureWidth + u + i % 8];
+                if (index == 0) continue;
+                long px = (long)x + i % 8 - canvas.X, py = (long)y + i / 8 - canvas.Y;
+                if (px < 0 || py < 0 || px >= canvas.Width || py >= canvas.Height) continue;
+                uint c = colors[index];
+                int at = (int)(py * canvas.Width + px) * 4;
                 pixels[at] = (byte)(c >> 16); pixels[at + 1] = (byte)(c >> 8); pixels[at + 2] = (byte)c; pixels[at + 3] = 255;
             }
-        }
     }
 
     /// <summary>A 256-colour palette as stored for the PS2: RGBA bytes, with entries 8 to 15 and 16 to 23 of each block of 32 swapped.</summary>

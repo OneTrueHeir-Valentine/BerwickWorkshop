@@ -14,6 +14,10 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+ChangeReviewTests.Run(Test);
+AnimationExportTests.Run(Test);
+EffectTrackTests.Run(Test);
+
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
     Equal(names.Count,SkillCatalog.All.Count);
@@ -686,6 +690,7 @@ if(args.Length>=2)
         Equal(600,en.Items.Single(i=>i.Id==1).Price);Equal(100,en.Items.Single(i=>i.Id==506).Price);
         Console.WriteLine($"English mirror differences: {en.DifferentTableRecords}");
     });
+    if (jp is not null && en is not null) ChangeReviewTests.RunDiscs(Test, jp, en);
     Test("English battle animations: Spear Knight sets, colours and frames",()=>{
         using var iso=new IsoImage(File.OpenRead(args[1]));
         var archives=new GameArchives(iso);
@@ -1275,10 +1280,11 @@ foreach(var exportDisc in new[]{jp!,en!})
             using var iso=new IsoImage(stream);
             var library=new EventLibrary(new GameArchives(iso));
             var original=library.Bytes(Pavilion.ServerEvent);
-            Equal(284,original.Length);Equal(false,Pavilion.IsAnyUnit(original,library.CommandNames));
-            var bytes=Pavilion.AnyUnitServer(library.CommandNames);
-            Equal(true,Pavilion.IsAnyUnit(bytes,library.CommandNames));
-            Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(bytes),library.CommandNames),library.CommandNames)).AsSpan().SequenceEqual(bytes));
+            var commandNames=library.CommandNames ?? throw new Exception("Missing event command names");
+            Equal(284,original.Length);Equal(false,Pavilion.IsAnyUnit(original,commandNames));
+            var bytes=Pavilion.AnyUnitServer(commandNames);
+            Equal(true,Pavilion.IsAnyUnit(bytes,commandNames));
+            Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(bytes),commandNames),commandNames)).AsSpan().SequenceEqual(bytes));
             var session=new EditSession(disc);Equal(true,session.SetScript(Pavilion.ServerEvent,bytes));Equal(true,session.HasScript(Pavilion.ServerEvent));
         }
     });
@@ -1405,7 +1411,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,library.BattleMapFiles().Keys.All(b=>Deployment.Limit(library,b) is {Own:true}));int shared=5;
             var fallback=Deployment.Limit(library,shared)!.Value;Equal(false,fallback.Own);Equal(8,fallback.Number.Value);Equal(Deployment.DefaultEvent,fallback.Number.Event);
             Equal<int?>(null,Deployment.OwnLimitEvent(library,shared));Equal<int?>(2395,Deployment.OwnLimitEvent(library,6));
-            var added=Deployment.AddOwnLimit(library.Bytes(2395),5,library.CommandNames);
+            var added=Deployment.AddOwnLimit(library.Bytes(2395),5,library.CommandNames ?? throw new Exception("Missing event command names"));
             Equal("5,12",string.Join(",",ScriptValues.Numbers(2395,ScriptParser.Parse(added),library.CommandNames).Where(n=>n.Command=="SetMapUnitMax").Select(n=>n.Value).Order()));
             string file=library.BattleMapFiles()[6];int top=archives.Find("bmap/"+file);
             var map=BattleMaps.Load(archives,library,6,file)!;
