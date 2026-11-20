@@ -15,7 +15,7 @@ Download [Berwick Workshop 0.118.0 for Windows](https://github.com/OneTrueHeir-V
 - **Events:** the game's event scripts as readable commands. Numbers, lines and whole scripts can be edited, for example the turn a reinforcement arrives.
 - **Game rules:** Parry, shield block and guard, durability and breaking, experience, stat limits, Luck, and many skill numbers and switches: activation chances, ranges, auras, command waits and strikes, the weapons a skill allows, Hurry, Deathmatch, Guard, Canto, Robbery, Provoke, Debility and more. Rules whose effect has not been confirmed in a running game stay hidden.
 
-Current scope and remaining work are recorded in [Current status](docs/STATUS.md).
+Implemented features and remaining work are recorded in the [roadmap](docs/ROADMAP.md), with format findings in the [research notes](docs/RESEARCH.md).
 
 ## Also included
 
@@ -35,7 +35,6 @@ Changes are saved as a `.bwproj` project and exported as a new ISO for PCSX2. Th
 - `Core` disc reading, edition detection, data tables, game rules, events, projects and export
 - `App` Windows desktop interface (WPF)
 - `Tests` core test runner
-- `Tests.Windows` PNG and export-dialog checks
 - `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT), and the game's own English names
 - `docs/ROADMAP.md` planned features
 - `docs/RESEARCH.md` notes on the game's data and program
@@ -53,11 +52,3 @@ dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleF
 The ISO paths are optional. Without them only the offline tests run. An optional third path adds the Redux modified-disc check. Real-disc tests create temporary exports, verify them, then remove them. Allow at least 9 GB of free space. The originals are read only.
 
 No game files are included or needed to build.
-
-Animation export checks on Windows:
-
-```powershell
-dotnet run --project Tests.Windows -c Release -- "<Japanese ISO>" "<English ISO>" "<new test output folder>"
-```
-
-This writes extracted test artwork to the chosen folder. Use a new folder for each run. The output is for local verification and is not part of the release.
