@@ -1,0 +1,45 @@
+name: Verify Windows build
+
+on:
+  push:
+    branches:
+      - main
+      - release-v0.118.0-candidate
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build tests
+        shell: pwsh
+        run: |
+          dotnet build Tests -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run offline tests
+        shell: pwsh
+        run: |
+          dotnet .\Tests\bin\Release\net9.0\Berwick.Tests.dll
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish Windows executable
+        shell: pwsh
+        run: |
+          dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$env:RUNNER_TEMP\Berwick Workshop"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$env:RUNNER_TEMP\Berwick Workshop\Berwick Workshop.exe")) { throw "Executable missing" }
+      - name: Upload verified executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Berwick-Workshop-Windows
+          path: ${{ runner.temp }}/Berwick Workshop/Berwick Workshop.exe
+          if-no-files-found: error
