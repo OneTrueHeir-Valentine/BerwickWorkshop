@@ -1,5 +1,7 @@
 # Berwick Workshop roadmap
 
+Current release scope and priorities: [Current status](STATUS.md). The milestone notes below include historical plans and research.
+
 Goal: one offline, single-player Windows tool for Berwick Saga (PS2) that covers everything useful from **FEBuilderGBA** (GBA Fire Emblem ROM suite) and **ReWeaver** (Fire Emblem: Fortune's Weave mod and save editor), adapted to this game. It must support both the Japanese retail disc and the English v2.3 translation, each with its own verified offsets.
 
 Status keys: `done`, `next`, `planned`, `research` (format or address not yet proven; see the Redux research docs).
@@ -19,13 +21,13 @@ Status keys: `done`, `next`, `planned`, `research` (format or address not yet pr
 | ReWeaver: .rwmod changes-only project | `.bwproj` JSON storing only changed fields, keyed by ID and edition | M2 | done (v0.4.0) |
 | ReWeaver: Save mod / Export mod split | Save writes project only; Export is a separate, confirmed step | M2 / M3 | done (v0.5.0) |
 | ReWeaver: diff between versions (modded vs vanilla) | Open a modified disc (exports, Redux) and compare it with the original | M3 | done (v0.5.0) |
-| FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | undo/redo done; change list panel not yet |
-| FEBuilder: lint / error checker | Validation rules plus hazard list from `editor_hazards.json` | M2 | planned |
+| FEBuilder: undo history | Undo/redo per edit, change list panel | M2 | done: undo/redo and searchable change manifest with original/current values (v0.115.0) |
+| FEBuilder: lint / error checker | Validation rules plus hazard list from `editor_hazards.json` | M2 | known dependency and patch conflict checks done (v0.115.0); broader behavioral validation remains planned |
 | FEBuilder: UPS export | Export patched ISO copy and an xdelta patch against the clean disc | M3 | ISO export done (v0.5.0); xdelta patch not yet |
 | ReWeaver: export to emulator folder, backups | Export into a chosen folder, keep previous exports in a backups folder | M3 | planned |
 | ReWeaver: first-time setup | Setup: locate ISOs, PCSX2 folder, memory cards, export folder | M3 | planned |
 | FEBuilder: text editor | Dialogue and menu text (TARC archives in DATA*.DAT); needed for the furniture shop list, whose prices are part of the menu text | M5 | research (`extract_berwick_tarc_file_v2.py`) |
-| FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M8+ | research |
+| FEBuilder: graphics import/export | Portraits, sprites, icons viewer then import | M8+ | battle PNG frames, sprite sheets, timing/origin JSON and separate effect layers exported (v0.116.0 to v0.118.0); imports and map sprite decoding remain research |
 | Shop editors | Shop item lists | M5 | Shops page (v0.61.0): every shop at the base and on battle maps, change, add and remove items through their scripts |
 | FEBuilder: map editor, event editor | Chapter maps, unit placement, events (armies and bosses editable since v0.32.0: class, level, bonuses, skills, items, drops) | M8+ | event script viewer done (v0.28.0, Events page: archives, decompression and the script format decoded); script compression and same-size archive writing done, first use stable prices (v0.29.0); map viewer done (v0.52.0, Maps page: painted map with its starting layers, hex grid, terrain, spots, armies; start positions of every unit and the deployment hexes in v0.53.0, reinforcements with their turns in v0.54.0, turn ranges, spots and conditions in v0.55.0); script numbers editable (v0.57.0, Events page: every copy, project, export, checked in game); scripts can grow (v0.58.0: archives repacked, moved to unused space when needed, checked in game); script lines can be added, copied, removed and moved (v0.59.0, checked in game); scripts edited as text (v0.60.0, every event reads back from its text); texts, commands and map editing not yet |
 | FEBuilder: emulator RAM link | PCSX2 PINE live viewer (read-only first), launch PCSX2 with export | M8+ | research (`pine_*.py`) |

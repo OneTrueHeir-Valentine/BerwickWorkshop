@@ -13,7 +13,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.114.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.118.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -64,6 +64,7 @@
       <Button x:Name="RedoButton" Content="Redo" Style="{StaticResource SmallButton}" Click="RedoEdit" ToolTip="Redo (Ctrl+Y)"/>
       <Button x:Name="OpenProjectButton" Content="Open project" Style="{StaticResource SmallButton}" Click="OpenProject" ToolTip="Open a saved project"/>
       <Button x:Name="SaveProjectButton" Content="Save project" Style="{StaticResource SmallButton}" Click="SaveProject" ToolTip="Save project (Ctrl+S)"/>
+      <Button x:Name="ReviewButton" Content="Review changes" Style="{StaticResource SmallButton}" Click="ReviewChanges"/>
       <Button x:Name="ExportButton" Content="Export disc" Style="{StaticResource SmallButton}" Click="ExportDisc" ToolTip="Write a patched copy of the disc"/>
      </StackPanel>
      <TextBlock x:Name="VerifiedText" Grid.Column="2" Foreground="{StaticResource Accent}" VerticalAlignment="Center" Margin="12,0,0,0"/></Grid>
@@ -555,6 +556,7 @@
         <StackPanel Margin="0,0,12,8"><TextBlock Text="Colours" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationPaletteBox" Width="190" SelectionChanged="AnimationPaletteChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Colours"/></StackPanel>
         <StackPanel Margin="0,0,12,8"><TextBlock Text="Size" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationSizeBox" Width="80" SelectedIndex="1" SelectionChanged="AnimationSizeChanged" AutomationProperties.Name="Size"><ComboBoxItem Content="1x"/><ComboBoxItem Content="2x"/><ComboBoxItem Content="3x"/></ComboBox></StackPanel>
         <Button x:Name="AnimationPlayButton" Content="Pause" Click="ToggleAnimation" VerticalAlignment="Bottom" Margin="0,0,8,8" MinWidth="70" ToolTip="Play or pause the motion"/>
+        <Button Content="Export" Click="ExportAnimation" VerticalAlignment="Bottom" Margin="0,0,8,8" ToolTip="Export PNG frames and sprite sheets"/>
         <Button x:Name="AnimationStepButton" Content="Next frame" Click="StepAnimation" VerticalAlignment="Bottom" Margin="0,0,0,8" ToolTip="Show the next frame"/>
        </WrapPanel>
        <TextBlock DockPanel.Dock="Bottom" x:Name="AnimationFrameText" Style="{StaticResource Caption}" Margin="12,0,12,10"/>

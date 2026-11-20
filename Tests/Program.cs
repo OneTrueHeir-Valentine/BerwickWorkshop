@@ -14,6 +14,10 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+ChangeReviewTests.Run(Test);
+AnimationExportTests.Run(Test);
+EffectTrackTests.Run(Test);
+
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
     Equal(names.Count,SkillCatalog.All.Count);
@@ -686,6 +690,7 @@ if(args.Length>=2)
         Equal(600,en.Items.Single(i=>i.Id==1).Price);Equal(100,en.Items.Single(i=>i.Id==506).Price);
         Console.WriteLine($"English mirror differences: {en.DifferentTableRecords}");
     });
+    if (jp is not null && en is not null) ChangeReviewTests.RunDiscs(Test, jp, en);
     Test("English battle animations: Spear Knight sets, colours and frames",()=>{
         using var iso=new IsoImage(File.OpenRead(args[1]));
         var archives=new GameArchives(iso);

@@ -222,13 +222,8 @@ public static class Exporter
 
         var ordered = patches.OrderBy(p => p.Offset).ToList();
         long sourceLength = new FileInfo(source).Length;
-        for (int i = 0; i < ordered.Count; i++)
-        {
-            var p = ordered[i];
-            if (p.Expected is { } expected && expected.Length != p.Bytes.Length) throw new EditException("A change has incomplete original data.");
-            if (p.Offset < 0 || p.Bytes.Length == 0 || p.Offset + p.Bytes.Length > sourceLength) throw new EditException("A change falls outside the disc image.");
-            if (i > 0 && ordered[i - 1].Offset + ordered[i - 1].Bytes.Length > p.Offset) throw new EditException("Two changes overlap.");
-        }
+        if (PatchChecks.Analyze(ordered, sourceLength).FirstOrDefault() is { } problem)
+            throw new EditException(problem.Message);
         string? folder = Path.GetDirectoryName(destination);
         if (folder is null || !Directory.Exists(folder)) throw new EditException("The destination folder does not exist.");
         var drive = new DriveInfo(Path.GetPathRoot(destination)!);
