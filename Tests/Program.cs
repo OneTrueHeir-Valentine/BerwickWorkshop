@@ -1280,10 +1280,11 @@ foreach(var exportDisc in new[]{jp!,en!})
             using var iso=new IsoImage(stream);
             var library=new EventLibrary(new GameArchives(iso));
             var original=library.Bytes(Pavilion.ServerEvent);
-            Equal(284,original.Length);Equal(false,Pavilion.IsAnyUnit(original,library.CommandNames));
-            var bytes=Pavilion.AnyUnitServer(library.CommandNames);
-            Equal(true,Pavilion.IsAnyUnit(bytes,library.CommandNames));
-            Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(bytes),library.CommandNames),library.CommandNames)).AsSpan().SequenceEqual(bytes));
+            var commandNames=library.CommandNames ?? throw new Exception("Missing event command names");
+            Equal(284,original.Length);Equal(false,Pavilion.IsAnyUnit(original,commandNames));
+            var bytes=Pavilion.AnyUnitServer(commandNames);
+            Equal(true,Pavilion.IsAnyUnit(bytes,commandNames));
+            Equal(true,ScriptWriter.Write(ScriptCompiler.Compile(ScriptText.Format(ScriptParser.Parse(bytes),commandNames),commandNames)).AsSpan().SequenceEqual(bytes));
             var session=new EditSession(disc);Equal(true,session.SetScript(Pavilion.ServerEvent,bytes));Equal(true,session.HasScript(Pavilion.ServerEvent));
         }
     });
@@ -1410,7 +1411,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,library.BattleMapFiles().Keys.All(b=>Deployment.Limit(library,b) is {Own:true}));int shared=5;
             var fallback=Deployment.Limit(library,shared)!.Value;Equal(false,fallback.Own);Equal(8,fallback.Number.Value);Equal(Deployment.DefaultEvent,fallback.Number.Event);
             Equal<int?>(null,Deployment.OwnLimitEvent(library,shared));Equal<int?>(2395,Deployment.OwnLimitEvent(library,6));
-            var added=Deployment.AddOwnLimit(library.Bytes(2395),5,library.CommandNames);
+            var added=Deployment.AddOwnLimit(library.Bytes(2395),5,library.CommandNames ?? throw new Exception("Missing event command names"));
             Equal("5,12",string.Join(",",ScriptValues.Numbers(2395,ScriptParser.Parse(added),library.CommandNames).Where(n=>n.Command=="SetMapUnitMax").Select(n=>n.Value).Order()));
             string file=library.BattleMapFiles()[6];int top=archives.Find("bmap/"+file);
             var map=BattleMaps.Load(archives,library,6,file)!;
