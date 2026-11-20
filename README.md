@@ -1,6 +1,6 @@
 # Berwick Workshop
 
-An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation, each with its own verified addresses. Names follow the English release as the game shows them.
+An editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation, each with its own verified addresses.
 
 ## What it edits
 
@@ -15,9 +15,9 @@ An offline Windows editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (Pla
 
 ## Also included
 
-- **Skills page:** what each of the 90 skills does, whether it is a command, who has it, and how that is known.
-- **Maps page:** every battle's map with terrain, spots, starting positions and later arrivals.
-- **Battle animations page:** the animation set each class plays and the colours each character wears, played back as in the game, plus the sets no class uses. Sets, colours and each class's map sprite can be changed.
+- **Skills page:** what each of the 90 skills does, whether it is a command, and various parts of different skills.
+- **Maps page:** every battle's map with terrain, starting positions, and reinforcements.
+- **Battle animations page:** the animation set each class plays and the colors each character wears, played back as in the game, plus the sets no class uses. Sets, colors and each class's map sprite can be changed.
 - **Mechanics page:** the game's formulas with how well each is verified and links to the values you can change.
 - **Compare:** open a second disc to compare items, characters and classes.
 - **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map (including giving or changing a horse), try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.
