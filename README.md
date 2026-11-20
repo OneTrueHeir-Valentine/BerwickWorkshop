@@ -2,7 +2,7 @@
 
 An editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation, each with its own verified addresses.
 
-Download [Berwick Workshop 0.118.0 for Windows](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/tag/v0.118.0), unpack it, and run `Berwick Workshop.exe`. The release includes its runtime.
+Download [the latest Berwick Workshop release for Windows](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest), unpack it, and run `Berwick Workshop.exe`. The release includes its runtime.
 
 ## What it edits
 
