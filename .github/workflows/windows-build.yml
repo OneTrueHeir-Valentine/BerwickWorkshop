@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Check source boundaries
+        shell: pwsh
+        run: ./tools/verify-structure.ps1
       - name: Install .NET 9
         uses: actions/setup-dotnet@v4
         with:
