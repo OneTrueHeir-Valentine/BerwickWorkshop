@@ -82,7 +82,7 @@ Different checks establish different things. Keep these distinctions clear when 
 
 State which edition was checked, particularly when the distinction matters. A build that passes does not prove an edit works in a running game. A successful PCSX2 test on one route or battle does not establish that every other use of a shared event is safe. Unknowns can remain unknown in public text.
 
-Do not invent contributor names, test results, artwork origins or licenses. Keep established credits. The game artwork comes from a user's local disc and should not be placed in source control or release archives. Any extra art distributed with the editor requires traceable permission. The source and reuse rights for `App/workshop.ico` remain unverified.
+Do not invent contributor names, test results, artwork origins or licenses. Keep established credits. The game artwork comes from a user's local disc and should not be placed in source control or release archives. Any extra art distributed with the editor requires traceable permission. The source and reuse rights for `App/workshop.ico` remain unverified. There is also no project license at the repository root. Until [the licensing decision](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues/33) is made, do not describe the application's source as open source simply because the repository is public.
 
 ## Editorial review
 
