@@ -11,8 +11,10 @@ internal static class PromotionAuditFiles
             if (directory.LinkTarget is not null || directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0)
                 throw new IOException("Private audit output cannot use a linked directory.");
             string git = Path.Combine(directory.FullName, ".git");
-            if (File.Exists(git) || Directory.Exists(git))
-                throw new IOException("Private audit output must be outside every Git checkout, including ignored folders.");
+            bool bare = File.Exists(Path.Combine(directory.FullName, "HEAD")) &&
+                Directory.Exists(Path.Combine(directory.FullName, "objects")) && Directory.Exists(Path.Combine(directory.FullName, "refs"));
+            if (File.Exists(git) || Directory.Exists(git) || bare)
+                throw new IOException("Private audit output must be outside Git repositories, including ignored folders.");
         }
         return full;
     }

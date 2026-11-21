@@ -17,6 +17,11 @@ internal static class PromotionAuditFileTests
             Directory.CreateDirectory(worktree);
             File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: synthetic");
             Reject(() => PromotionAuditFiles.ValidateDirectory(Path.Combine(worktree, "audit")));
+            string bare = Path.Combine(folder, "bare.git");
+            Directory.CreateDirectory(Path.Combine(bare, "objects"));
+            Directory.CreateDirectory(Path.Combine(bare, "refs"));
+            File.WriteAllText(Path.Combine(bare, "HEAD"), "ref: refs/heads/research");
+            Reject(() => PromotionAuditFiles.ValidateDirectory(Path.Combine(bare, "audit")));
         }));
         test("Audit reports preserve existing files and directories", () => InFolder(folder =>
         {
