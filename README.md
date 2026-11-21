@@ -48,4 +48,4 @@ No game files are needed to build the application. The `Core` project handles fo
 
 ## License
 
-Berwick Workshop's original source code is available under the [MIT License](LICENSE). The credited MinN-11 reference files retain their [existing MIT notice](reference/MintX-LICENSE.txt). Berwick Saga game files and artwork are not supplied with the editor or covered by its source license.
+Berwick Workshop's original source code is available under the [MIT License](LICENSE). The credited MinN-11 reference files retain their [existing MIT notice](reference/MintX-LICENSE.txt). Berwick Saga game files and artwork are not supplied with the editor or covered by its source license. See [Licensing](docs/LICENSING.md) for the source and artwork details.
