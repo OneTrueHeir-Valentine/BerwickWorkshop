@@ -17,6 +17,7 @@ void Throws<T>(Action action) where T:Exception
 ChangeReviewTests.Run(Test);
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
+MipsAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
