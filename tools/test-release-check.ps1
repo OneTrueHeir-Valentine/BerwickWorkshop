@@ -2,6 +2,13 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $checker = Join-Path $PSScriptRoot 'check-release.ps1'
+foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'))) {
+    $tokens = $null
+    $errors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+    if (@($errors).Count -gt 0) { throw "PowerShell syntax error in $path." }
+}
+
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
 try {

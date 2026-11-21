@@ -30,6 +30,19 @@ if ($LASTEXITCODE -ne 0 -or $remote.Trim() -ne $repo) {
     throw 'GitHub CLI could not verify the destination repository.'
 }
 
+$main = & gh api "repos/$repo/git/ref/heads/main" --jq '.object.sha'
+if ($LASTEXITCODE -ne 0 -or $main.Trim() -ne $head) {
+    throw 'The reviewed source commit is not the current main branch head.'
+}
+
+$remoteTags = & gh api "repos/$repo/git/matching-refs/tags/$tag" --jq '.[].ref'
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not check existing Git tags.'
+}
+if (@($remoteTags | Where-Object { $_ -eq "refs/tags/$tag" }).Count -gt 0) {
+    throw "Tag $tag already exists. Nothing was changed."
+}
+
 $existing = & gh release list --repo $repo --json tagName --limit 100
 if ($LASTEXITCODE -ne 0) { throw 'Could not query existing releases.' }
 if (@($existing | ConvertFrom-Json | Where-Object { $_.tagName -eq $tag }).Count -gt 0) {
