@@ -1,4 +1,4 @@
-<Window x:Class="Berwick.Workshop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Berwick Workshop" Width="1300" Height="840" MinWidth="1060" MinHeight="680" WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="OnDrop" PreviewKeyDown="OnKeyDown" Closing="OnClosing">
+<Window x:Class="Berwick.Workshop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:maps="clr-namespace:Berwick.Workshop" Title="Berwick Workshop" Width="1300" Height="840" MinWidth="1060" MinHeight="680" WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="OnDrop" PreviewKeyDown="OnKeyDown" Closing="OnClosing">
  <Grid>
   <Grid.ColumnDefinitions><ColumnDefinition Width="200"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
   <Border Background="#253A31" Padding="22,30,22,20">
@@ -498,48 +498,8 @@
      </Border>
      <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="EventCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
-    <Grid x:Name="MapsPage" Visibility="Collapsed">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <Grid.ColumnDefinitions><ColumnDefinition Width="250" MinWidth="200"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250" MinWidth="200"/></Grid.ColumnDefinitions>
-      <GridSplitter Grid.Column="1" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
-      <GridSplitter Grid.Column="3" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
-     <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Each battle's map as the game paints it, with the terrain of every hex, where every unit stands when the battle opens, which units arrive later and on which turn, where you can place your own units, and the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize. Hover over a hex to see its position, terrain and the unit on it. This page is for reading."/>
-     </Border>
-     <ListBox Grid.Row="1" x:Name="MapList" SelectionChanged="MapSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battles"/>
-     <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
-      <DockPanel>
-       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,10,12,0">
-        <CheckBox x:Name="MapArtBox" Content="Map art" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="The map as it is painted in the game"/>
-        <CheckBox x:Name="MapTerrainBox" Content="Terrain colors" IsChecked="False" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Color each hex by its terrain"/>
-        <CheckBox x:Name="MapUnitsBox" Content="Units" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Show where units stand when the battle starts"/>
-        <CheckBox x:Name="MapArrivalsBox" Content="Arrivals" IsChecked="True" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Show where units arrive later, and on which turn"/>
-        <CheckBox x:Name="MapMoveBox" Content="Move units" IsChecked="False" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Click a unit, then click the hex where it should start the battle"/>
-        <CheckBox x:Name="MapDeployBox" Content="Edit deployment" IsChecked="False" Click="MapViewChanged" VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="Click hexes to add or remove places where your units can start"/>
-        <TextBlock Text="Size" VerticalAlignment="Center" FontSize="12" Margin="0,0,8,0"/>
-        <ComboBox x:Name="MapSizeBox" Width="90" SelectedIndex="1" SelectionChanged="MapViewChanged" AutomationProperties.Name="Map size">
-         <ComboBoxItem Content="Small"/><ComboBoxItem Content="Medium"/><ComboBoxItem Content="Large"/>
-        </ComboBox>
-       </StackPanel>
-       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Canvas x:Name="MapCanvas" Margin="12" ClipToBounds="True" AutomationProperties.Name="Battle map" PreviewMouseLeftButtonDown="MapCanvasClick" PreviewMouseRightButtonDown="MapCanvasRightClick" Background="Transparent"/></ScrollViewer>
-      </DockPanel>
-     </Border>
-     <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,8,0">
-       <Border x:Name="MapUnitBox" Visibility="Collapsed" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,12">
-        <StackPanel>
-         <DockPanel Margin="0,0,0,6"><Button x:Name="EditMapUnitButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginMapUnitEdit" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="SELECTED UNIT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
-         <TextBlock x:Name="MapUnitName" FontFamily="Georgia" FontSize="18" TextWrapping="Wrap"/>
-         <StackPanel x:Name="MapUnitFields"/>
-         <StackPanel x:Name="MapUnitEditorPanel" Visibility="Collapsed"/>
-        </StackPanel>
-       </Border>
-       <StackPanel x:Name="MapDetails"/>
-      </StackPanel></ScrollViewer>
-     </Border>
-     <TextBlock Grid.Row="2" Grid.ColumnSpan="5" x:Name="MapCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
-    </Grid>
-    <Grid x:Name="AnimationsPage" Visibility="Collapsed">
+    <maps:MapEditorView x:Name="MapsPage" Visibility="Collapsed"/>
+     <Grid x:Name="AnimationsPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid.ColumnDefinitions><ColumnDefinition Width="250" MinWidth="200"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
