@@ -59,3 +59,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\publish-release.ps1 
 Use the verified commit as the release tag target. Keep release notes factual and restricted to changes confirmed by the build and tests. Do not replace the existing public release until the new one has been verified.
 
 GitHub's hosted offline workflow cannot access privately owned game images or directly validate PCSX2. The local checks and signed-off verification record therefore remain a required manual release step.
+
+## Local verification records
+
+Create a record in the checkout when preparing a new release:
+
+```powershell
+.\tools\new-release-record.ps1 -Version 0.119.0
+```
+
+With a package already prepared, provide `-Package` to populate its SHA-256 automatically. Records live in `release-handoff/` at the repository root, which Git ignores. The script never marks a check as passed. Update the local JSON only after running each disc test, inspecting the package and completing the PCSX2 smoke tests.
+
+Tools and editors running in the same local checkout can read these files. Separate workspaces and remote jobs do not automatically share the ignored directory. Keep the records on the machine used for the tests and provide an explicit copy only when verification must be reviewed elsewhere.
+
+The release publishing command accepts an evidence path inside `release-handoff/`. Neither the evidence JSON nor the original game images should be committed.

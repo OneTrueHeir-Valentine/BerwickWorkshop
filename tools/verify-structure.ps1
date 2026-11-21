@@ -41,4 +41,9 @@ foreach ($file in $gitFiles) {
         throw "Private coordination file or game asset is tracked: $file"
     }
 }
+
+$ignored = & git -C $root check-ignore -- 'release-handoff/release-test.evidence.json'
+if ($LASTEXITCODE -ne 0 -or -not $ignored) {
+    throw 'Local release-handoff evidence must remain Git-ignored.'
+}
 Write-Host 'Source boundaries and public file checks passed.'

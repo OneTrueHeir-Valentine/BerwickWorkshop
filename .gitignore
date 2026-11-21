@@ -3,3 +3,5 @@ obj/
 .dotnet/
 .vs/
 *.user
+# Release evidence and packaged local handoffs
+/release-handoff/

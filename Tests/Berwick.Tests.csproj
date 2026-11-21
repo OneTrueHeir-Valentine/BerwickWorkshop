@@ -6,4 +6,5 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../Core/Berwick.Core.csproj" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Fixtures/shield-guard-quarter.hex" LogicalName="Berwick.Tests.ShieldGuardQuarter" /></ItemGroup>
 </Project>
