@@ -1,4 +1,7 @@
 using Berwick.Core;
+using System.Buffers.Binary;
+using System.Text;
+using System.Text.RegularExpressions;
 
 internal sealed record OnMapMember(string Name, int StoredSize, bool Compressed, string Prefix);
 
@@ -42,6 +45,26 @@ internal static class OnMapArchiveInspection
             using var stream = File.OpenRead(imagePath);
             using var iso = new IsoImage(stream);
             var archives = new GameArchives(iso);
+            var config = Encoding.ASCII.GetString(iso.ReadFile("SYSTEM.CNF", 64 * 1024));
+            var boot = Regex.Match(config, @"(?im)^\s*BOOT2\s*=\s*cdrom0:[\\/]*([^;\r\n]+)");
+            if (!boot.Success) throw new InvalidDataException("The disc has no supported boot-file entry.");
+            var executableName = boot.Groups[1].Value.Trim();
+            if (executableName.Contains('/') || executableName.Contains('\\'))
+                throw new InvalidDataException("The boot-file path is not supported.");
+            var executable = iso.ReadFile(executableName, 32 * 1024 * 1024);
+            var spriteRows = MapSpriteData.Read(executable);
+            if (spriteRows.Count > 0)
+            {
+                Console.WriteLine("Class sprite names from the executable:");
+                foreach (int cls in new[] { 1, 2, 3, 5, 6, 7, 13, 18, 19 })
+                {
+                    var row = spriteRows[cls - 1].Bytes;
+                    var name = MapSpriteData.Name(executable, BinaryPrimitives.ReadUInt32LittleEndian(row));
+                    var shield = MapSpriteData.Name(executable, BinaryPrimitives.ReadUInt32LittleEndian(row.AsSpan(4)));
+                    Console.WriteLine($"  Class {cls}: {name ?? "(none)"}; shield {shield ?? "(none)"}");
+                }
+            }
+            else Console.WriteLine("The class sprite table was not recognized.");
             var files = archives.FolderFiles("onmap").OrderBy(item => item.Top).ToList();
             Console.WriteLine($"Found {files.Count} archives in onmap.");
             if (files.Count == 0) return 1;
