@@ -95,7 +95,15 @@ The checks read active project scripts and current placement bytes again before 
 
 Run `dotnet Tests/bin/Release/net9.0/Berwick.Tests.dll --maps` for focused Core/project/export fixtures, or use the `net9.0-windows` target to include dialog-control checks. Local checks run both targets. These are synthetic tests, not retail or PCSX2 verification. Before release, check both supported editions for add/remove presence, shared effects, original-record preservation, undo/save/reopen and exported-game behavior. Unknown script or catalogue layouts may cause conservative refusal and need investigation rather than bypassing the guard.
 
+### Launch reference verification
+
+Read-only inspection of the recognized Japanese retail and English v2.3 images found 45 `LaunchBMap` calls and one `LaunchBMap2` call in each edition's indexed event scripts. `LaunchBMap` places the battle and map file at argument indexes 0 and 1. The `LaunchBMap2` call in event 3902 at byte offset `0xE0` has a mode expression at index 0, battle 201 at index 1 and `zmap002.ar` at index 2. This confirms the different argument positions independently of the previous army-label parser. The shared reader does not evaluate the mode expression or claim to support computed battle/file arguments.
+
+The same inspection exposed a separate acceptance blocker: the strict placement catalogue reader rejects the leading `evdata.dat` entry (size 8, identity 0, count 1) on both editions. Its purpose and safe handling remain unverified. Do not skip it or relax the complete-reference guard merely to enable placement. No battle currently qualifies through this guard. Map 1 remains the first manual candidate once references can be established; the current literal launch catalogue does not resolve battle 1 or `bmap001.ar`, so an alternate early battle cannot yet be approved. Resolve the catalogue issue and verify Map 1's actual battle identity before selecting a fallback.
+
 ### Development order
+
+Use [the edition compatibility checklist](EDITION-COMPATIBILITY.md) for separate Japanese retail and English v2.3 acceptance runs. Future placement interaction should support selecting an existing unit and clicking a destination hex with preview, validation and explicit confirmation. Keep that work separate from the current coordinate-entry workflow and reinforcement expansion.
 
 1. Separate page code and cohesive patch families without changing behavior.
 2. Move editor operations into testable services, leaving views responsible for presentation.
