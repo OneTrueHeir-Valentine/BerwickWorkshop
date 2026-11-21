@@ -45,3 +45,7 @@ dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleF
 The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a Redux modified disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
 
 No game files are needed to build the application. The `Core` project handles formats, editing and export; `App` contains the Windows interface; `Tests` holds the checks. The `reference` folder includes credited material from the MinN-11 editor and other data sources.
+
+## License and contributions
+
+Berwick Workshop's original source code is licensed under the [GNU GPL, version 3 or later](LICENSE). The [licensing notes](LICENSING.md) explain the separate rights for the game's content and credited reference material. To contribute code or corrections, see [Contributing](CONTRIBUTING.md). Contributors retain copyright in their work.
