@@ -137,7 +137,9 @@ public static partial class GameRules
     public const int ReservedLength = 0x1000;
     public static long FileOf(uint address) =>
         address >= ReservedAddress && address < ReservedAddress + ReservedLength ? ReservedFile + (address - ReservedAddress) : address - ProgramToFile;
-    internal const uint HeapStartSite = 0x00126114, HeapStartOriginal = 0x24420800u, HeapStartReserved = 0x24421800u;
+    internal const uint HeapStartSite = 0x00126114;
+    internal static readonly uint HeapStartOriginal = MipsPatchSource.Single("Berwick.Mips.HeapOriginal", HeapStartSite);
+    internal static readonly uint HeapStartReserved = MipsPatchSource.Single("Berwick.Mips.HeapReserved", HeapStartSite);
     internal const long SegmentHeader = 0x74;
     internal static readonly uint[] SegmentOriginal = [1, 0x3B4780, 0x00570380, 0x00570380, 0, 0, 6, 0x10];
     internal static readonly uint[] SegmentReserved = [1, (uint)ReservedFile, ReservedAddress, ReservedAddress, ReservedLength, ReservedLength, 7, 0x80];
