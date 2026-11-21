@@ -41,7 +41,7 @@ The first migrated hook is the heap allocation increment used when shield guard 
 
 ## Source license
 
-Berwick Workshop's own source is distributed under the [MIT License](../LICENSE). Keep the copyright and permission notice when copying or distributing the code. The credited MinN-11 reference files retain their original MIT notice in `reference/MintX-LICENSE.txt`. The license does not grant rights to Berwick Saga game data, artwork, translations or third-party dependencies. Check those materials' terms separately.
+Berwick Workshop's own source is distributed under the [MIT License](../LICENSE). Keep the copyright and permission notice when copying or distributing the code. The credited MinN-11 reference files retain their original MIT notice in `reference/MintX-LICENSE.txt`. The license does not grant rights to Berwick Saga game data, artwork, translations or third-party dependencies. See [Licensing](LICENSING.md) for their separate terms.
 
 ## Documentation and artwork
 
