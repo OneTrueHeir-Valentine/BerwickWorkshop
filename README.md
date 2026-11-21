@@ -30,7 +30,7 @@ A `.bwproj` file holds the edits, leaving the original ISO untouched. The change
 
 Compare lets you inspect item, character and class differences between two discs. When PCSX2 is running on the same computer, the Live Game page can modify units in memory, try rule changes and select a different next sortie. These live changes do not rewrite the disc, saves or memory cards.
 
-For implementation status and unresolved game formats, see the [roadmap](docs/ROADMAP.md) and [research notes](docs/RESEARCH.md).
+For implementation status and unresolved game formats, see the [roadmap](docs/ROADMAP.md) and [research notes](docs/RESEARCH.md). Earlier versions are listed in the [release history](docs/RELEASE_HISTORY.md).
 
 ## Building
 
