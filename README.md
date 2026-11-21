@@ -1,40 +1,40 @@
 # Berwick Workshop
 
-Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chapter 174* on PlayStation 2. It supports the Japanese retail disc and the English v2.3 translation, with separate verified addresses for each edition.
+Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chapter 174* on PlayStation 2. It reads the Japanese retail game and the English v2.3 translation, using the verified data locations for each edition. Changes are kept in a project until you export a new disc image.
 
-[Download the latest Windows release](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest), extract it and run `Berwick Workshop.exe`. The release includes the required runtime.
+[Download the latest Windows release](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest). Extract the archive and run `Berwick Workshop.exe`. The download includes the .NET runtime.
 
-## Editing game data
+## What you can edit
 
-**Items and economy.** Edit item stats, durability, equipped bonuses, resistances and known special effects. The editor also covers shop inventories, horse prices, the Atelier, furniture prices and new items using the game's available item records.
+The Items page covers weapon and equipment stats, durability, resistances, bonuses while equipped and known special effects. Shop inventories, the Stable, Atelier recipes and furniture prices have their own editors. New items can be made using the game's spare item records.
 
-**Characters and armies.** Edit classes, levels, stat bonuses, Luck, growth rates and growth bands, weapon experience, skills, starting equipment, bags, partners, bonds and mercenary fees. The Armies page covers enemies, bosses, guests and story units, including their equipment and drops. Expected stats by level are available for characters.
+Characters have editable levels, classes, stat bonuses, growths, weapon skills and starting equipment. The page also covers bags, partners, bonds and mercenary fees, with expected stats shown for each level. The Armies page gives similar access to enemies, bosses, guests and story units, including their items and drops. Class base stats, movement types, weapon caps, shield permissions and class skills are edited separately, so changes to a class can affect more than one unit.
 
-**Classes and terrain.** Edit class stats, movement, weapon caps, shield permissions and class skills. Terrain settings include movement costs, avoid, recovery and restrictions on where flying units may stop.
+Movement costs can be changed for each terrain type, along with terrain avoid, recovery and the places where flying units may stop. The Skills page documents the game's 90 skills and the parts of their behavior that can be edited. The Rules and Mechanics pages cover combat calculations and settings such as Parry, shields, durability, experience and stat limits. Settings that have not been verified sufficiently in the running game are not offered as editable rules.
 
-**Maps and events.** View the painted maps, terrain, deployment positions, starting units, reinforcements and event spots. The Maps page supports editing existing positions and deployment hexes. The Events page reads the game's scripts as commands and can change values, individual lines or complete scripts, including reinforcement timing.
+## Maps and events
 
-**Rules and mechanics.** Change supported battle rules for Parry, shield use, durability, experience, stat limits and skill behavior. The Skills page describes the game's 90 skills, including commands and known effects. The Mechanics page explains formulas and their verification status. Rules without sufficient in-game verification are not offered for editing.
+Maps displays the painted battle maps, terrain, deployment hexes, starting units, later arrivals and event spots. Existing unit positions, deployment positions and limits, and some reinforcement locations and turns can be changed there.
 
-## Maps, graphics and animations
+The Events page opens the game's scripts as readable commands. You can edit numbers, individual commands and complete scripts, including the conditions that determine when units arrive. Some event structures still require direct work in the Events editor rather than a dedicated Maps control.
 
-The Maps page displays map artwork decoded from the opened game image, with optional terrain and unit overlays.
+## Graphics
 
-The Battle Animations page shows the animation sets and palettes assigned to classes and characters. It also lists unused sets and allows existing animation and map-sprite assignments to be changed. Animation frames and sprite sheets can be exported as transparent PNGs, with timing and alignment information in JSON. Separate effect layers are available with their source metadata. These exports reproduce decoded artwork, not every transform or blend applied by the game at runtime.
+Battle Animations plays the sets and palettes assigned to classes and characters, including sets that no class currently uses. Assignments can be changed, and the decoded animation frames can be exported as transparent PNGs or sprite sheets. JSON files record frame order, timing and alignment. Effect artwork has a separate export with its palette and transform information. The exports contain the decoded source artwork, not necessarily the complete image the game produces after runtime effects.
 
-Game artwork is read from the user's disc image. The repository and application downloads do not include extracted game art.
+The Maps page already draws its background from the opened disc. Decoding the smaller unit sprites used on the map is separate work. The application does not ship with extracted game graphics.
 
-## Projects, comparison and live testing
+## Projects and PCSX2
 
-Edits are saved in `.bwproj` projects. Export creates a new ISO for use in PCSX2; the original disc image is not overwritten. The change review shows original and current values, affected files and known dependency conflicts, and can export a JSON manifest.
+A `.bwproj` file holds the edits, leaving the original ISO untouched. The change review shows what differs from the disc, including changes to scripts and text, and can export a JSON manifest. Export creates a new ISO that can be opened in PCSX2.
 
-The Compare page checks items, characters and classes against a second disc. With PCSX2 running locally, the Live Game page can inspect and edit units in memory, test rules and select the next sortie. These live operations do not write to the disc image, save files or memory cards.
+Compare lets you inspect item, character and class differences between two discs. When PCSX2 is running on the same computer, the Live Game page can modify units in memory, try rule changes and select a different next sortie. These live changes do not rewrite the disc, saves or memory cards.
 
-The [roadmap](docs/ROADMAP.md) lists implemented features and remaining work. [Research notes](docs/RESEARCH.md) record the game-format findings and verification evidence.
+For implementation status and unresolved game formats, see the [roadmap](docs/ROADMAP.md) and [research notes](docs/RESEARCH.md). Earlier versions are listed in the [release history](docs/RELEASE_HISTORY.md).
 
-## Building from source
+## Building
 
-The project requires the .NET 9 SDK. Build the tests, optionally run them against both supported game images, and publish the Windows application:
+You need the .NET 9 SDK. From the repository root:
 
 ```powershell
 dotnet build Tests -c Release
@@ -42,18 +42,6 @@ dotnet Tests\bin\Release\net9.0\Berwick.Tests.dll "<Japanese ISO>" "<English ISO
 dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\Berwick Workshop"
 ```
 
-The ISO arguments are optional. Without them, only offline tests run. A third argument can check a Redux-modified disc. Tests using game images create temporary exports and remove them afterward; allow at least 9 GB of free disk space. Original images are opened read-only.
+The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a Redux modified disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
 
-No game files are needed to build the software.
-
-## Source layout
-
-| Directory | Contents |
-| --- | --- |
-| `Core` | Disc formats, game data, rules, projects and export |
-| `App` | Windows desktop interface (WPF) |
-| `Tests` | Offline and edition-specific checks |
-| `reference` | Reference tables and tools, including credited MinN-11 editor material |
-| `docs` | Development notes, research, release checks and roadmap |
-
-See [Development and architecture](docs/DEVELOPMENT.md) for the source conventions and verification process.
+No game files are needed to build the application. The `Core` project handles formats, editing and export; `App` contains the Windows interface; `Tests` holds the checks. The `reference` folder includes credited material from the MinN-11 editor and other data sources. Development and release procedures are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and [docs/RELEASING.md](docs/RELEASING.md).
