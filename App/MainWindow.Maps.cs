@@ -145,13 +145,9 @@ public partial class MainWindow
             DrawMap(shownMap,shownPicture,shownTitle);return;
         }
         if(here.Count>0){movingUnit=null;Status.Text="Move cancelled.";DrawMap(shownMap,shownPicture,shownTitle);return;}
-        if(map.KindAt(x,y)==BattleMaps.Border){Status.Text="A unit must start inside the map.";return;}
-        if(DeploymentOf(map).Contains((x,y))){Status.Text="That hex is one of your deployment hexes. Choose another, or remove it from deployment first.";return;}
         try
         {
-            var record=Placement.Move(session.EditedBytes(EditSession.Placements,map.Top),moving.Group,moving.Index+1,x,y);
-            var values=new Dictionary<string,int>{[$"g{moving.Group}x{moving.Index+1}"]=x,[$"g{moving.Group}y{moving.Index+1}"]=y};
-            if(session.Apply(EditSession.Placements,map.Top,values))
+            if (MapEdits.MovePlacement(session, map, moving.Group, moving.Index, x, y, DeploymentOf(map)))
             {
                 Status.Text=$"Unit moved to {x}, {y}. Save the project to keep this change.";
                 if(selectedMapUnit is not null)mapUnitWhere=$"Starts at {x}, {y}";
@@ -271,51 +267,31 @@ public partial class MainWindow
             yield return now;
         }
     }
-    /// <summary>Changes event numbers as one step each: through the project's copy when it replaces the event, else as script numbers.</summary>
-    private bool SetEventNumbers(IReadOnlyDictionary<(int Event,int Index),int> values)
+    private bool SetEventNumbers(IReadOnlyDictionary<(int Event, int Index), int> values)
     {
-        if(session is null || events is not { } library)return false;
-        bool changed=false;
-        foreach(var group in values.GroupBy(v=>v.Key.Event))
-        {
-            if(session.HasScript(group.Key))
-            {
-                var updated=ScriptValues.Apply(session.EventScript(group.Key)!,group.ToDictionary(v=>v.Key.Index,v=>v.Value));
-                CheckEventFits(library,group.Key,updated);
-                changed|=session.SetScript(group.Key,updated);
-                continue;
-            }
-            foreach(var (place,value) in group)
-            {
-                int key=ScriptValues.Key(place.Event,place.Index);
-                if(ScriptFitProblem(key,value) is string problem)throw new EditException(problem);
-                changed|=session.Apply(EditSession.ScriptValues,key,new Dictionary<string,int>{[ScriptValues.Field.Key]=value});
-            }
-        }
-        return changed;
+        if (session is null || events is not { } library) return false;
+        return MapEdits.SetEventNumbers(session, values,
+            (number, bytes) => CheckEventFits(library, number, bytes), ScriptFitProblem);
     }
-    private void SetArrivalHex(BattleMap map,Reinforcement arrival,int x,int y)
+
+    private void SetArrivalHex(BattleMap map, Reinforcement arrival, int x, int y)
     {
-        if(arrival.Places is not { } at){Status.Text="This arrival's hex is not a plain number in its event, so it cannot be changed here.";return;}
-        if(x<=0 || y<=0 || x>=map.Width-1 || y>=map.Height-1 || map.KindAt(x,y)==BattleMaps.Border){Status.Text="A unit must arrive inside the map.";return;}
-        var values=new Dictionary<(int,int),int>{[(at.Event,at.X)]=x,[(at.Event,at.Y)]=y};
-        // A unit that appears in place (no march in from elsewhere) keeps appearing in place.
-        bool inPlace=arrival.FromX==arrival.X && arrival.FromY==arrival.Y;
-        if(inPlace && (at.FromX,at.FromY)!=(at.X,at.Y)){values[(at.Event,at.FromX)]=x;values[(at.Event,at.FromY)]=y;}
         try
         {
-            if(SetEventNumbers(values))
+            var edit = MapEdits.PlanArrivalMove(map, arrival, x, y);
+            if (SetEventNumbers(edit.Numbers))
             {
-                Status.Text=$"Arrives at {x}, {y} now. Save the project to keep this change.";
-                mapUnitWhere=$"Arrives at {x}, {y}";
-                selectedArrival=arrival with {X=x,Y=y,FromX=inPlace?x:arrival.FromX,FromY=inPlace?y:arrival.FromY};
+                Status.Text = $"Arrives at {x}, {y} now. Save the project to keep this change.";
+                mapUnitWhere = $"Arrives at {x}, {y}";
+                selectedArrival = edit.Updated;
                 RefreshDocument();
             }
         }
-        catch(EditException ex){Status.Text=ex.Message;}
-        DrawMap(shownMap,shownPicture,shownTitle);
-        if(selectedMapUnit is not null)ShowMapUnit(mapUnitWhere);
+        catch (EditException ex) { Status.Text = ex.Message; }
+        DrawMap(shownMap, shownPicture, shownTitle);
+        if (selectedMapUnit is not null) ShowMapUnit(mapUnitWhere);
     }
+
     private void AddArrivalControls(Reinforcement arrival)
     {
         AddSection(MapUnitFields,"Arrival");
@@ -377,24 +353,22 @@ public partial class MainWindow
         if(session is null || session.HasScript(found.Number.Event))return found.Number.Value;
         return session.Value(EditSession.ScriptValues,ScriptValues.Key(found.Number.Event,found.Number.Index),ScriptValues.Field.Key);
     }
-    private void ToggleDeployment(BattleMap map,int x,int y)
+    private void ToggleDeployment(BattleMap map, int x, int y)
     {
-        if(session is null)return;
-        var hexes=DeploymentOf(map).ToList();
-        if(!hexes.Remove((x,y)))
-        {
-            if(map.KindAt(x,y)==BattleMaps.Border){Status.Text="A deployment hex must be inside the map.";return;}
-            hexes.Add((x,y));
-        }
+        if (session is null) return;
         try
         {
-            var record=Deployment.WithHexes(session.Table(EditSession.Deployments).Records[map.Top].Span,hexes);
-            var values=Deployment.Fields.ToDictionary(f=>f.Key,f=>FieldCodec.Read(record,f));
-            if(session.Apply(EditSession.Deployments,map.Top,values)){Status.Text=$"{hexes.Count} deployment hexes. Save the project to keep this change.";RefreshDocument();}
+            var edit = MapEdits.ToggleDeployment(session, map, x, y, DeploymentOf(map));
+            if (edit.Changed)
+            {
+                Status.Text = $"{edit.Count} deployment hexes. Save the project to keep this change.";
+                RefreshDocument();
+            }
         }
-        catch(EditException ex){Status.Text=ex.Message;}
-        DrawMap(shownMap,shownPicture,shownTitle);
+        catch (EditException ex) { Status.Text = ex.Message; }
+        DrawMap(shownMap, shownPicture, shownTitle);
     }
+
     private void AddDeploymentControls(BattleMap map,int hexCount)
     {
         if(events is not { } library)return;
@@ -414,45 +388,48 @@ public partial class MainWindow
         System.Windows.Automation.AutomationProperties.SetName(box,"Most units you can deploy");
         row.Children.Add(box);
         var set=new Button{Content=found.Own?"Set":"Set for every battle",Style=(Style)FindResource("SmallButton"),Margin=new Thickness(0,0,6,0)};
-        set.Click+=(_,_)=>
+        set.Click += (_, _) =>
         {
-            if(!int.TryParse(box.Text.Trim(),out int n) || n<1 || n>63){Status.Text="Enter a number from 1 to 63.";return;}
-            if(replaced)
+            if (!int.TryParse(box.Text.Trim(), out int n) || n < 1 || n > 63)
             {
-                try
-                {
-                    var updated=ScriptValues.Apply(session.EventScript(found.Number.Event)!,new Dictionary<int,int>{[found.Number.Index]=n});
-                    CheckEventFits(library,found.Number.Event,updated);
-                    if(session.SetScript(found.Number.Event,updated)){Status.Text="Deployment limit changed. Save the project to keep this change.";RefreshDocument();DrawMap(shownMap,shownPicture,shownTitle);}
-                }
-                catch(EditException ex){Status.Text=ex.Message;}
+                Status.Text = "Enter a number from 1 to 63.";
                 return;
             }
-            if(ScriptFitProblem(key,n) is string problem){Status.Text=problem;return;}
-            if(session.Apply(EditSession.ScriptValues,key,new Dictionary<string,int>{[ScriptValues.Field.Key]=n})){Status.Text="Deployment limit changed. Save the project to keep this change.";RefreshDocument();DrawMap(shownMap,shownPicture,shownTitle);}
+            try
+            {
+                if (MapEdits.SetDeploymentLimit(session, found.Number, n,
+                    (number, bytes) => CheckEventFits(library, number, bytes), ScriptFitProblem))
+                {
+                    Status.Text = "Deployment limit changed. Save the project to keep this change.";
+                    RefreshDocument();
+                    DrawMap(shownMap, shownPicture, shownTitle);
+                }
+            }
+            catch (EditException ex) { Status.Text = ex.Message; }
         };
         row.Children.Add(set);
         if(!found.Own)
         {
             var own=new Button{Content="Set for this battle only",Style=(Style)FindResource("SmallButton")};
-            own.Click+=(_,_)=>
+            own.Click += (_, _) =>
             {
-                if(!int.TryParse(box.Text.Trim(),out int n) || n<1 || n>63){Status.Text="Enter a number from 1 to 63.";return;}
+                if (!int.TryParse(box.Text.Trim(), out int n) || n < 1 || n > 63)
+                {
+                    Status.Text = "Enter a number from 1 to 63.";
+                    return;
+                }
                 try
                 {
-                    byte[] updated;
-                    int opening;
-                    lock(library)
+                    var edit = MapEdits.SetOwnDeploymentLimit(session, library, map.Battle, n,
+                        (number, bytes) => CheckEventFits(library, number, bytes));
+                    if (edit.Changed)
                     {
-                        var target=Deployment.OwnLimitEvent(library,map.Battle) ?? throw new EditException("This battle has no opening event to hold its own limit.");
-                        opening=target;
-                        var current=session.EventScript(target) ?? library.Bytes(target);
-                        updated=Deployment.AddOwnLimit(current,n,library.CommandNames ?? throw new EditException("This battle's deployment limit cannot be edited because its command list is unavailable."));
+                        Status.Text = $"This battle now sets its own limit in event {edit.Event}. Save the project to keep this change.";
+                        RefreshDocument();
+                        DrawMap(shownMap, shownPicture, shownTitle);
                     }
-                    CheckEventFits(library,opening,updated);
-                    if(session.SetScript(opening,updated)){Status.Text=$"This battle now sets its own limit in event {opening}. Save the project to keep this change.";RefreshDocument();DrawMap(shownMap,shownPicture,shownTitle);}
                 }
-                catch(EditException ex){Status.Text=ex.Message;}
+                catch (EditException ex) { Status.Text = ex.Message; }
             };
             row.Children.Add(own);
         }
