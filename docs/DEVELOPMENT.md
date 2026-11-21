@@ -61,6 +61,22 @@ Animation export fixtures are synthetic. They check shared canvases, source reco
 
 ## Refactor sequence
 
+### Maps smoke test
+
+Map rendering belongs to `MapRenderer`, page selection and load generations to `MapSelectionState`, and mouse/control coordination to `MapEditorView`. `MapEditorDocument` projects the current session into unit/arrival/deployment displays and delegates changes to existing Core operations. `MainWindow` supplies the shared editor, change-list formatting and script-capacity validation. The XAML layout and `MapEditorController` loading path are unchanged.
+
+Run focused geometry/selection and Core map-edit checks with `dotnet Tests/bin/Release/net9.0/Berwick.Tests.dll --maps`. These synthetic tests do not establish retail rendering fidelity. Before accepting a Maps UI change, manually check each supported edition with locally owned data:
+
+- Open Maps, switch battles rapidly and change disc/project; only the latest selection should display, with no old unit, move highlight or arrival pick carried across a reset.
+- Check Small/Medium/Large sizes, scrolling, splitter layout, map art and terrain colors. Hover even/odd-column hexes, spots and stacked unit/arrival markers; verify coordinates, labels and legends.
+- Toggle Units and Arrivals. Select starting and arriving units by left/right click and the unit list; repeated clicks on a stack should cycle. Open the unit editor with Edit/Ctrl+E, apply/cancel, and switch pages while editing.
+- Move a starting unit, cancel a move, and try a border/deployment collision. Add/remove deployment hexes and change shared/battle-specific limits; check unused dashed hexes and feedback.
+- Change an arrival's coordinates/turn, including Pick on map and marching arrivals. Check related units, undo/redo and restored values. Leave and return to Maps and reopen a project to check refreshed displays.
+
+Use a disposable project for edit checks. Do not overwrite original images or saves. If validating an exported change in PCSX2, check both modified editions separately and retain selected screenshots/logs with the local collector. Completing the automated checks does not mark this checklist or emulator testing as passed.
+
+### Development order
+
 1. Separate page code and cohesive patch families without changing behavior.
 2. Move editor operations into testable services, leaving views responsible for presentation.
 3. Introduce explicit patch ownership, assembly sources and byte-equivalence fixtures for executable hooks.

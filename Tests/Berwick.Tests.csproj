@@ -17,5 +17,10 @@
     <Compile Remove="Windows/**/*.cs" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../Core/Berwick.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../App/MapGeometry.cs" Link="MapGeometry.cs" />
+    <Compile Include="../App/MapSelectionState.cs" Link="MapSelectionState.cs" />
+    <Compile Include="../App/MapEditorDocument.cs" Link="MapEditorDocument.cs" />
+  </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Fixtures/shield-guard-quarter.hex" LogicalName="Berwick.Tests.ShieldGuardQuarter" /></ItemGroup>
 </Project>
