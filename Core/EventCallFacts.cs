@@ -15,9 +15,9 @@ public sealed record EventCallFacts(string GraphSha256, IReadOnlyList<ComputedEv
         string? graph = disc.Sha256 switch
         {
             "77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320" =>
-                "D868132AD6C7B00C9ECA0BAEA47EC76B4999F4724FF51892ACFE449EAEBB1D82",
+                "65862EE30D85C2B89B2E106096D0EB5835FBADA497A870607E2223C15A19615B",
             "d7355857377114af3c7734f43250eea2a01cef755531aff04df0a4ccff215111" =>
-                "8376B0417EE294C5BDD51E5E3313FD942A074E597DD900585404002979A9F189",
+                "6D5ECF6F077D1D77D2ED008A169072A34A133A171C265C73E015E8911655DE8D",
             _ => null
         };
         if (graph is null)
@@ -30,15 +30,19 @@ public sealed record EventCallFacts(string GraphSha256, IReadOnlyList<ComputedEv
     public static string Fingerprint(IReadOnlyList<PlacementEventSource> sources)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var header = new byte[12];
+        var header = new byte[16];
         foreach (var source in sources.OrderBy(source => source.Number))
         {
             var bytes = ScriptWriter.Write(source.Nodes);
             BinaryPrimitives.WriteInt32LittleEndian(header, source.Number);
             BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(4), source.Archive);
             BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(8), bytes.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(header.AsSpan(12), source.EncodedBytes?.Length ?? -1);
             hash.AppendData(header);
             hash.AppendData(bytes);
+            // Retain header fields that the parsed view does not interpret.
+            if (source.EncodedBytes is { } encoded)
+                hash.AppendData(encoded.Span);
         }
         return Convert.ToHexString(hash.GetHashAndReset());
     }

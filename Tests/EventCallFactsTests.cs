@@ -68,6 +68,23 @@ internal static class EventCallFactsTests
                 Check(EventCallFacts.ForOriginal(disc with { ExecutableSha256 = "unknown" }) is null, "Unknown native getter used original facts");
             }
         });
+        test("Computed-call fingerprints retain header bytes omitted by the parsed view", () =>
+        {
+            var sources = Fixture();
+            byte[] original = ScriptWriter.Write([new() { Command = ScriptParser.Event, Locals = 6, Args = [[VariableCall(0x14)]] }]);
+            sources[1] = sources[1] with { Nodes = ScriptParser.Parse(original), EncodedBytes = original };
+            var facts = new EventCallFacts(EventCallFacts.Fingerprint(sources), [new(20, 0x14, [30, 31])]);
+            Check(Analyze(sources, facts).Problems.Count == 0, "Original encoded source did not qualify");
+            byte[] edited = (byte[])original.Clone();
+            edited[8] = 1;
+            var parsed = ScriptParser.Parse(edited);
+            Check(ScriptWriter.Write(parsed).SequenceEqual(ScriptWriter.Write(sources[1].Nodes)), "Fixture did not isolate an ignored header field");
+            sources[1] = sources[1] with { Nodes = parsed, EncodedBytes = edited };
+            Check(Analyze(sources, facts).Problems.Count > 0, "Changed header bytes reused the original proof");
+            var changedCall = new ScriptNode { Command = ScriptParser.RunEvent, Offset = 0x14, Args = [[new() { Command = ScriptParser.Variable, Variable = 5 }]] };
+            sources[1] = sources[1] with { Nodes = [new() { Command = ScriptParser.Event, Locals = 6, Args = [[changedCall]] }], EncodedBytes = original };
+            Check(Analyze(sources, facts).Problems.Count > 0, "Changed parsed content reused stale encoded bytes");
+        });
     }
 
     private static PlacementEventSource[] Fixture() =>

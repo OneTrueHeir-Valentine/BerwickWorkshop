@@ -2,7 +2,11 @@ using System.Text.RegularExpressions;
 
 namespace Berwick.Core;
 
-public sealed record PlacementEventSource(int Number, int Archive, IReadOnlyList<ScriptNode> Nodes);
+public sealed record PlacementEventSource(int Number, int Archive, IReadOnlyList<ScriptNode> Nodes)
+{
+    /// <summary>The bytes parsed into Nodes, before normalization.</summary>
+    public ReadOnlyMemory<byte>? EncodedBytes { get; init; }
+}
 public sealed record StartingArmyReference(int Battle, int OpeningEvent, int Event, int Offset, int Army, int Team, int Group, bool Conditional);
 
 public sealed class BattlePlacementReferences
@@ -27,8 +31,11 @@ public sealed class BattlePlacementReferences
     {
         lock (library)
         {
-            var sources = library.Numbers.Select(number => new PlacementEventSource(number, library.TopOf(number),
-                ScriptParser.Parse(session.EventScript(number) ?? library.Bytes(number)))).ToList();
+            var sources = library.Numbers.Select(number =>
+            {
+                var bytes = session.EventScript(number) ?? library.Bytes(number);
+                return new PlacementEventSource(number, library.TopOf(number), ScriptParser.Parse(bytes)) { EncodedBytes = bytes };
+            }).ToList();
             var maps = library.Archives.FolderFiles("bmap");
             return Analyze(sources, library.PlacementEvents(), file =>
             {
