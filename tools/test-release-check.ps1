@@ -15,12 +15,14 @@ try {
     $zipPath = Join-Path $folder 'Berwick.Workshop.0.119.0.zip'
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $fixtureNotices = [IO.File]::ReadAllText((Join-Path $root 'LICENSE')) + "`n`n" +
+        [IO.File]::ReadAllText((Join-Path $root 'reference/MintX-LICENSE.txt'))
     $archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
     try {
         foreach ($name in @('Berwick Workshop.exe', 'README.txt', 'Licenses.txt')) {
             $entry = $archive.CreateEntry($name)
             $writer = [IO.StreamWriter]::new($entry.Open())
-            try { $writer.Write('test fixture') } finally { $writer.Dispose() }
+            try { $writer.Write($(if ($name -eq 'Licenses.txt') { $fixtureNotices } else { 'test fixture' })) } finally { $writer.Dispose() }
         }
     }
     finally { $archive.Dispose() }
@@ -57,6 +59,27 @@ try {
     Write-Record
     & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
     if (-not $?) { throw 'Complete synthetic release evidence was rejected.' }
+
+    function Write-Notice([string] $text) {
+        $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $zip.GetEntry('Licenses.txt').Delete()
+            $entry = $zip.CreateEntry('Licenses.txt')
+            $writer = [IO.StreamWriter]::new($entry.Open())
+            try { $writer.Write($text) } finally { $writer.Dispose() }
+        }
+        finally { $zip.Dispose() }
+    }
+    Write-Notice 'missing application license'
+    $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    Write-Record
+    Expect-Rejected
+
+    Write-Notice $fixtureNotices
+    $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    Write-Record
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The restored license notices were rejected.' }
 
     $sample.packageSha256 = '0' * 64
     Write-Record
