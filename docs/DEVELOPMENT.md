@@ -11,6 +11,10 @@ Berwick Workshop reads two supported editions of Berwick Saga, edits project dat
 
 New functionality should be implemented in the owning module. Do not add new pages to the central window file or add new executable patch families to the large rule registry.
 
+## Visual asset provenance
+
+AI-generated visual assets are not permitted. Original game artwork must be loaded from the user's own recognized image at runtime, never bundled in source or releases. Preserve licensing and attribution for any external human-made interface artwork. Source review must check visual provenance. Original `onmap` sprite decoding and rendering remain separate work in [Issue #29](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues/29); battle-animation export does not establish that format's compatibility.
+
 ## Source review
 
 Keep changes in the subsystem that owns them. Prefer ordinary, explicit C# and WPF code over indirection that only moves complexity elsewhere. Use descriptive names for game concepts, and preserve established technical names for game structures and CPU registers.
@@ -99,7 +103,19 @@ Run `dotnet Tests/bin/Release/net9.0/Berwick.Tests.dll --maps` for focused Core/
 
 Read-only inspection of the recognized Japanese retail and English v2.3 images found 45 `LaunchBMap` calls and one `LaunchBMap2` call in each edition's indexed event scripts. `LaunchBMap` places the battle and map file at argument indexes 0 and 1. The `LaunchBMap2` call in event 3902 at byte offset `0xE0` has a mode expression at index 0, battle 201 at index 1 and `zmap002.ar` at index 2. This confirms the different argument positions independently of the previous army-label parser. The shared reader does not evaluate the mode expression or claim to support computed battle/file arguments.
 
-The same inspection exposed a separate acceptance blocker: the strict placement catalogue reader rejects the leading `evdata.dat` entry (size 8, identity 0, count 1) on both editions. Its purpose and safe handling remain unverified. Do not skip it or relax the complete-reference guard merely to enable placement. No battle currently qualifies through this guard. Map 1 remains the first manual candidate once references can be established; the current literal launch catalogue does not resolve battle 1 or `bmap001.ar`, so an alternate early battle cannot yet be approved. Resolve the catalogue issue and verify Map 1's actual battle identity before selecting a fallback.
+### Typed event catalogue
+
+Both recognized original editions contain an identical 54,256-byte `evdata.dat` and 2,048-byte `evtype.dat` in archive 553. The engine loader at `0x001667A0` builds exactly 4,096 slot pointers from a length word followed by that many payload bytes. Zero length means an empty slot. Type lookup at `0x00166660` reads two four-bit types per byte, low nibble first. The loader, lookup and battle-type filter ranges agree between editions.
+
+The complete tables contain 1,518 kind-0 battle records, 152 kind-1 general records and 2,426 kind-2 empty slots. Kind 0 stores a packed event/battle identity, a following-word count, then condition/arguments. Kind 1 stores a following-word count followed by its target/value and any additional fields. Kind 2 must have zero payload. The first slot is a valid kind-1 startup-script binding: length 8, payload `[1, 1]`. Startup code at `0x00165980` obtains slot 0 and passes its target 1 into script-context creation. It is not a header or sentinel, and its count word was previously misread as a packed identity.
+
+The strict reader validates every slot and its type, all payload lengths/counts, nonzero targets and exact EOF. It retains all 1,670 populated records, including 18 kind-0 data-only records with zero script target. The battle projection contains 1,500 nonzero-target records. No byte scanning, arbitrary prefix skipping or padding termination is used. `MapEvents()` uses the same verified battle projection, returning no display records on invalid data; the editing path reports the strict error instead.
+
+### First placement acceptance candidate
+
+Both executable mission-order tables identify Story mission 1, **A Reason to Fight**, as internal battle **26**, map **`bmap026.ar`**, archive **3701**. Event 2955 launches that battle. Its opening catalogue references events 2958, 2959, 2965, 2961, 2957, 2960, 2964 and 2968. Event **2958** at offset **`0x14`** places starting army **158**, enemy team **1**, group **1**, with 22 existing records. Record index **21**, key **158021**, slot **22** has both coordinates set to 255 on both originals. This is the preferred first candidate, not battle 1 or `bmap001.ar`.
+
+Catalogue parsing now succeeds on both editions, but the unchanged reference guard refuses computed calls in events **133** and **151**. No discovered battle currently passes that complete-reference check, so neither the first mission nor an alternate is approved for editing. Resolve those call targets without weakening the guard before manual acceptance. Read-only identification does not establish desktop interaction, export behavior or PCSX2 compatibility.
 
 ### Development order
 

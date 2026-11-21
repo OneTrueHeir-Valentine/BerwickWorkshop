@@ -22,6 +22,7 @@ if (args is ["--maps"])
     MapPresentationTests.Run(Test);
     MapDocumentTests.Run(Test);
     UnitPlacementTests.Run(Test);
+    EventCatalogueTests.Run(Test);
 #if WINDOWS
     StartingPlacementWindowTests.Run(Test);
 #endif
@@ -47,6 +48,7 @@ MapEditsTests.Run(Test);
 MapPresentationTests.Run(Test);
 MapDocumentTests.Run(Test);
 UnitPlacementTests.Run(Test);
+EventCatalogueTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{

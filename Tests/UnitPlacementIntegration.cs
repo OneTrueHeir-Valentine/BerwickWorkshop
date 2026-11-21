@@ -164,17 +164,26 @@ internal static class UnitPlacementIntegration
                 map[0x20144 + (y * BattleMaps.Side + x) * 2] = 1;
         map.AsSpan(0x22144, 0x800).Fill(255);
         Placement.Write(map, Placement.Move(EmptyRecord(), 2, 2, 3, 4)).CopyTo(map, 0);
-        var events = new byte[32];
+        var events = new byte[4096 * 4 + 32];
+        var eventTypes = Enumerable.Repeat((byte)0x22, 2048).ToArray();
+        eventTypes[0] = 0x21;
+        eventTypes[240] = 0;
+        Write32(events, 0, 8);
+        Write32(events, 4, 1);
+        Write32(events, 8, 1);
         for (int i = 0; i < 2; i++)
         {
-            Write32(events, i * 16, 12);
-            Write32(events, i * 16 + 4, (uint)((12 + i) << 16 | (9 + i)));
-            Write32(events, i * 16 + 8, 1);
-            Write32(events, i * 16 + 12, 13);
+            int offset = 8 + 480 * 4 + i * 16;
+            Write32(events, offset, 12);
+            Write32(events, offset + 4, (uint)((12 + i) << 16 | (9 + i)));
+            Write32(events, offset + 8, 1);
+            Write32(events, offset + 12, 13);
         }
         var children = new Dictionary<string, byte[]>
         {
             ["evdata.dat"] = events,
+            ["evtype.dat"] = eventTypes,
+            ["e0000001.dat"] = ScriptWriter.Write([]),
             ["e0000012.dat"] = ScriptWriter.Write([Launch(9, "first.ar"), Appear(5, 2)]),
             ["e0000013.dat"] = ScriptWriter.Write([LaunchWithMode(7, 10, sharedMap ? "first.ar" : "second.ar"), Appear(5, 2)])
         };

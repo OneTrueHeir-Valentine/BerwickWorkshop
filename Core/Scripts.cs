@@ -474,73 +474,41 @@ public sealed class EventLibrary
     private IReadOnlyList<MapEventRecord>? mapEvents;
 
     /// <summary>
-    /// The map event file (evdata.dat): records of a byte count, then a word with the event number in its top 16 bits and the battle
-    /// number in the low 16 (0 for every battle), then the number of words that follow (the condition type and its arguments).
-    /// Type 1 is a spot: menu kind, unit (0 for any), x, y.
+    /// The battle projection of the complete evdata.dat/evtype.dat catalogue. Battle records name an event and battle,
+    /// followed by a condition and its arguments. Condition 1 is a spot: menu kind, unit (0 for any), x, y.
     /// </summary>
     public IReadOnlyList<MapEventRecord> MapEvents()
     {
-        if (mapEvents is not null) return mapEvents;
-        var result = new List<MapEventRecord>();
-        byte[] data = [];
-        if (mapEventTop >= 0)
-            try
-            {
-                var archive = archives.Top(mapEventTop);
-                data = Tarc.Extract(archive, Tarc.Parse(archive).Single(e => e.Name == MapEventFile));
-            }
-            catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { data = []; }
-        for (int o = 0; o + 12 <= data.Length; o += 4)
+        if (mapEvents is not null)
+            return mapEvents;
+        try
         {
-            int size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o));
-            uint head = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(o + 4));
-            int count = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 8));
-            if (size < 12 || size % 4 != 0 || o + 4 + size > data.Length || count != size / 4 - 2) continue;
-            int number = (int)(head >> 16);
-            if (!topOf.ContainsKey(number)) continue;
-            var words = new int[count];
-            for (int i = 0; i < count; i++) words[i] = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 12 + i * 4));
-            result.Add(new(number, (int)(head & 0xFFFF), words[0], words[1..]));
+            return mapEvents = PlacementEvents();
         }
-        return mapEvents = result;
+        catch (Exception exception) when (exception is EditException or InvalidDataException or InvalidOperationException)
+        {
+            return mapEvents = [];
+        }
     }
 
     // Events of type 13 in the map event file run as a battle opens (their argument orders them). AppearUnitEx (0x32C) places a
     // whole army file: AppearUnitEx("udNNN", team, placement group, ...).
     private const int OpeningEvent = 13, AppearUnitEx = 0x32C;
 
-    /// <summary>Requires the complete sequential catalogue before starting placements can be changed.</summary>
-    public IReadOnlyList<MapEventRecord> PlacementEvents()
+    /// <summary>Requires the complete typed catalogue before starting placements can be changed.</summary>
+    public IReadOnlyList<MapEventRecord> PlacementEvents() => PlacementCatalogue().BattleEvents;
+
+    public EventCatalogue PlacementCatalogue()
     {
         if (mapEventTop < 0)
             throw new EditException("Starting placement references are unavailable: the battle event catalogue is missing.");
         var archive = archives.Top(mapEventTop);
-        var entries = Tarc.Parse(archive).Where(entry => entry.Name == MapEventFile).ToList();
-        if (entries.Count != 1)
-            throw new EditException("The battle event catalogue is missing or ambiguous.");
-        var bytes = Tarc.Extract(archive, entries[0]);
-        var result = new List<MapEventRecord>();
-        int offset = 0;
-        while (offset < bytes.Length)
-        {
-            if (bytes.AsSpan(offset).IndexOfAnyExcept((byte)0) < 0)
-                break;
-            if (offset + 16 > bytes.Length)
-                throw new EditException("The battle event catalogue is incomplete.");
-            int size = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
-            uint identity = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 4));
-            int count = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 8));
-            int number = (int)(identity >> 16);
-            if (size < 12 || size % 4 != 0 || count != size / 4 - 2 || (long)offset + size + 4 > bytes.Length || !topOf.ContainsKey(number))
-                throw new EditException("The battle event catalogue has an unsupported or unresolved entry.");
-            int type = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 12));
-            var args = new int[count - 1];
-            for (int i = 0; i < args.Length; i++)
-                args[i] = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 16 + i * 4));
-            result.Add(new(number, (int)(identity & 0xFFFF), type, args));
-            offset += size + 4;
-        }
-        return result;
+        var entries = Tarc.Parse(archive);
+        var data = entries.Where(entry => entry.Name == MapEventFile).ToList();
+        var types = entries.Where(entry => entry.Name == "evtype.dat").ToList();
+        if (data.Count != 1 || types.Count != 1)
+            throw new EditException("The event catalogue or type table is missing or ambiguous.");
+        return EventCatalogue.Parse(Tarc.Extract(archive, data[0]), Tarc.Extract(archive, types[0]), topOf.Keys.ToHashSet());
     }
 
     /// <summary>The army files a battle's opening events place, with the team and the map's placement group for each.</summary>

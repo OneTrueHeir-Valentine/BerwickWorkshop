@@ -15,7 +15,7 @@ Use disposable projects and new export paths. Keep original discs, saves, memory
 
 ## Maps
 
-- [ ] Open Map 1 first. Identify an existing army record with an eligible unused starting slot. If none qualifies, record the reason and examine battles in ascending order; prefer an early battle with one clear starting assignment and no complex arrival dependency. If no battle passes the guards, stop and report the refusal.
+- [ ] Open Story mission 1, A Reason to Fight: internal battle 26, `bmap026.ar` (archive 3701). Both originals have army 158, team 1, group 1; record index 21/key 158021 uses unused slot 22. Recheck eligibility in the current project before selecting it. If it no longer qualifies, record the reason and use the actual mission-order table to find an early simple alternative; numeric battle IDs are not story order.
 - [ ] Check map artwork, terrain, deployment positions, starting units, event spots and later arrivals. Compare positions with the unmodified game.
 - [ ] Check sizing, scrolling, overlays, hover/hit testing, stacked markers and unit selection. Rapid battle switches and page/project changes must not retain stale selections.
 - [ ] Confirm the placement selector defaults to eligible unused slots. Show placed and unsupported records; verify removal remains accessible and refusal explanations identify the problem.
@@ -57,3 +57,9 @@ Use disposable projects and new export paths. Keep original discs, saves, memory
 ## Future interaction
 
 Future Maps work should let the user select an existing unit, click a destination hex on the map, inspect a placement preview and validation result, then confirm or cancel. Preserve shared-reference acknowledgement and existing undo operations. This interaction is outside PR #27 and does not imply reinforcement or army-record creation support.
+
+## Current static verification
+
+Read-only checks on both recognized originals account for all 4,096 catalogue slots and exact EOF: 1,518 battle, 152 general and 2,426 empty entries. The initial kind-1 entry is a startup-script binding, not padding. All populated entries remain represented; the battle projection excludes general records and zero script targets after validating them.
+
+Manual placement acceptance is still blocked by unresolved computed calls in events 133 and 151. The first mission has an unused existing record, but no battle is approved while the complete-reference guard refuses these calls. Do not substitute another battle or bypass the refusal. No desktop smoke test, original-image export readback or PCSX2 gameplay has been performed for these changes. Record such results separately for each edition when actually tested.
