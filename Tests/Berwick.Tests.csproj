@@ -12,6 +12,7 @@
     <Using Include="System.IO" />
     <Compile Include="../App/AnimationPng.cs" Link="AnimationPng.cs" />
     <Compile Include="../App/AnimationExportWindow.cs" Link="AnimationExportWindow.cs" />
+    <Compile Include="../App/StartingPlacementWindow.cs" Link="StartingPlacementWindow.cs" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' != 'net9.0-windows'">
     <Compile Remove="Windows/**/*.cs" />
