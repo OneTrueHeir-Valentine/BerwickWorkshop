@@ -45,3 +45,7 @@ dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleF
 The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a Redux modified disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
 
 No game files are needed to build the application. The `Core` project handles formats, editing and export; `App` contains the Windows interface; `Tests` holds the checks. The `reference` folder includes credited material from the MinN-11 editor and other data sources. Development and release procedures are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and [docs/RELEASING.md](docs/RELEASING.md).
+
+## License
+
+Berwick Workshop's original source code is available under the [MIT License](LICENSE). The credited MinN-11 reference files retain their [existing MIT notice](reference/MintX-LICENSE.txt). Berwick Saga game files and artwork are not supplied with the editor or covered by its source license.
