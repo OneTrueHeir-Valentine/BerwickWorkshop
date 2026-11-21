@@ -37,6 +37,8 @@ Keep the game's identity numbers and edition profiles in the data layer. UI labe
 
 Prefer normal source-level refactors. Avoid broad textual substitutions across C# files; if a scripted source migration is necessary, make it deterministic, review its diff and run the complete build and test suite.
 
+The assembler comparison is recorded in [MIPS toolchain selection](MIPS_TOOLCHAIN.md). The release gate is recorded in [Release verification](RELEASING.md).
+
 ## Release checks
 
 Before merging a refactor, run the Windows build and offline tests. Behavior-preserving extraction commits must not change project file formats, exported bytes, game rule defaults or original-byte checks. Tests with the Japanese and English retail images remain required before claiming game compatibility.
