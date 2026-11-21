@@ -39,11 +39,11 @@ The first migrated hook is the heap allocation increment used when shield guard 
 
 `Tests/MipsAssemblyTests.cs` checks the known machine words, endianness, branch offsets and bad input. Additional migrations must include explicit source addresses and a binary equivalence test against the verified original bytes. Assembler output alone is not proof of correct game behavior.
 
-## Documentation and visual resources
+## Documentation and artwork
 
-User-facing descriptions should explain what the program does, what it cannot yet do and which behavior has been verified. Keep help text, issue descriptions and release notes specific to Berwick Workshop. Historical research and unresolved formats belong in the research notes. Keep technical terminology when it identifies actual game structures, and retain the credits attached to borrowed work.
+The README and application Help describe the features that are available in a release. The roadmap keeps track of unfinished work, while the research notes retain format findings and supporting evidence. Original source credits remain with the material they describe.
 
-Map and animation graphics come from the disc image opened by the user. Extracted game artwork is not stored in the repository or included in application packages. Any additional artwork or icon must have a recorded creator, source and redistribution terms. Review existing packaged imagery, including `App/workshop.ico`, when updating the release's asset inventory. An unverified origin should be recorded as such rather than inferred from appearance. Changes to icons and artwork should fit the existing interface.
+Map backgrounds and battle artwork are decoded from the user's game disc. Extracted game graphics are not part of the source tree or Windows downloads. Any artwork distributed with the application needs a known creator and permission for reuse. The source of `App/workshop.ico` has not yet been confirmed. If it cannot be established, the icon should be replaced with original artwork before the next release.
 
 ## Editing and UI
 
