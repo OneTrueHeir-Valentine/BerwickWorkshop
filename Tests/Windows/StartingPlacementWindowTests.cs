@@ -8,6 +8,49 @@ internal static class StartingPlacementWindowTests
 {
     public static void Run(Action<string, Action> test)
     {
+        test("Unverified starting records remain inspectable with distinct identities", () => OnSta(() =>
+        {
+            var eligible = Candidate(100, false);
+            var unverified = Candidate(101, false) with
+            {
+                Unit = new(101, 5, 1, 1, "Unit", 256, 436), Slot = 2,
+                PlacementProblem = "This source slot has no supported starting position."
+            };
+            var window = new StartingPlacementWindow(9, [eligible, unverified], null, (_, _, _, _, _) => false);
+            try
+            {
+                var panel = (StackPanel)((ScrollViewer)window.Content).Content;
+                var choices = panel.Children.OfType<ComboBox>().Single();
+                Check(choices.Items.Count == 1, "Unverified record was offered by default");
+                panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("Show")).IsChecked = true;
+                Check(choices.Items.Count == 2, "Unverified record cannot be inspected");
+                choices.SelectedIndex = 1;
+                panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("I understand")).IsChecked = true;
+                var buttons = panel.Children.OfType<StackPanel>().Last().Children.OfType<Button>().ToArray();
+                Check(!buttons[0].IsEnabled && !buttons[1].IsEnabled, "An unverified unused record enabled an edit");
+                Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("source slot")), "Loading refusal was hidden");
+                string label = choices.SelectedItem.ToString()!;
+                Check(choices.DisplayMemberPath == "Label" && label.Contains("record 1") && label.Contains("slot 2") && label.Contains("unverified"),
+                    "Duplicate names lack a distinct record label");
+            }
+            finally { window.Close(); }
+        }));
+        test("Unverified coordinates retain their warning and can be removed", () => OnSta(() =>
+        {
+            var candidate = Candidate(100, true) with { PlacementProblem = "This source slot has no supported starting position." };
+            var window = new StartingPlacementWindow(9, [candidate], null, (_, _, _, _, _) => false);
+            try
+            {
+                var panel = (StackPanel)((ScrollViewer)window.Content).Content;
+                panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("Show")).IsChecked = true;
+                panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("I understand")).IsChecked = true;
+                var buttons = panel.Children.OfType<StackPanel>().Last().Children.OfType<Button>().ToArray();
+                Check(!buttons[0].IsEnabled && buttons[1].IsEnabled, "Unverified coordinates disabled removal or enabled placement");
+                Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("source slot") && text.Text.Contains("Removal clears only")),
+                    "Writing coordinates concealed the loading limitation");
+            }
+            finally { window.Close(); }
+        }));
         test("Starting placement selector defaults to eligible unused slots", () => OnSta(() =>
         {
             var window = new StartingPlacementWindow(9, [Candidate(101, true), Candidate(100, false), Candidate(102, false) with { Problem = "Ambiguous group" }], 101, (_, _, _, _, _) => false);

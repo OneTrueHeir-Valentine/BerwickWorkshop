@@ -3,14 +3,15 @@ namespace Berwick.Core;
 public sealed record StartingUnitCandidate(ArmyUnit Unit, StartingArmyReference Assignment, int Slot,
     bool Occupied, string? Problem, IReadOnlyList<int> ArmyBattles, IReadOnlyList<int> MapBattles, IReadOnlyList<int> Events)
 {
-    public bool CanPlace => Problem is null && !Occupied;
+    public string? PlacementProblem { get; init; }
+    public bool CanPlace => Problem is null && PlacementProblem is null && !Occupied;
     public bool CanRemove => Problem is null && Occupied;
 }
 
 public static class StartingUnitPlacement
 {
     public static IReadOnlyList<StartingUnitCandidate> Candidates(BattleMap map, BattlePlacementReferences references,
-        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record)
+        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record, ReadOnlySpan<byte> sourceRecord = default)
     {
         if (record.Length != Placement.RecordLength)
             throw new EditException("The placement record has an unsupported length.");
@@ -43,8 +44,18 @@ public static class StartingUnitPlacement
                     if (occupied && (x <= 0 || y <= 0 || x >= map.Width - 1 || y >= map.Height - 1 || map.KindAt(x, y) == BattleMaps.Border))
                         problem ??= "The current coordinates use an unsupported or off-map placement.";
                 }
+                string? placementProblem = references.Assignments
+                    .Where(other => mapBattles.Contains(other.Battle) && other.Group == assignment.Group)
+                    .Select(other => other.PlacementProblem).FirstOrDefault(message => message is not null);
+                if (problem is null && placementProblem is null)
+                {
+                    var source = sourceRecord.Length == Placement.RecordLength ? Placement.Slot(sourceRecord, assignment.Group, slot) : null;
+                    if (source is not { } hex || hex.X <= 0 || hex.Y <= 0 || hex.X >= map.Width - 1 || hex.Y >= map.Height - 1 ||
+                        map.KindAt(hex.X, hex.Y) == BattleMaps.Border)
+                        placementProblem = "This source slot has no supported starting position. Empty coordinates do not establish that the game will spawn this record; it may be controlled by events. New placement is unavailable.";
+                }
                 result.Add(new(unit, assignment, slot, occupied, problem, armyBattles, mapBattles,
-                    references.ArmyEvents.GetValueOrDefault(army.Id)?.Order().ToArray() ?? []));
+                    references.ArmyEvents.GetValueOrDefault(army.Id)?.Order().ToArray() ?? []) { PlacementProblem = placementProblem });
             }
         }
         return result;
@@ -77,7 +88,7 @@ public static class StartingUnitPlacement
         ReadOnlySpan<byte> record, IReadOnlyList<(int X, int Y)> deployment, int x, int y, bool sharedMapAcknowledged)
     {
         if (!candidate.CanPlace)
-            throw new EditException(candidate.Problem ?? "This unit already has a starting placement.");
+            throw new EditException(candidate.Problem ?? candidate.PlacementProblem ?? "This unit already has a starting placement.");
         if (candidate.Slot != candidate.Unit.Index + 1)
             throw new EditException("The selected record does not match its placement slot.");
         RequireAcknowledgement(candidate, sharedMapAcknowledged);
@@ -101,7 +112,8 @@ public static class StartingUnitPlacement
             throw new EditException("The selected unit has no complete existing army record.");
         var references = BattlePlacementReferences.Read(library, session);
         var record = session.EditedBytes(EditSession.Placements, map.Top);
-        var matches = Candidates(map, references, session.Disc.Armies, record)
+        var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
+        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span)
             .Where(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group).ToList();
         if (matches.Count != 1)
             throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");

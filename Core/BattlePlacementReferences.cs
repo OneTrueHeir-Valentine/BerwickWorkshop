@@ -7,7 +7,10 @@ public sealed record PlacementEventSource(int Number, int Archive, IReadOnlyList
     /// <summary>The bytes parsed into Nodes, before normalization.</summary>
     public ReadOnlyMemory<byte>? EncodedBytes { get; init; }
 }
-public sealed record StartingArmyReference(int Battle, int OpeningEvent, int Event, int Offset, int Army, int Team, int Group, bool Conditional);
+public sealed record StartingArmyReference(int Battle, int OpeningEvent, int Event, int Offset, int Army, int Team, int Group, bool Conditional)
+{
+    public string? PlacementProblem { get; init; }
+}
 
 public sealed class BattlePlacementReferences
 {
@@ -223,7 +226,9 @@ public sealed class BattlePlacementReferences
                 return;
             }
             int army = int.Parse(ArmyFile.Match(file).Groups[1].Value);
-            result.assignments.Add(new(battle, opening, number, node.Offset, army, team, group, conditional));
+            string? placementProblem = node.Args.Count == 5 && node.Args[3] is [{ Value: 0 or 1 }] && node.Args[4] is [{ Value: 0 or 1 }]
+                ? null : "The opening army command has unsupported loading parameters. New placement is unavailable.";
+            result.assignments.Add(new(battle, opening, number, node.Offset, army, team, group, conditional) { PlacementProblem = placementProblem });
         }
 
         private void CollectArmyUses()

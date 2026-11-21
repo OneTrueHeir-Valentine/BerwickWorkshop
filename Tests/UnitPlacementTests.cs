@@ -5,6 +5,7 @@ internal static class UnitPlacementTests
 {
     public static void Run(Action<string, Action> test)
     {
+        StartingUnitEligibilityTests.Run(test);
         test("Starting placement resolves both documented battle launch variants", () =>
         {
             foreach (var launch in new[] { Launch(201, "demo.ar"), LaunchWithMode(7, 201, "demo.ar") })
@@ -31,7 +32,7 @@ internal static class UnitPlacementTests
         {
             var record = EmptyRecord();
             var units = Enumerable.Range(0, 64).Select(i => new ArmyUnit(100 + i, 5, i, i, $"Unit {i}", i * 256, 0)).ToArray();
-            var candidates = StartingUnitPlacement.Candidates(Map(), References(), [new(5, "Army", [], 0, units)], record);
+            var candidates = StartingUnitPlacement.Candidates(Map(), References(), [new(5, "Army", [], 0, units)], record, SourceRecord());
             Check(candidates[0].Slot == 1 && candidates[62].Slot == 63, "Unit index was not translated to its reserved-slot offset");
             Check(candidates[0].CanPlace && !candidates[63].CanPlace, "Unsupported final record became placeable");
         });
@@ -138,13 +139,20 @@ internal static class UnitPlacementTests
 
     internal static ScriptNode Number(int value) => new() { Command = ScriptParser.Number, Value = value };
     internal static ScriptNode Text(string value) => new() { Command = ScriptParser.TextValue, Text = value };
-    internal static ScriptNode Appear(int army, int group) => new() { Command = 0x32C, Args = [[Text($"ud{army:000}")], [Number(1)], [Number(group)]] };
+    internal static ScriptNode Appear(int army, int group) => new() { Command = 0x32C, Args = [[Text($"ud{army:000}")], [Number(1)], [Number(group)], [Number(1)], [Number(0)]] };
     internal static ScriptNode Launch(int battle, string file) => new() { Command = 0x2DE, Args = [[Number(battle)], [Text(file)]] };
     internal static ScriptNode LaunchWithMode(int mode, int battle, string file) => new() { Command = 0x2DF, Args = [[Number(mode)], [Number(battle)], [Text(file)]] };
     internal static BattleMap Map() => new(9, "first.ar", 12, 12, new int[BattleMaps.Side * BattleMaps.Side], []) { Top = 0 };
     internal static byte[] EmptyRecord() => Enumerable.Repeat((byte)255, Placement.RecordLength).ToArray();
+    internal static byte[] SourceRecord()
+    {
+        var record = EmptyRecord();
+        for (int slot = 1; slot < Placement.Slots; slot++)
+            record = Placement.Move(record, 2, slot, (slot - 1) % 9 + 1, (slot - 1) / 9 + 1);
+        return record;
+    }
     private static IReadOnlyList<StartingUnitCandidate> Candidates(BattlePlacementReferences references, byte[]? record = null) =>
-        StartingUnitPlacement.Candidates(Map(), references, [new(5, "Army", [], 0, [new(100, 5, 0, 1, "Unit", 0, 180)])], record ?? EmptyRecord());
+        StartingUnitPlacement.Candidates(Map(), references, [new(5, "Army", [], 0, [new(100, 5, 0, 1, "Unit", 0, 180)])], record ?? EmptyRecord(), SourceRecord());
     private static BattlePlacementReferences References(ScriptNode[]? opening = null, bool sharedMap = false, int otherArmy = 5) =>
         BattlePlacementReferences.Analyze(
         [

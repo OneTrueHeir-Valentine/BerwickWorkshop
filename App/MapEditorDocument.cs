@@ -62,7 +62,8 @@ internal sealed class MapEditorDocument(
         var references = BattlePlacementReferences.Read(Library, session);
         if (references.Problems.Count > 0)
             throw new EditException("Starting placements cannot be checked: " + references.Problems[0]);
-        return StartingUnitPlacement.Candidates(map, references, Disc.Armies, session.EditedBytes(EditSession.Placements, map.Top));
+        var source = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
+        return StartingUnitPlacement.Candidates(map, references, Disc.Armies, session.EditedBytes(EditSession.Placements, map.Top), source.Span);
     }
 
     public bool ApplyStartingPlacement(BattleMap map, StartingUnitCandidate candidate, bool remove, int x, int y, bool acknowledged)

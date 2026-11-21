@@ -14,13 +14,14 @@ internal sealed class StartingPlacementWindow : Window
     private readonly TextBox row = new() { Text = "1", Width = 60 };
     private readonly CheckBox acknowledge = new() { Content = "I understand that the listed battles share these positions.", Margin = new(0, 10, 0, 10) };
     private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 8) };
-    private readonly Button place = new() { Content = "Place unit", Margin = new(0, 0, 8, 0), MinWidth = 100 };
+    private readonly Button place = new() { Content = "Restore placement", Margin = new(0, 0, 8, 0), MinWidth = 100 };
     private readonly Button remove = new() { Content = "Remove starting placement", Margin = new(0, 0, 8, 0) };
     private readonly Func<StartingUnitCandidate, bool, int, int, bool, bool> applyChange;
     private sealed record UnitChoice(StartingUnitCandidate Candidate)
     {
-        public string Label => $"{Candidate.Unit.Name}, army {Candidate.Assignment.Army:000}, group {Candidate.Assignment.Group}, slot {Candidate.Slot}" +
-            (Candidate.Problem is not null ? " (unsupported)" : Candidate.Occupied ? " (placed)" : "");
+        public string Label => $"{Candidate.Unit.Name}, army {Candidate.Assignment.Army:000}, record {Candidate.Unit.Index}, group {Candidate.Assignment.Group}, slot {Candidate.Slot}" +
+            (Candidate.Problem is not null ? " (unsupported)" : Candidate.PlacementProblem is not null ? " (unverified)" :
+                Candidate.Occupied ? " (placed)" : " (removed starting placement)");
     }
 
     public StartingPlacementWindow(int battle, IReadOnlyList<StartingUnitCandidate> candidates, int? selectedKey,
@@ -131,7 +132,9 @@ internal sealed class StartingPlacementWindow : Window
             $"Opening event {source.OpeningEvent}, source event {source.Event} at 0x{source.Offset:X}. Team {source.Team}, group {source.Group}, slot {candidate.Slot}.\n" +
             $"Known army battles: {string.Join(", ", candidate.ArmyBattles)}. Known army event references: {string.Join(", ", candidate.Events)}.\n" +
             $"Battles sharing this map's positions: {string.Join(", ", candidate.MapBattles)}.\n" +
-            (candidate.Problem ?? (candidate.Occupied ? "This unit has a starting placement. Removal clears only this map slot." : "This unit's slot is unused. Enter the hex where it should start.")) +
+            (candidate.Problem ?? (candidate.Occupied ? "This record has coordinates. Removal clears only this map slot." +
+                (candidate.PlacementProblem is null ? "" : "\n" + candidate.PlacementProblem) :
+                candidate.PlacementProblem ?? "This starting placement was removed from the source map. Enter the hex where it should start.")) +
             "\nThe army record and later arrival commands remain unchanged. Placing a unit now does not cancel its later arrivals.";
         acknowledge.Visibility = candidate.MapBattles.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         UpdateButtons();

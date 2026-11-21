@@ -51,8 +51,9 @@ internal static class UnitPlacementIntegration
         var refs = BattlePlacementReferences.Read(library, session);
         Check(refs.Problems.Count == 0, string.Join("; ", refs.Problems));
         var originalArmy = session.EditedBytes(EditSession.ArmyUnits, 100);
-        var candidate = StartingUnitPlacement.Candidates(map, refs, disc.Armies, session.EditedBytes(EditSession.Placements, 0)).Single(c => c.Unit.Key == 100);
-        Check(candidate.CanPlace && candidate.Assignment.OpeningEvent == 12, "Existing unused record not eligible");
+        StartingUnitPlacement.Apply(session, library, map, 100, 2, true, 0, 0, sharedMap);
+        var candidate = StartingUnitPlacement.Candidates(map, refs, disc.Armies, session.EditedBytes(EditSession.Placements, 0), session.Table(EditSession.Placements).Records[0].Span).Single(c => c.Unit.Key == 100);
+        Check(candidate.CanPlace && candidate.Assignment.OpeningEvent == 12, "Removed starting record not eligible for restoration");
         VerifyAddAndUndo(session, library, map, sharedMap);
         var loaded = VerifyProjectExport(folder, session, archives, image);
         VerifyCurrentScripts(loaded, library);
@@ -73,14 +74,14 @@ internal static class UnitPlacementIntegration
             {
                 refused = true;
             }
-            Check(refused && session.ChangeCount == 0, "Shared placement did not require acknowledgement");
+            Check(refused && session.ChangeCount == 2, "Shared placement did not require acknowledgement");
         }
         StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, sharedMap);
         Check(session.ChangeCount == 2, "Placement changed more than two values");
         Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) == (4, 5), "Placement was not applied");
         CheckDisplayedUnits(session.Disc, session, library, map, true);
         session.Undo();
-        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) is null && !session.CanUndo, "Placement is not one undo step");
+        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) is null && session.CanUndo, "Restoration is not one undo step after removal");
         CheckDisplayedUnits(session.Disc, session, library, map, false);
         session.Redo();
     }
@@ -163,7 +164,8 @@ internal static class UnitPlacementIntegration
             for (int x = 0; x < 12; x++)
                 map[0x20144 + (y * BattleMaps.Side + x) * 2] = 1;
         map.AsSpan(0x22144, 0x800).Fill(255);
-        Placement.Write(map, Placement.Move(EmptyRecord(), 2, 2, 3, 4)).CopyTo(map, 0);
+        var starts = Placement.Move(EmptyRecord(), 2, 1, 5, 4);
+        Placement.Write(map, Placement.Move(starts, 2, 2, 3, 4)).CopyTo(map, 0);
         var events = new byte[4096 * 4 + 32];
         var eventTypes = Enumerable.Repeat((byte)0x22, 2048).ToArray();
         eventTypes[0] = 0x21;
