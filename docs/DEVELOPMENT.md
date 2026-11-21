@@ -11,6 +11,16 @@ Berwick Workshop reads two supported editions of Berwick Saga, edits project dat
 
 New functionality should be implemented in the owning module. Do not add new pages to the central window file or add new executable patch families to the large rule registry.
 
+## Source review
+
+Keep changes in the subsystem that owns them. Prefer ordinary, explicit C# and WPF code over indirection that only moves complexity elsewhere. Use descriptive names for game concepts, and preserve established technical names for game structures and CPU registers.
+
+Before opening a pull request, read the final diff as source another maintainer will need to change. Check for unrelated edits, duplicated logic, oversized methods, compressed multi-statement lines, unnecessary helper classes, inconsistent formatting and comments that restate the code. Explain non-obvious file layouts, numeric offsets and executable constraints where they are used.
+
+Avoid string-based transformations of application source or assembly files. A generator is appropriate only when it has a maintained input format, a repeatable build and tests for its output. Do not reformat unrelated files to satisfy a local style change.
+
+Pull requests should identify the affected subsystem, testing performed, manual checks still outstanding and any constraints that a later developer must preserve. Keep legitimate third-party credits and source references.
+
 ## Game program changes
 
 The game executable contains MIPS machine code, not C source. Existing rules store instruction words, expected originals and runtime addresses in C#; this is retained for compatibility while the patching system is separated.
