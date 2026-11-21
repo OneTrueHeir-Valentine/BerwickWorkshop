@@ -41,7 +41,7 @@ The first migrated hook is the heap allocation increment used when shield guard 
 
 ## Documentation and artwork
 
-The README and application Help describe the features that are available in a release. The roadmap keeps track of unfinished work, while the research notes retain format findings and supporting evidence. Original source credits remain with the material they describe.
+The README and application Help describe the features that are available in a release. The roadmap keeps track of unfinished work, while the research notes retain format findings and supporting evidence. Original source credits remain with the material they describe. The [writing guide](WRITING_GUIDE.md) covers public text, pull requests and release notes.
 
 Map backgrounds and battle artwork are decoded from the user's game disc. Extracted game graphics are not part of the source tree or Windows downloads. Any artwork distributed with the application needs a known creator and permission for reuse. The source of `App/workshop.ico` has not yet been confirmed. If it cannot be established, the icon should be replaced with original artwork before the next release.
 
