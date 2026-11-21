@@ -4,6 +4,22 @@ public static class PromotionAuditTests
 {
     public static void Run(Action<string, Action> test)
     {
+        test("Promotion audit CLI refuses missing and extra arguments before ISO tests", () =>
+        {
+            bool Valid(params string[] args) =>
+                PromotionAuditCommand.TryParse(args, out _, out _, out _);
+            if (Valid("--promotion-audit")
+                || Valid("--promotion-audit", "jp.iso")
+                || Valid("--promotion-audit", "jp.iso", "out", "en.iso")
+                || Valid("--promotion-audit", "<Japanese original ISO>", "out")
+                || Valid("--promotion-audit", "jp.iso", "<private output folder>"))
+                throw new Exception("Malformed audit invocations must be rejected.");
+            if (!Valid("--promotion-audit", @"C:\\game\\jp.iso", @"C:\\private\\reports"))
+                throw new Exception("An exact audit invocation was rejected.");
+            if (PromotionAuditCommand.Run(["--promotion-audit"]) != 2)
+                throw new Exception("Malformed arguments must exit before the ordinary game-image integration tests.");
+        });
+
         test("Promotion audit records nested candidate commands and conditional contexts", () =>
         {
             var names = new string[100];
