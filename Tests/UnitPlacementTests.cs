@@ -32,7 +32,7 @@ internal static class UnitPlacementTests
         {
             var record = EmptyRecord();
             var units = Enumerable.Range(0, 64).Select(i => new ArmyUnit(100 + i, 5, i, i, $"Unit {i}", i * 256, 0)).ToArray();
-            var candidates = StartingUnitPlacement.Candidates(Map(), References(), [new(5, "Army", [], 0, units)], record, SourceRecord());
+            var candidates = StartingUnitPlacement.Candidates(Map(), References(), [new(5, "Army", [], 0, units)], record, SourceRecord(), verifiedOriginalDisc: true);
             Check(candidates[0].Slot == 1 && candidates[62].Slot == 63, "Unit index was not translated to its reserved-slot offset");
             Check(candidates[0].CanPlace && !candidates[63].CanPlace, "Unsupported final record became placeable");
         });
@@ -152,7 +152,7 @@ internal static class UnitPlacementTests
         return record;
     }
     private static IReadOnlyList<StartingUnitCandidate> Candidates(BattlePlacementReferences references, byte[]? record = null) =>
-        StartingUnitPlacement.Candidates(Map(), references, [new(5, "Army", [], 0, [new(100, 5, 0, 1, "Unit", 0, 180)])], record ?? EmptyRecord(), SourceRecord());
+        StartingUnitPlacement.Candidates(Map(), references, [new(5, "Army", [], 0, [new(100, 5, 0, 1, "Unit", 0, 180)])], record ?? EmptyRecord(), SourceRecord(), verifiedOriginalDisc: true);
     private static BattlePlacementReferences References(ScriptNode[]? opening = null, bool sharedMap = false, int otherArmy = 5) =>
         BattlePlacementReferences.Analyze(
         [
