@@ -14,11 +14,14 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+if (args is ["--inspect-onmap", string imagePath])
+    return OnMapArchiveInspection.Run(imagePath);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
     MapPresentationTests.Run(Test);
     MapDocumentTests.Run(Test);
+    OnMapArchiveInspectionTests.Run(Test);
     Console.WriteLine($"{passed} passed, {failed} failed");
     return failed == 0 ? 0 : 1;
 }
@@ -40,6 +43,7 @@ MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
 MapPresentationTests.Run(Test);
 MapDocumentTests.Run(Test);
+OnMapArchiveInspectionTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{
