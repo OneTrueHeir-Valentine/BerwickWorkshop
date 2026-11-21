@@ -14,7 +14,7 @@ Run the offline tests before submitting a pull request:
 
 ```powershell
 dotnet build Tests -c Release
-dotnet Tests\bin\Release\net9.0\Berwick.Tests.dll
+dotnet Tests\bin\Release\net10.0\Berwick.Tests.dll
 ```
 
 The repository also includes `tools/run-local-checks.ps1` for additional checks. If the change involves original game data, test each supported edition separately. A successful build or fixture test is not proof that an edited disc will work in PCSX2. State which checks you actually performed and what remains untested.
