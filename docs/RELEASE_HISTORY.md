@@ -22,4 +22,3 @@ The release also includes class animation and map sprite assignments, along with
 
 Download `Berwick.Workshop.0.114.0.zip` from its release page and run `Berwick Workshop.exe` after extraction. The included `README.txt` describes the pages and settings.
 
-The GitHub release pages retain their original tags and attached files.
