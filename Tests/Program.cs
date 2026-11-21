@@ -18,6 +18,7 @@ ChangeReviewTests.Run(Test);
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
 MipsAssemblyTests.Run(Test);
+ShieldGuardAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();

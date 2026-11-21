@@ -31,3 +31,17 @@ The source assembler must be explicit about instruction scheduling and register 
 5. Build and export against both supported game editions, then test the changed behavior in PCSX2.
 
 Keep the tested C# assembler for its existing use until a replacement produces identical output. A successful assembly does not by itself validate game behavior or edition compatibility.
+
+## Shield guard comparison
+
+The first substantial source comparison is the quarter-Might shield guard cave, executed at game address `0x001481C8`. The readable source is `Core/Mips/shield-guard-quarter.s`. The reference bytes are stored separately in `Tests/Fixtures/shield-guard-quarter.hex`. Offline tests check those 14 machine words against the current rule 10 output, with no game disc required.
+
+With PS2DEV EE GNU binutils available in WSL or a Linux shell, run:
+
+```sh
+bash tools/compare-shield-assembly.sh
+```
+
+The comparison assembles and links at the actual cave address, extracts the instruction bytes and requires an exact 56-byte match. The script deliberately fails if PS2DEV binutils are not installed. No replacement code is written into the game.
+
+The same 56 bytes were independently reproduced using a generic MIPS-targeted Clang assembler while preparing this comparison. That is a preliminary check only. The PS2DEV comparison and both-edition PCSX2 execution remain separate verification steps.
