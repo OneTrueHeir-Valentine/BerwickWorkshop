@@ -85,6 +85,16 @@ Run focused geometry/selection and Core map-edit checks with `dotnet Tests/bin/R
 
 Use a disposable project for edit checks. Do not overwrite original images or saves. If validating an exported change in PCSX2, check both modified editions separately and retain selected screenshots/logs with the local collector. Completing the automated checks does not mark this checklist or emulator testing as passed.
 
+### Existing starting-unit placements
+
+Maps offers **Place existing unit...** for an identified battle. Choose an existing record, review its army, opening/source event, team, group, slot and known battle/event uses, then enter a column and row. Team and group come from the opening script; this workflow does not change them. An unused slot can be activated, or an occupied supported slot can be removed. Removal clears the starting coordinates, never the army record or later arrival commands.
+
+Placement requires one unambiguous army/group assignment and a supported unit index (0 to 62, using slots 1 to 63). Off-map and border hexes, deployment positions, occupied coordinates and half-empty slots are refused. Shared maps require acknowledgement of their listed battles; conflicting consumers, conditional/computed assignments, unresolved event calls and incomplete references are refused. A launch naming an archive proven absent in the archive index is not treated as a consumer of a real map, while an unresolved battle-map reference still blocks edits.
+
+The checks read active project scripts and current placement bytes again before applying a single `EditSession` change. Save/load, undo/redo and the existing exporter remain responsible for persistence. Rendering rebuilds the current starting-unit list from project assignments and slots instead of retaining the original disc's occupied-unit list.
+
+Run `dotnet Tests/bin/Release/net9.0/Berwick.Tests.dll --maps` for focused Core/project/export fixtures, or use the `net9.0-windows` target to include dialog-control checks. Local checks run both targets. These are synthetic tests, not retail or PCSX2 verification. Before release, check both supported editions for add/remove presence, shared effects, original-record preservation, undo/save/reopen and exported-game behavior. Unknown script or catalogue layouts may cause conservative refusal and need investigation rather than bypassing the guard.
+
 ### Development order
 
 1. Separate page code and cohesive patch families without changing behavior.

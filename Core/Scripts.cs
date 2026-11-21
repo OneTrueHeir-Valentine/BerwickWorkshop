@@ -509,20 +509,73 @@ public sealed class EventLibrary
     // whole army file: AppearUnitEx("udNNN", team, placement group, ...).
     private const int OpeningEvent = 13, AppearUnitEx = 0x32C;
 
-    /// <summary>The army files a battle's opening events place, with the team and the map's placement group for each.</summary>
-    public IReadOnlyList<ArmyPlacement> StartingPlacements(int battle)
+    /// <summary>Requires the complete sequential catalogue before starting placements can be changed.</summary>
+    public IReadOnlyList<MapEventRecord> PlacementEvents()
     {
-        var result = new List<ArmyPlacement>();
-        foreach (int number in MapEvents().Where(r => r.Battle == battle && r.Type == OpeningEvent).Select(r => r.Event).Distinct().Order())
+        if (mapEventTop < 0)
+            throw new EditException("Starting placement references are unavailable: the battle event catalogue is missing.");
+        var archive = archives.Top(mapEventTop);
+        var entries = Tarc.Parse(archive).Where(entry => entry.Name == MapEventFile).ToList();
+        if (entries.Count != 1)
+            throw new EditException("The battle event catalogue is missing or ambiguous.");
+        var bytes = Tarc.Extract(archive, entries[0]);
+        var result = new List<MapEventRecord>();
+        int offset = 0;
+        while (offset < bytes.Length)
         {
-            IReadOnlyList<ScriptNode> nodes;
-            try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
-            foreach (var n in WalkNodes(nodes))
-                if (n.Command == AppearUnitEx && n.Args.Count >= 3 && n.Args[0] is [{ Text: { } file }] && UnitFile.Match(file) is { Success: true } m
-                    && n.Args[1] is [{ Value: int team }] && n.Args[2] is [{ Value: int group }])
-                    result.Add(new ArmyPlacement(int.Parse(m.Groups[1].Value), team, group));
+            if (bytes.AsSpan(offset).IndexOfAnyExcept((byte)0) < 0)
+                break;
+            if (offset + 16 > bytes.Length)
+                throw new EditException("The battle event catalogue is incomplete.");
+            int size = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset));
+            uint identity = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(offset + 4));
+            int count = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 8));
+            int number = (int)(identity >> 16);
+            if (size < 12 || size % 4 != 0 || count != size / 4 - 2 || (long)offset + size + 4 > bytes.Length || !topOf.ContainsKey(number))
+                throw new EditException("The battle event catalogue has an unsupported or unresolved entry.");
+            int type = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 12));
+            var args = new int[count - 1];
+            for (int i = 0; i < args.Length; i++)
+                args[i] = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset + 16 + i * 4));
+            result.Add(new(number, (int)(identity & 0xFFFF), type, args));
+            offset += size + 4;
         }
         return result;
+    }
+
+    /// <summary>The army files a battle's opening events place, with the team and the map's placement group for each.</summary>
+    public IReadOnlyList<ArmyPlacement> StartingPlacements(int battle, Func<int, byte[]>? readEvent = null)
+    {
+        var result = new List<ArmyPlacement>();
+        var visiting = new HashSet<int>();
+        foreach (int number in MapEvents().Where(r => r.Battle == battle && r.Type == OpeningEvent).Select(r => r.Event).Distinct().Order())
+            Visit(number, 0);
+        return result;
+
+        void Visit(int number, int depth)
+        {
+            if (depth >= 32 || !visiting.Add(number))
+                return;
+            IReadOnlyList<ScriptNode> nodes;
+            try
+            {
+                nodes = ScriptParser.Parse(readEvent is null ? Bytes(number) : readEvent(number));
+            }
+            catch (InvalidDataException)
+            {
+                visiting.Remove(number);
+                return;
+            }
+            foreach (var node in WalkNodes(nodes))
+            {
+                if (node.Command == AppearUnitEx && node.Args.Count >= 3 && node.Args[0] is [{ Text: { } file }] &&
+                    UnitFile.Match(file) is { Success: true } match && node.Args[1] is [{ Value: int team }] && node.Args[2] is [{ Value: int group }])
+                    result.Add(new ArmyPlacement(int.Parse(match.Groups[1].Value), team, group));
+                if (readEvent is not null && node.Command == ScriptParser.RunEvent && node.Args.Count > 0 && node.Args[0] is [{ Value: int target }])
+                    Visit(target, depth + 1);
+            }
+            visiting.Remove(number);
+        }
     }
 
     // Later arrivals: AppearUnit(id, "udNNN", team, from x, from y, to x, to y, flag) brings the unit whose script number
