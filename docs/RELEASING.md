@@ -7,7 +7,7 @@ Releases are prepared from a reviewed source commit. A successful Windows build 
 1. Run the Windows build, offline tests and source-structure check on the release commit.
 2. Run `tools/test-game-editions.ps1` against an original Japanese retail ISO and an English v2.3 ISO. Keep these images outside the repository. Record the result and each image's SHA-256.
 3. Create separate modified images from each edition. Confirm in PCSX2 that both boot and that an edited unit or combat rule behaves as expected. Record the emulator version and what was tested.
-4. Inspect the packaged executable, user guide and license file. Confirm the version, third-party credits and that no game images, extracted assets, private notes or build caches are included.
+4. Inspect the packaged executable, user guide and `Licenses.txt`. Confirm it includes the complete root MIT license and the existing MinN-11 notice alongside all other required third-party credits. Keep game images, extracted assets, private notes and build caches out of the package.
 5. Record the source commit and final package hash. Run `tools/check-release.ps1` with a local verification record before publishing.
 
 The verification record is a local file and should not be committed. It contains test results and hashes, not the disc images. The record format used by the checker is:
