@@ -56,7 +56,7 @@ A release description can be two or three paragraphs for a small release. A long
 
 Preserve the limits of a feature. For example, the 0.118.0 animation exporter writes transparent source frames and effect layers; it does not reproduce the game's final runtime composite. Describe that distinction near the export feature.
 
-The repository's older release descriptions should be revised carefully without changing the tag, attached download, release date or supported feature claims. See [Release history](RELEASE_HISTORY.md) for edited descriptions of 0.114.0 and 0.118.0.
+The repository's older release descriptions should be revised carefully without changing the tag, attached download, release date or supported feature claims. See [Release history](RELEASE_HISTORY.md) for edited descriptions of 0.114.0 and 0.118.0. The procedure for applying those descriptions to GitHub is in [Release verification](RELEASING.md).
 
 ## Language and presentation
 

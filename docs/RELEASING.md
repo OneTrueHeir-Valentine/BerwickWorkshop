@@ -60,6 +60,22 @@ Use the verified commit as the release tag target. Keep release notes factual an
 
 GitHub's hosted offline workflow cannot access privately owned game images or directly validate PCSX2. The local checks and signed-off verification record therefore remain a required manual release step.
 
+## Editing historical release descriptions
+
+Versions 0.114.0 and 0.118.0 have edited descriptions in [Release history](RELEASE_HISTORY.md). The existing tags and download archives stay unchanged when only the public release text is edited. With an authenticated GitHub CLI, preview the exact text from the repository root:
+
+```powershell
+.\tools\edit-historical-release-notes.ps1
+```
+
+To update those two GitHub release descriptions after checking the preview:
+
+```powershell
+.\tools\edit-historical-release-notes.ps1 -Apply
+```
+
+The command checks that each release still has its expected archive and verifies the updated description. It does not publish a new release or upload files. Avoid adding the same notes in a separate file; the release history is their maintained source.
+
 ## Local offline checks
 
 From the repository root, run:
