@@ -47,9 +47,9 @@ Versioned release artifacts contain the executable, user guide and required thir
 
 ## Working branches
 
-Keep a local branch that tracks `origin/main` as the clean starting point for development. Preserve older branches until their changes have been compared with current source. Make code changes on task branches, review the diff and tests, and squash-merge complete changes through pull requests. Do not rebase the old 0.118.0 development history over the published source; those commits were already incorporated through a different history.
+Keep a local branch that tracks `origin/main` as the clean starting point for development. Make code changes on task branches, review the diff and tests, and squash-merge complete changes through pull requests. Compare local-only history with `origin/main` before rebasing or cherry-picking to avoid reintroducing changes already upstream.
 
-After a pull request is merged, update the local starting point with `git fetch origin` and `git merge --ff-only origin/main` from a clean working tree. Codex and other local editors should use the same checkout when they need access to ignored verification records.
+After a pull request is merged, update the local starting point with `git fetch origin` and `git merge --ff-only origin/main` from a clean working tree. Tools that need access to ignored verification records must operate in the same local checkout.
 
 The local validation command is `tools/run-local-checks.ps1`. Logs are written to the Git-ignored `release-handoff/checks/` directory, with the source commit and exit code recorded for each check. This command does not edit release evidence or perform game-edition or PCSX2 testing.
 
