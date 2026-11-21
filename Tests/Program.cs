@@ -18,6 +18,8 @@ void Throws<T>(Action action) where T:Exception
 }
 if (args is ["--inspect-placement", string imagePath, string archiveIndex, string placementGroup, string placementSlot])
     return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
+if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
+    return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
