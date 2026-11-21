@@ -52,13 +52,34 @@ internal static class UnitPlacementIntegration
         Check(refs.Problems.Count == 0, string.Join("; ", refs.Problems));
         var originalArmy = session.EditedBytes(EditSession.ArmyUnits, 100);
         StartingUnitPlacement.Apply(session, library, map, 100, 2, true, 0, 0, sharedMap);
-        var candidate = StartingUnitPlacement.Candidates(map, refs, disc.Armies, session.EditedBytes(EditSession.Placements, 0), session.Table(EditSession.Placements).Records[0].Span).Single(c => c.Unit.Key == 100);
+        var candidate = StartingUnitPlacement.Candidates(map, refs, disc.Armies, session.EditedBytes(EditSession.Placements, 0), session.Table(EditSession.Placements).Records[0].Span, !disc.IsModified).Single(c => c.Unit.Key == 100);
         Check(candidate.CanPlace && candidate.Assignment.OpeningEvent == 12, "Removed starting record not eligible for restoration");
         VerifyAddAndUndo(session, library, map, sharedMap);
         var loaded = VerifyProjectExport(folder, session, archives, image);
         VerifyCurrentScripts(loaded, library);
         VerifyRemoval(loaded, library, map, Path.Combine(folder, "placement.bwproj"), originalArmy, sharedMap);
+        VerifyModifiedSource(disc, library, map, sharedMap);
         Console.WriteLine("Placement add/remove, active scripts, undo/redo, save/load and synthetic export/reopen passed.");
+    }
+
+    private static void VerifyModifiedSource(InspectionResult original, EventLibrary library, BattleMap map, bool sharedMap)
+    {
+        var session = new EditSession(original with { IsModified = true });
+        StartingUnitPlacement.Apply(session, library, map, 100, 2, true, 0, 0, sharedMap);
+        var source = session.Table(EditSession.Placements).Records[map.Top];
+        var candidate = StartingUnitPlacement.Candidates(map, BattlePlacementReferences.Read(library, session),
+            original.Armies, session.EditedBytes(EditSession.Placements, map.Top), source.Span,
+            verifiedOriginalDisc: !session.Disc.IsModified).Single(c => c.Unit.Key == 100);
+        Check(!candidate.CanPlace && candidate.PlacementProblem?.Contains("original disc") == true,
+            "A previously modified source was accepted as an original starting position");
+
+        bool refused = false;
+        try { StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, sharedMap); }
+        catch (EditException) { refused = true; }
+        Check(refused && session.ChangeCount == 2, "Modified-source restoration bypassed revalidation");
+        session.Undo();
+        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, map.Top), 2, 1) == (5, 4),
+            "Modified-source refusal damaged an existing unit's coordinates");
     }
 
     private static void VerifyAddAndUndo(EditSession session, EventLibrary library, BattleMap map, bool sharedMap)
