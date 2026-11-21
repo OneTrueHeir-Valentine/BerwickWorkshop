@@ -1,6 +1,6 @@
 # Release verification
 
-Releases are prepared from a reviewed source commit. A successful Windows build is necessary but does not replace tests on the actual supported discs.
+Releases are prepared from a reviewed source commit. A successful Windows build is necessary but does not replace tests on the actual supported discs. See [Licensing](LICENSING.md) for the source and reference notices required in release archives.
 
 ## Required checks
 
