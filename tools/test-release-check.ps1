@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $checker = Join-Path $PSScriptRoot 'check-release.ps1'
-foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'))) {
+foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'), (Join-Path $PSScriptRoot 'edit-historical-release-notes.ps1'))) {
     $tokens = $null
     $errors = $null
     [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
