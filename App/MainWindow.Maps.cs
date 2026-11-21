@@ -14,81 +14,81 @@ namespace Berwick.Workshop;
 
 public partial class MainWindow
 {
-    // Maps: each battle's terrain and spots, read through the event library (which keeps the disc open).
-    private string? mapsPath;
-    // Battles are listed by number; maps that no battle uses are listed with their archive number made negative.
-    private List<(int Battle,string Text,string File)> mapBattles=[];
-    private Dictionary<int,List<int>> battleArmies=[];
+    // The view owns its controls; the controller owns map discovery and loading.
+    private readonly MapEditorController mapController = new();
+    private ListBox MapList => MapsPage.MapListControl;
+    private CheckBox MapArtBox => MapsPage.MapArtBoxControl;
+    private CheckBox MapTerrainBox => MapsPage.MapTerrainBoxControl;
+    private CheckBox MapUnitsBox => MapsPage.MapUnitsBoxControl;
+    private CheckBox MapArrivalsBox => MapsPage.MapArrivalsBoxControl;
+    private CheckBox MapMoveBox => MapsPage.MapMoveBoxControl;
+    private CheckBox MapDeployBox => MapsPage.MapDeployBoxControl;
+    private ComboBox MapSizeBox => MapsPage.MapSizeBoxControl;
+    private Canvas MapCanvas => MapsPage.MapCanvasControl;
+    private Border MapUnitBox => MapsPage.MapUnitBoxControl;
+    private Button EditMapUnitButton => MapsPage.EditMapUnitButtonControl;
+    private TextBlock MapUnitName => MapsPage.MapUnitNameControl;
+    private StackPanel MapUnitFields => MapsPage.MapUnitFieldsControl;
+    private StackPanel MapUnitEditorPanel => MapsPage.MapUnitEditorPanelControl;
+    private StackPanel MapDetails => MapsPage.MapDetailsControl;
+    private TextBlock MapCount => MapsPage.MapCountControl;
+
     private async Task OpenMaps()
     {
-        if(primary is null || !primary.Supported)return;
-        if(mapsPath==primary.Path && mapBattles.Count>0)return;
+        if (primary is not { Supported: true } disc || mapController.IsCurrent(disc.Path)) return;
         await OpenEvents();
-        if(events is not { } library || primary is null)return;
-        string path=primary.Path;var exeEntry=primary.ExecutableFile!;
-        MapCount.Text="Reading the battles...";
+        if (events is not { } library || primary != disc) return;
+        MapCount.Text = "Reading the battles...";
         try
         {
-            var (list,armies)=await Task.Run(()=>
-            {
-                byte[] exe;
-                using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read))
-                using(var iso=new IsoImage(stream)) exe=iso.ReadRange(exeEntry.Offset,(int)exeEntry.Length,(int)exeEntry.Length);
-                lock(library)
-                {
-                    var files=library.BattleMapFiles();
-                    var named=LiveGame.Battles(exe,ArmyData.LoadBattleTitles(library.Archives));
-                    var order=named.Select(b=>b.Battle).Distinct().ToList();
-                    var names=named.GroupBy(b=>b.Battle).ToDictionary(g=>g.Key,g=>g.First().Text);
-                    var onDisc=BattleMaps.Files(library.Archives);
-                    var known=onDisc.Select(f=>f.File).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var result=files.Keys.Where(b=>known.Contains(files[b])).OrderBy(b=>order.IndexOf(b) is int i && i>=0?i:order.Count+b)
-                        .Select(b=>(b,names.TryGetValue(b,out var n)?$"{n} (battle {b})":files[b].StartsWith("zmap",StringComparison.OrdinalIgnoreCase)?$"Title screen demo (battle {b})":$"Battle {b}",files[b])).ToList();
-                    var usedFiles=files.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    result.AddRange(onDisc.Where(f=>!usedFiles.Contains(f.File)).Select(f=>(-f.Top,$"Unused map {Path.GetFileNameWithoutExtension(f.File)}",f.File)));
-                    var byBattle=new Dictionary<int,List<int>>();
-                    foreach(var (army,battles) in library.ArmyBattles())
-                        if(battles.Count<=2) foreach(int b in battles)(byBattle.TryGetValue(b,out var l)?l:byBattle[b]=[]).Add(army);
-                    return (result,byBattle);
-                }
-            });
-            if(events!=library)return;
-            mapBattles=list;battleArmies=armies;mapsPath=path;
-            MapList.ItemsSource=mapBattles.Select(b=>new Choice(b.Battle,b.Text)).ToList();
-            int unused=mapBattles.Count(b=>b.Battle<0);
-            MapCount.Text=$"{mapBattles.Count-unused} battles, {unused} unused maps";
-            if(mapBattles.Count>0)MapList.SelectedIndex=0;
+            var index = await mapController.ReadCatalogueAsync(disc, library);
+            if (events != library || primary != disc) return;
+            mapController.SetCatalogue(disc.Path, index);
+            MapList.ItemsSource = index.Battles.Select(b => new Choice(b.Battle, b.Text)).ToList();
+            int unused = index.Battles.Count(b => b.Battle < 0);
+            MapCount.Text = $"{index.Battles.Count - unused} battles, {unused} unused maps";
+            if (index.Battles.Count > 0) MapList.SelectedIndex = 0;
         }
-        catch(Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException){MapCount.Text="The battles could not be read from this disc.";}
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            MapCount.Text = "The battles could not be read from this disc.";
+        }
     }
-    private async void MapSelected(object sender,SelectionChangedEventArgs e)
+
+    private async void MapSelected(object sender, SelectionChangedEventArgs e)
     {
-        if(events is not { } library || MapList.SelectedValue is not int battle)return;
-        var entry=mapBattles.FirstOrDefault(b=>b.Battle==battle);
-        BattleMap? map;BitmapSource? picture=null;
+        if (events is not { } library || MapList.SelectedValue is not int battle) return;
+        if (!mapController.TryGetBattle(battle, out var entry)) return;
+        BattleMap? map;
+        BitmapSource? picture = null;
         try
         {
-            (map,picture)=await Task.Run(()=>
+            var selection = await mapController.ReadMapAsync(library, entry);
+            map = selection.Map;
+            if (selection.Picture is { } art)
             {
-                BattleMap? read;MapPicture? art;
-                lock(library)
-                {
-                    read=battle<0?BattleMaps.Load(library.Archives,null,-battle,0,entry.File):BattleMaps.Load(library.Archives,library,battle,entry.File);
-                    // Maps no battle uses have no scripts to say which layers show; the first water frame (layer 4) is drawn for them.
-                    art=read is null?null:BattleMaps.LoadPicture(library.Archives,read.Top,battle<0?[4]:library.StartingLayers(battle));
-                }
-                BitmapSource? image=null;
-                if(art is not null){image=BitmapSource.Create(art.Width,art.Height,96,96,PixelFormats.Bgra32,null,art.Pixels,art.Width*4);image.Freeze();}
-                return (read,image);
-            });
+                picture = BitmapSource.Create(art.Width, art.Height, 96, 96, PixelFormats.Bgra32,
+                    null, art.Pixels, art.Width * 4);
+                picture.Freeze();
+            }
         }
-        catch(Exception ex) when (ex is IOException or InvalidDataException){map=null;}
-        if(events!=library || MapList.SelectedValue is not int now || now!=battle)return;
-        if(editing?.Page==View.Maps)EndEdit();
-        selectedMapUnit=null;selectedArrival=null;pickingArrival=false;MapUnitBox.Visibility=Visibility.Collapsed;UpdateEditButtons();
-        shownMap=map;shownPicture=picture;shownTitle=entry.Text;
-        DrawMap(map,picture,entry.Text);
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            map = null;
+        }
+        if (events != library || MapList.SelectedValue is not int selected || selected != battle) return;
+        if (editing?.Page == View.Maps) EndEdit();
+        selectedMapUnit = null;
+        selectedArrival = null;
+        pickingArrival = false;
+        MapUnitBox.Visibility = Visibility.Collapsed;
+        UpdateEditButtons();
+        shownMap = map;
+        shownPicture = picture;
+        shownTitle = entry.Text;
+        DrawMap(map, picture, entry.Text);
     }
+
     // Deployment: hexes are the map file's placement group 0 (project table Deployments, keyed by the map's archive);
     // the limit is a SetMapUnitMax number in the battle's opening events or the shared default in event 70.
     private IReadOnlyList<(int X,int Y)> DeploymentOf(BattleMap map)=>session is not null && session.IsEdited(EditSession.Deployments,map.Top)
@@ -623,7 +623,7 @@ public partial class MainWindow
             MapDetails.Children.Add(key);
         }
         AddSection(MapDetails,"Armies");
-        var armyIds=battleArmies.TryGetValue(map.Battle,out var ids)?ids:[];
+        var armyIds=mapController.BattleArmies.TryGetValue(map.Battle,out var ids)?ids:[];
         var armyLabels=primary?.Armies.Where(a=>armyIds.Contains(a.Id)).Select(a=>$"Army {a.Id:000}: {string.Join(", ",a.Units.Where(u=>u.Named).Select(u=>u.Name).Distinct().Take(4).DefaultIfEmpty(a.Units.Count==0?"":a.Units[0].Name))}").ToList()??[];
         if(armyLabels.Count==0)AddText(MapDetails,"Not known");else foreach(var l in armyLabels)AddText(MapDetails,l);
         }

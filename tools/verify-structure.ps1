@@ -17,6 +17,9 @@ foreach ($entry in $limits.GetEnumerator()) {
 }
 $required = @(
     'App/MainWindow.Animations.cs',
+    'App/MapEditorView.xaml',
+    'App/MapEditorView.xaml.cs',
+    'App/MapEditorController.cs',
     'App/MainWindow.Maps.cs',
     'Core/Rules.Shields.cs',
     'Core/MipsAssembly.cs',

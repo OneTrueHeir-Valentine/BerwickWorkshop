@@ -33,6 +33,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        MapsPage.BattleSelected += MapSelected;
+        MapsPage.OptionsChanged += MapViewChanged;
+        MapsPage.CanvasLeftClicked += MapCanvasClick;
+        MapsPage.CanvasRightClicked += MapCanvasRightClick;
+        MapsPage.EditUnitRequested += BeginMapUnitEdit;
         Category.Items.Add("All types");
         foreach(string type in ItemDecoder.Types) Category.Items.Add(type);
         Category.Items.Add("Other"); Category.SelectedIndex=0;
@@ -658,7 +663,7 @@ public partial class MainWindow : Window
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapsPath=null;mapBattles=[];shownMap=null;shownPicture=null;shownTitle="";battleArmies=[];MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";CloseAnimations();events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapController.Reset();shownMap=null;shownPicture=null;shownTitle="";MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";CloseAnimations();events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
