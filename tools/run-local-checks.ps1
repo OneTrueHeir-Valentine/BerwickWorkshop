@@ -87,6 +87,9 @@ try {
     Invoke-Check 'release-checker' $shell @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/test-release-check.ps1'
     )
+    Invoke-Check 'evidence-collector' $shell @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/test-evidence-collector.ps1'
+    )
     Invoke-Check 'test-build' $dotnet @(
         'build', 'Tests', '-c', 'Release', '--nologo'
     )

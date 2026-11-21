@@ -74,6 +74,27 @@ The next planned release is 0.119.0. Do not publish it until the final source re
 
 ## Local verification records
 
+### Collect selected logs and screenshots
+
+From Windows PowerShell 5.1 or PowerShell 7 in the repository root:
+
+```powershell
+.\tools\collect-test-evidence.ps1 -Version 0.119.0 `
+    -Log @('.\release-handoff\checks\RUN-ID\summary.json', '.\release-handoff\checks\RUN-ID\offline-tests.stdout.log') `
+    -Screenshot @('C:\test-captures\japanese-boot.png', 'C:\test-captures\english-boot.png') `
+    -Pcsx2Version '2.9.183'
+```
+
+Replace the example paths with individual files you have reviewed. Omit `-Screenshot`, `-Log` or `-Pcsx2Version` when not needed; at least one file is required. Run the command within PowerShell to supply arrays. Relative input paths use the current directory; output always uses this checkout.
+
+The command returns a new `release-handoff/collections/VERSION/UTC-TIMESTAMP-UNIQUE-ID/` directory containing `logs/`, `screenshots/`, `manifest.json` and `manifest.txt`. Manifests record the supplied release version, current commit and working-tree cleanliness, collection times, supplied emulator version, original absolute paths, copy paths, byte sizes and SHA-256 hashes. Originals are not renamed, rewritten or removed. Close any process still writing a selected log before collecting it.
+
+Only explicit local files are accepted: `.log`, `.txt` and `.json` logs; `.png`, `.jpg`, `.jpeg` and `.bmp` screenshots. Directories, wildcard expansion, network paths, alternate streams, reparse points, known private/game-data directories and other extensions are refused. Duplicate basenames are rejected case-insensitively across the whole selection; select distinct names or make separate collections. Missing or locked files produce an error rather than silently omitting evidence.
+
+Extension and path checks do not inspect or sanitize file contents. Select only appropriate validation evidence, never credentials, game images, BIOS data, saves or extracted assets renamed to an allowed extension. The utility does not discover evidence, inspect PCSX2, approve tests or releases, edit `release-*.evidence.json`, or upload anything. Manifests contain original paths and remain private in Git-ignored `release-handoff/`.
+
+### Create a verification record
+
 Create a record in the checkout when preparing a new release:
 
 ```powershell
