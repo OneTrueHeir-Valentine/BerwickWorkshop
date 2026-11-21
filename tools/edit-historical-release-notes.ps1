@@ -30,9 +30,9 @@ foreach ($section in $sections) {
     }
 
     if (-not $Apply) {
-        Write-Host "Preview for $tag"
-        Write-Host $notes
-        Write-Host ''
+        Write-Output "Preview for $tag"
+        Write-Output $notes
+        Write-Output ''
         continue
     }
 
@@ -59,12 +59,12 @@ foreach ($section in $sections) {
 
     $updated = & gh release view $tag --repo $repo --json body | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or
-        $updated.body.Replace([char]13, '').Trim() -ne $notes.Replace([char]13, '').Trim()) {
+        $updated.body.Replace([string][char]13, '').Trim() -ne $notes.Replace([string][char]13, '').Trim()) {
         throw "Could not verify the new description for $tag."
     }
     Write-Host "Updated the description for $tag; its tag and files were retained."
 }
 
 if (-not $Apply) {
-    Write-Host 'Preview only. Run with -Apply to replace the two GitHub release descriptions.'
+    Write-Output 'Preview only. Run with -Apply to replace the two GitHub release descriptions.'
 }
