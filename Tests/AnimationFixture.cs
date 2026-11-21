@@ -29,6 +29,12 @@ internal sealed class AnimationFixture
 
     public AnimationSet Set() => AnimationSet.FromArchive(7, Archive(Files));
 
+    public AnimationFixture WithPositions(params (int X, int Y)[] positions)
+    {
+        Files["vupos.dat"] = Positions(positions);
+        return this;
+    }
+
     private static byte[] BodyFrames(params int[] pictures)
     {
         var data = new byte[pictures.Length * 60];
