@@ -9,6 +9,13 @@ foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'), (
     if (@($errors).Count -gt 0) { throw "PowerShell syntax error in $path." }
 }
 
+$preview = & (Join-Path $PSScriptRoot 'edit-historical-release-notes.ps1')
+foreach ($tag in @('v0.118.0', 'v0.114.0')) {
+    if (-not @($preview | Where-Object { $_ -eq "Preview for $tag" }).Count) {
+        throw "The release history preview did not identify $tag."
+    }
+}
+
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
 try {
