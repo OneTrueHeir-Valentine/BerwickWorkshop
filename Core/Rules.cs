@@ -719,7 +719,9 @@ public static partial class GameRules
         new(id, key, name, description, RuleKind.Limit, 0, max, normal, null,
             [Immediate(addAddress, S1, 0, max), Immediate(storeAddress, S2, 0, max)], confirmed: true);
 
-    public static IReadOnlyList<GameRule> All { get; } = Array.AsReadOnly<GameRule>(
+    private static readonly Lazy<IReadOnlyList<GameRule>> AllRules = new(CreateAll);
+    public static IReadOnlyList<GameRule> All => AllRules.Value;
+    private static IReadOnlyList<GameRule> CreateAll() => Array.AsReadOnly<GameRule>(
     [
         new GameRule(1, "shieldParry", "Parry",
             "Parrying with a weapon cancels a hit completely. Normal: only units with the Parry skill parry, at a chance based on their weapon level. Always: every unit holding a usable weapon parries every hit. Never: nobody parries. Applies to every unit in battle, enemies included.",
