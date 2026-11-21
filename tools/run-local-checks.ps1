@@ -34,10 +34,12 @@ function Invoke-Check {
     $time = [DateTimeOffset]::UtcNow
     $exitCode = -1
 
+    Write-Host "Running $Name..."
     try {
         $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
-            -WorkingDirectory $root -Wait -PassThru -NoNewWindow `
+            -WorkingDirectory $root -PassThru -NoNewWindow `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $process.WaitForExit()
         $exitCode = $process.ExitCode
     }
     catch {
