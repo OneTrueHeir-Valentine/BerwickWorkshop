@@ -92,6 +92,25 @@ try {
             throw 'The archive contains an unsafe or private path.'
         }
     }
+    # The package uses one license file for the application and its credited reference code.
+    $noticeEntry = $archive.GetEntry('Licenses.txt')
+    if ($null -eq $noticeEntry -or $noticeEntry.Length -gt 1048576) {
+        throw 'The package license file is missing or unexpectedly large.'
+    }
+    $reader = [IO.StreamReader]::new($noticeEntry.Open())
+    try {
+        $notices = $reader.ReadToEnd().Replace("`r`n", "`n").Trim()
+    }
+    finally {
+        $reader.Dispose()
+    }
+    foreach ($relative in @('LICENSE', 'reference/MintX-LICENSE.txt')) {
+        $required = [IO.File]::ReadAllText((Join-Path $repo $relative)).Replace("`r`n", "`n").Trim()
+        if (-not $notices.Contains($required)) {
+            throw "The package is missing the required license notice from $relative."
+        }
+    }
+
 }
 finally {
     $archive.Dispose()
