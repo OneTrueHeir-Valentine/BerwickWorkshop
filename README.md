@@ -34,11 +34,11 @@ Source changes and outstanding bugs are recorded in the [GitHub issues](https://
 
 ## Building
 
-You need the .NET 9 SDK. From the repository root:
+You need the .NET 10 SDK. From the repository root:
 
 ```powershell
 dotnet build Tests -c Release
-dotnet Tests\bin\Release\net9.0\Berwick.Tests.dll "<Japanese ISO>" "<English ISO>"
+dotnet Tests\bin\Release\net10.0\Berwick.Tests.dll "<Japanese ISO>" "<English ISO>"
 dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\Berwick Workshop"
 ```
 
