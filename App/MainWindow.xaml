@@ -520,7 +520,7 @@
         <Button x:Name="AnimationStepButton" Content="Next frame" Click="StepAnimation" VerticalAlignment="Bottom" Margin="0,0,0,8" ToolTip="Show the next frame"/>
        </WrapPanel>
        <TextBlock DockPanel.Dock="Bottom" x:Name="AnimationFrameText" Style="{StaticResource Caption}" Margin="12,0,12,10"/>
-       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Border Background="#3A3D4A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"><Image x:Name="AnimationImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Animation frame"/></Border></ScrollViewer>
+       <ScrollViewer x:Name="AnimationFrameScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Border Background="#3A3D4A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"><Image x:Name="AnimationImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Animation frame"/></Border></ScrollViewer>
       </DockPanel>
      </Border>
      <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">
