@@ -47,9 +47,11 @@ Versioned release artifacts contain the executable, user guide and required thir
 
 ## Working branches
 
-Keep a local branch that tracks `origin/main` as the clean starting point for development. Make code changes on task branches, review the diff and tests, and squash-merge complete changes through pull requests. Compare local-only history with `origin/main` before rebasing or cherry-picking to avoid reintroducing changes already upstream.
+`main` is the stable branch. `develop` is the integration branch for changes intended for the next release. Create short-lived task branches from `origin/develop`, review their diffs and tests, and squash-merge them into `develop` through pull requests. Do not push feature work directly to either long-lived branch. Compare local-only history with `origin/main` before rebasing or cherry-picking to avoid reintroducing changes already upstream.
 
-After a pull request is merged, update the local starting point with `git fetch origin` and `git merge --ff-only origin/main` from a clean working tree. Tools that need access to ignored verification records must operate in the same local checkout.
+When a release is ready, review a pull request from `develop` to `main`. Use a normal merge commit for that release promotion, rather than squashing the integration branch into a single change; this preserves ancestry and makes subsequent fast-forward synchronization predictable. Both original game editions and PCSX2 require recorded verification before publishing release binaries.
+
+After a task is merged, update a clean local `develop` checkout with `git fetch origin` and `git merge --ff-only origin/develop`. After a release promotion, synchronize `develop` with `main` without rewriting shared history. Tools that need access to ignored verification records must operate in the same local checkout.
 
 The local validation command is `tools/run-local-checks.ps1`. Logs are written to the Git-ignored `release-handoff/checks/` directory, with the source commit and exit code recorded for each check. This command does not edit release evidence or perform game-edition or PCSX2 testing.
 
