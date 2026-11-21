@@ -20,6 +20,9 @@ jobs:
       - name: Check source boundaries
         shell: pwsh
         run: ./tools/verify-structure.ps1
+      - name: Test release evidence checker
+        shell: pwsh
+        run: ./tools/test-release-check.ps1
       - name: Install .NET 9
         uses: actions/setup-dotnet@v4
         with:
