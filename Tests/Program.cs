@@ -14,6 +14,14 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+if (args is ["--maps"])
+{
+    MapEditsTests.Run(Test);
+    MapPresentationTests.Run(Test);
+    MapDocumentTests.Run(Test);
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
 AnimationCanvasTests.Run(Test);
@@ -30,6 +38,8 @@ if (args is ["--animation-export"])
 ChangeReviewTests.Run(Test);
 MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
+MapPresentationTests.Run(Test);
+MapDocumentTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{

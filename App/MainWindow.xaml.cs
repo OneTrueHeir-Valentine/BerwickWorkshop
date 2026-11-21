@@ -33,11 +33,13 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        MapsPage.BattleSelected += MapSelected;
-        MapsPage.OptionsChanged += MapViewChanged;
-        MapsPage.CanvasLeftClicked += MapCanvasClick;
-        MapsPage.CanvasRightClicked += MapCanvasRightClick;
+        MapsPage.StatusChanged += text => Status.Text = text;
+        MapsPage.ProjectChanged += RefreshDocument;
+        MapsPage.SelectionChanging += () => { if (editing?.Page == View.Maps) EndEdit(); };
+        MapsPage.SelectionChanged += UpdateEditButtons;
         MapsPage.EditUnitRequested += BeginMapUnitEdit;
+        MapsPage.UnitChangesRequested += (panel, key) => AddChangeList(panel,
+            change => change.Table == EditSession.ArmyUnits && change.Id == key, () => session!.Revert(EditSession.ArmyUnits, key));
         Category.Items.Add("All types");
         foreach(string type in ItemDecoder.Types) Category.Items.Add(type);
         Category.Items.Add("Other"); Category.SelectedIndex=0;
@@ -122,7 +124,7 @@ public partial class MainWindow : Window
     {
         if(primary is null)return;
         GameNames.SetOverrides(session is null?new Dictionary<string,string>():session.ChangedTextStrings);
-        if(selectedMapUnit is not null && editing?.Page!=View.Maps)ShowMapUnit(mapUnitWhere);
+        MapsPage.RefreshProject(session, editing?.Page == View.Maps);
         DiscStrip.Visibility=Visibility.Visible;EmptyState.Visibility=Visibility.Collapsed;DiscNav.IsEnabled=true;
         EditionText.Text=primary.Edition;FileText.Text=Path.GetFileName(primary.Path);FileText.ToolTip=primary.Path;
         VerifiedText.Text=!primary.Supported?"Unknown disc":primary.IsModified?"Modified disc":"Verified disc";
@@ -663,7 +665,7 @@ public partial class MainWindow : Window
     private EventLibrary? events;
     private string? eventsPath;
     private readonly Dictionary<int,string> eventTexts=new();
-    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;mapController.Reset();shownMap=null;shownPicture=null;shownTitle="";MapList.ItemsSource=null;MapCanvas.Children.Clear();MapDetails.Children.Clear();MapCount.Text="";CloseAnimations();events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
+    private void CloseEvents(){shops=null;shopsPath=null;ShopGrid.ItemsSource=null;ShopItemList.ItemsSource=null;ShopCount.Text="";if(textEditing)EndTextEdit();fixedTops=null;MapsPage.Reset();CloseAnimations();events=null;eventsPath=null;lock(eventTexts)eventTexts.Clear();eventStream?.Dispose();eventStream=null;EventList.ItemsSource=null;EventText.Text="";EventCount.Text="";}
     private async Task OpenEvents()
     {
         if(primary is null || !primary.Supported)return;
@@ -1633,7 +1635,7 @@ public partial class MainWindow : Window
         if(editing is { } target)
         {
             editing=null;editors.Clear();target.Host.Children.Clear();target.Host.Visibility=Visibility.Collapsed;target.ViewPanel.Visibility=Visibility.Visible;
-            if(target.Page==View.Maps && selectedMapUnit is not null)ShowMapUnit(mapUnitWhere);
+            if(target.Page==View.Maps)MapsPage.RefreshSelectedUnit();
         }
         UpdateEditButtons();
     }
@@ -1646,7 +1648,7 @@ public partial class MainWindow : Window
         EditItemButton.Visibility=can && ItemGrid.SelectedItem is ItemRow?Visibility.Visible:Visibility.Collapsed;
         EditCharacterButton.Visibility=can && CharacterGrid.SelectedItem is CharacterRow?Visibility.Visible:Visibility.Collapsed;
         EditArmyUnitButton.Visibility=can && ArmyGrid.SelectedItem is ArmyUnitRow?Visibility.Visible:Visibility.Collapsed;
-        EditMapUnitButton.Visibility=can && selectedMapUnit is not null?Visibility.Visible:Visibility.Collapsed;
+        MapsPage.SetEditAvailability(can);
         EditFurnitureButton.Visibility=can && FurnitureGrid.SelectedItem is FurnitureRow?Visibility.Visible:Visibility.Collapsed;
         EditDishButton.Visibility=can && DishGrid.SelectedItem is DishRow?Visibility.Visible:Visibility.Collapsed;
         EditScriptNumberButton.Visibility=can && ScriptNumberList.SelectedValue is int?Visibility.Visible:Visibility.Collapsed;
@@ -2003,7 +2005,7 @@ public partial class MainWindow : Window
         if(e.Key==Key.E && session is not null && editing is null)
         {
             e.Handled=true;
-            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Maps)BeginMapUnitEdit(this,new());else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
+            if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Maps)MapsPage.BeginUnitEdit();else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
