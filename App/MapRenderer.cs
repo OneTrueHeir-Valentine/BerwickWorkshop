@@ -117,15 +117,44 @@ internal sealed class MapRenderer(Canvas canvas, StackPanel details)
                     Canvas.SetLeft(label,cx+shift-label.DesiredSize.Width/2); Canvas.SetTop(label,cy-label.DesiredSize.Height/2); Panel.SetZIndex(label,2); canvas.Children.Add(label);
                 }
             }
+        if (selection.SelectedUnit is { } selected &&
+            selected.X >= 0 && selected.Y >= 0 &&
+            selected.X < map.Width && selected.Y < map.Height &&
+            map.KindAt(selected.X, selected.Y) != BattleMaps.Border)
+            DrawSelectionOutline(geometry, selected.X, selected.Y);
+
         details.Children.Add(new TextBlock { Text = $"{map.Width} by {map.Height} hexes, file {map.File}", Foreground = (Brush)details.FindResource("Muted"), FontSize = 12, Margin = new(0,0,0,10) });
         if (map.Battle == 0) MapText.Text(details, "No event in the game starts a battle on this map. Some belong to quests that are listed in the game's data but never offered.");
-        else DrawBattleDetails(map,document,placed,arrivals,deployList,talkNames,actions);
+        else DrawBattleDetails(map,document,selection,placed,arrivals,deployList,talkNames,actions);
         MapText.Section(details,"Terrain");
         foreach (string name in TerrainData.TerrainGroups.Distinct().Where(used.Contains))
             Legend(name, new SolidColorBrush(TerrainColors.GetValueOrDefault(name,Colors.LightGray)), new SolidColorBrush(Color.FromArgb(90,0,0,0)),0,1);
     }
 
-    private void DrawBattleDetails(BattleMap map, MapEditorDocument document, List<MapPlacedUnit> placed,
+    private void DrawSelectionOutline(MapGeometry geometry, int x, int y)
+    {
+        var (cx, cy) = geometry.Center(x, y);
+        double w = geometry.ColumnWidth, h = geometry.RowHeight, side = w / 3;
+        var points = new PointCollection
+        {
+            new(cx - w / 2 - side / 2, cy),
+            new(cx - side, cy - h / 2),
+            new(cx + side, cy - h / 2),
+            new(cx + w / 2 + side / 2, cy),
+            new(cx + side, cy + h / 2),
+            new(cx - side, cy + h / 2)
+        };
+        var dark = new Polygon { Points = new PointCollection(points), Fill = Brushes.Transparent,
+            Stroke = Brushes.Black, StrokeThickness = 5.5, IsHitTestVisible = false };
+        var light = new Polygon { Points = points, Fill = Brushes.Transparent,
+            Stroke = Brushes.White, StrokeThickness = 2.5, IsHitTestVisible = false };
+        Panel.SetZIndex(dark, 8);
+        Panel.SetZIndex(light, 9);
+        canvas.Children.Add(dark);
+        canvas.Children.Add(light);
+    }
+
+    private void DrawBattleDetails(BattleMap map, MapEditorDocument document, MapSelectionState selection, List<MapPlacedUnit> placed,
         List<MapArrivalUnit> arrivals, IReadOnlyList<(int X,int Y)> deployList, Func<int,string> talkNames, MapRenderActions actions)
     {
         MapText.Section(details,"Spots");
@@ -140,7 +169,13 @@ internal sealed class MapRenderer(Canvas canvas, StackPanel details)
             var list = new StackPanel();
             foreach (var unit in everyUnit.OrderBy(u => u.Arrival is not null).ThenBy(u => u.Name))
             {
-                var pick = new Button { Content = new TextBlock { Text = $"{unit.Name}{(unit.Arrival is not null ? " (arrives)" : "")}, {unit.X}, {unit.Y}", TextWrapping = TextWrapping.Wrap }, HorizontalContentAlignment = HorizontalAlignment.Left, Background = Brushes.Transparent, BorderThickness = new(0), Padding = new(2,1,2,1), Cursor = Cursors.Hand, FontSize = 12 };
+                bool selected = selection.IsSelected(unit);
+                var pick = new Button { Content = new TextBlock { Text = $"{unit.Name}{(unit.Arrival is not null ? " (arrives)" : "")}, {unit.X}, {unit.Y}", TextWrapping = TextWrapping.Wrap },
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Background = selected ? new SolidColorBrush(Color.FromRgb(220, 242, 245)) : Brushes.Transparent,
+                    BorderBrush = selected ? Brushes.DarkSlateGray : Brushes.Transparent,
+                    BorderThickness = selected ? new Thickness(1) : new Thickness(0),
+                    Padding = new(2,1,2,1), Cursor = Cursors.Hand, FontSize = 12 };
                 pick.Click += (_,_) => actions.SelectUnit(unit); list.Children.Add(pick);
             }
             details.Children.Add(new Expander { Header = $"Every unit ({everyUnit.Count}), click one to select it", Content = list, Margin = new(0,4,0,8), FontSize = 12 });

@@ -95,6 +95,7 @@ public partial class MapEditorView : UserControl
         currentSession = session;
         if (document is null) return;
         document.RefreshProject(session);
+        if (shownMap is { } map) selection.RefreshSelection(document.AllUnits(map));
         if (!unitEditing) RefreshSelectedUnit();
         Redraw();
     }
@@ -163,7 +164,11 @@ public partial class MapEditorView : UserControl
         {
             if (MapEdits.MovePlacement(document.Session,map,moving.Group,moving.Index,x,y,document.DeploymentOf(map)))
             {
-                if (selection.UnitKey is not null) selection.Where = $"Starts at {x}, {y}";
+                if (selection.UnitKey is not null)
+                {
+                    selection.Where = $"Starts at {x}, {y}";
+                    selection.MoveSelectedUnit(x, y);
+                }
                 selection.MovingUnit = null;
                 Changed($"Unit moved to {x}, {y}. Save the project to keep this change." + (map.Units.Count(u => u.Group == moving.Group && u.Index == moving.Index) > 1 ? " Every unit placed in that slot moved with it." : ""));
             }
@@ -181,8 +186,9 @@ public partial class MapEditorView : UserControl
     private void SelectUnit(MapDisplayedUnit unit, string where)
     {
         SelectionChanging?.Invoke();
-        selection.UnitKey = unit.Key; selection.Where = where; selection.Arrival = unit.Arrival;
-        RefreshSelectedUnit(); SelectionChanged?.Invoke();
+        selection.Select(unit);
+        selection.Where = where;
+        RefreshSelectedUnit(); SelectionChanged?.Invoke(); Redraw();
     }
     internal void RefreshSelectedUnit()
     {
@@ -208,7 +214,7 @@ public partial class MapEditorView : UserControl
             var edit = MapEdits.PlanArrivalMove(map,arrival,x,y);
             if (document.SetNumbers(edit.Numbers))
             {
-                selection.Where = $"Arrives at {x}, {y}"; selection.Arrival = edit.Updated;
+                selection.Where = $"Arrives at {x}, {y}"; selection.ChangeSelectedArrival(edit.Updated);
                 Changed($"Arrives at {x}, {y} now. Save the project to keep this change.");
             }
         }
@@ -222,7 +228,7 @@ public partial class MapEditorView : UserControl
         {
             if (document.SetNumbers(new Dictionary<(int,int),int> { [(turn.Event,turn.Index)] = value-turn.TurnOffset }))
             {
-                selection.Arrival = arrival with { Turn = value }; Changed($"Arrives from turn {value} now. Save the project to keep this change.");
+                selection.ChangeSelectedArrival(arrival with { Turn = value }); Changed($"Arrives from turn {value} now. Save the project to keep this change.");
             }
         }
         catch (EditException ex) { StatusChanged?.Invoke(ex.Message); }
