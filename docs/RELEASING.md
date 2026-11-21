@@ -60,6 +60,18 @@ Use the verified commit as the release tag target. Keep release notes factual an
 
 GitHub's hosted offline workflow cannot access privately owned game images or directly validate PCSX2. The local checks and signed-off verification record therefore remain a required manual release step.
 
+## Local offline checks
+
+From the repository root, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\run-local-checks.ps1
+```
+
+The command runs source checks, release-checker tests, the .NET test build, and the offline test suite. Add `-PublishApp` to build a Windows executable for local inspection. Each run writes a timestamped directory under `release-handoff/checks/` containing stdout, stderr, and `summary.json`. These are development logs, not release evidence. The command does not update the verification record, inspect game images, or mark PCSX2 tests passed.
+
+The next planned release is 0.119.0. Do not publish it until the final source revision and application package have passed all required checks, including both game editions and PCSX2.
+
 ## Local verification records
 
 Create a record in the checkout when preparing a new release:

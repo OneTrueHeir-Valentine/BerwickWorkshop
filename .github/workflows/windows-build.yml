@@ -17,26 +17,13 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Check source boundaries
-        shell: pwsh
-        run: ./tools/verify-structure.ps1
-      - name: Test release evidence checker
-        shell: pwsh
-        run: ./tools/test-release-check.ps1
       - name: Install .NET 9
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
-      - name: Build tests
+      - name: Run local checks
         shell: pwsh
-        run: |
-          dotnet build Tests -c Release --nologo
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run offline tests
-        shell: pwsh
-        run: |
-          dotnet .\Tests\bin\Release\net9.0\Berwick.Tests.dll
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: ./tools/run-local-checks.ps1
       - name: Publish Windows executable
         shell: pwsh
         run: |
