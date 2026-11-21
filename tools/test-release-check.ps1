@@ -13,6 +13,7 @@ $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid
 New-Item -ItemType Directory -Path $folder | Out-Null
 try {
     $zipPath = Join-Path $folder 'Berwick.Workshop.0.119.0.zip'
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
     try {

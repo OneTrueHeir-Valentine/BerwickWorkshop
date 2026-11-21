@@ -36,11 +36,20 @@ function Invoke-Check {
 
     Write-Host "Running $Name..."
     try {
-        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments `
-            -WorkingDirectory $root -PassThru -NoNewWindow `
-            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-        $process.WaitForExit()
-        $exitCode = $process.ExitCode
+        Push-Location -LiteralPath $root
+        try {
+            # Native stderr must not abort the check before its exit code is read.
+            $ErrorActionPreference = 'Continue'
+            & $Executable @Arguments 1> $stdout 2> $stderr
+            $exitCode = $LASTEXITCODE
+            if ($null -eq $exitCode) {
+                throw "The command did not report an exit code."
+            }
+        }
+        finally {
+            $ErrorActionPreference = 'Stop'
+            Pop-Location
+        }
     }
     catch {
         $_.Exception.Message | Set-Content -LiteralPath $stderr
