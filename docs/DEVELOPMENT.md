@@ -11,10 +11,6 @@ Berwick Workshop reads two supported editions of Berwick Saga, edits project dat
 
 New functionality should be implemented in the owning module. Do not add new pages to the central window file or add new executable patch families to the large rule registry.
 
-## Visual asset provenance
-
-AI-generated visual assets are not permitted. Original game artwork must be loaded from the user's own recognized image at runtime, never bundled in source or releases. Preserve licensing and attribution for any external human-made interface artwork. Source review must check visual provenance. Original `onmap` sprite decoding and rendering remain separate work in [Issue #29](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues/29); battle-animation export does not establish that format's compatibility.
-
 ## Source review
 
 Keep changes in the subsystem that owns them. Prefer ordinary, explicit C# and WPF code over indirection that only moves complexity elsewhere. Use descriptive names for game concepts, and preserve established technical names for game structures and CPU registers.
