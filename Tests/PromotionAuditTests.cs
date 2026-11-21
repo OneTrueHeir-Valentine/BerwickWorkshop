@@ -12,7 +12,9 @@ public static class PromotionAuditTests
                 || Valid("--promotion-audit", "jp.iso")
                 || Valid("--promotion-audit", "jp.iso", "out", "en.iso")
                 || Valid("--promotion-audit", "<Japanese original ISO>", "out")
-                || Valid("--promotion-audit", "jp.iso", "<private output folder>"))
+                || Valid("--promotion-audit", "jp.iso", "<private output folder>")
+                || Valid("--promotion-audit", "--maps", "out")
+                || Valid("--promotion-audit", "jp.iso", "--help"))
                 throw new Exception("Malformed audit invocations must be rejected.");
             if (!Valid("--promotion-audit", @"C:\\game\\jp.iso", @"C:\\private\\reports"))
                 throw new Exception("An exact audit invocation was rejected.");

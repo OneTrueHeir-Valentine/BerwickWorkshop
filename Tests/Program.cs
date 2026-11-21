@@ -14,20 +14,27 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
-if (args.Length > 0 && args[0] == "--promotion-audit")
-    return PromotionAuditCommand.Run(args);
-if (args is ["--help"] or ["-h"])
+if (!TestRunnerArguments.TryParse(args, out var mode, out var argumentError))
 {
-    Console.WriteLine(PromotionAuditCommand.Usage);
-    Console.WriteLine("Other modes: --maps, --animation-export, or two original ISO paths for integration tests.");
-    return 0;
-}
-if (args.Length > 0 && args[0].StartsWith("--", StringComparison.Ordinal)
-    && !(args.Length == 1 && (args[0] == "--maps" || args[0] == "--animation-export")))
-{
-    Console.Error.WriteLine($"Unknown or incomplete test runner option: {args[0]}");
+    Console.Error.WriteLine(argumentError);
     Console.Error.WriteLine(PromotionAuditCommand.Usage);
     return 2;
+}
+if (mode == TestRunMode.PromotionAudit) return PromotionAuditCommand.Run(args);
+if (mode == TestRunMode.Help)
+{
+    Console.WriteLine(PromotionAuditCommand.Usage);
+    Console.WriteLine("Other modes: --maps, --animation-export, or two original ISO paths and an optional third comparison ISO for integration tests.");
+    return 0;
+}
+if (mode == TestRunMode.Discs)
+{
+    foreach (string path in args)
+        if (!File.Exists(path))
+        {
+            Console.Error.WriteLine($"Integration ISO was not found: {path}");
+            return 2;
+        }
 }
 
 if (args is ["--maps"])
@@ -53,6 +60,8 @@ if (args is ["--animation-export"])
 }
 ChangeReviewTests.Run(Test);
 PromotionAuditTests.Run(Test);
+TestRunnerArgumentTests.Run(Test);
+PromotionAuditFileTests.Run(Test);
 MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
 MapPresentationTests.Run(Test);
@@ -711,6 +720,7 @@ Test("Live game: units, record and item edits, rules and undo over a stand-in fo
 Console.WriteLine($"{passed} passed, {failed} failed");
 if(args.Length>=2)
 {
+    int beforeDiscInspection = failed;
     Test("Japanese secondary table matches all primary records",()=>{
         using var iso=new IsoImage(File.OpenRead(args[0]));
         var profile=Profiles.Match("77a280686e34d26053ce03873eb6cd0f7fd9730c0b4d4e104f6eb63ac5bd7320")!;
@@ -731,7 +741,12 @@ if(args.Length>=2)
         Equal(600,en.Items.Single(i=>i.Id==1).Price);Equal(100,en.Items.Single(i=>i.Id==506).Price);
         Console.WriteLine($"English mirror differences: {en.DifferentTableRecords}");
     });
-    if (jp is not null && en is not null) ChangeReviewTests.RunDiscs(Test, jp, en);
+    if (failed != beforeDiscInspection || jp is null || en is null)
+    {
+        Console.Error.WriteLine("Disc inspection failed; remaining integration tests were not run.");
+        return 1;
+    }
+    ChangeReviewTests.RunDiscs(Test, jp, en);
     Test("English battle animations: Spear Knight sets, colours and frames",()=>{
         using var iso=new IsoImage(File.OpenRead(args[1]));
         var archives=new GameArchives(iso);
