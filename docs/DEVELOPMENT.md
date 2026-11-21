@@ -21,6 +21,14 @@ The patching layer should generate a patch plan before it writes. Each plan must
 
 For existing patches, first extract the code unchanged. Replace hard-coded instruction arrays only when the assembled bytes compare exactly to the previously verified settings on both editions. Changes to the meaning of a mechanic are separate commits with separate in-game validation.
 
+### First assembly-backed patch
+
+The first migrated hook is the heap allocation increment used when shield guard reserves an extra page. The readable sources are `Core/Mips/heap-original.s` and `Core/Mips/heap-reserved.s`. They compile to the original values `0x24420800` and `0x24421800`. `GameRules` reads these embedded sources instead of repeating the two instruction words as literals.
+
+`Core/MipsAssembly.cs` is intentionally a limited assembler. It recognizes basic R- and I-format instructions, absolute jumps, relative branches, labels, and literal words. It does not support R5900 vector instructions, assembler macros, pseudo-instruction expansion, automatic branch-delay handling, or relocatable objects. Unsupported syntax is rejected. Do not attempt to translate complex game routines through this subset until its opcode coverage and tests have been expanded or a suitable established assembler is integrated.
+
+`Tests/MipsAssemblyTests.cs` checks the known machine words, endianness, branch offsets and bad input. Additional migrations must include explicit source addresses and a binary equivalence test against the verified original bytes. Assembler output alone is not proof of correct game behavior.
+
 ## Editing and UI
 
 The application should expose domain operations through small, testable services. Page-specific state and event handlers should move out of `MainWindow`; extracting partial-class files is a safe first step but does not by itself remove coupling.
