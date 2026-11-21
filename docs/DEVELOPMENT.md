@@ -39,6 +39,12 @@ The first migrated hook is the heap allocation increment used when shield guard 
 
 `Tests/MipsAssemblyTests.cs` checks the known machine words, endianness, branch offsets and bad input. Additional migrations must include explicit source addresses and a binary equivalence test against the verified original bytes. Assembler output alone is not proof of correct game behavior.
 
+## Documentation and visual resources
+
+User-facing descriptions should explain what the program does, what it cannot yet do and which behavior has been verified. Keep help text, issue descriptions and release notes specific to Berwick Workshop. Historical research and unresolved formats belong in the research notes. Keep technical terminology when it identifies actual game structures, and retain the credits attached to borrowed work.
+
+Map and animation graphics come from the disc image opened by the user. Extracted game artwork is not stored in the repository or included in application packages. Any additional artwork or icon must have a recorded creator, source and redistribution terms. Review existing packaged imagery, including `App/workshop.ico`, when updating the release's asset inventory. An unverified origin should be recorded as such rather than inferred from appearance. Changes to icons and artwork should fit the existing interface.
+
 ## Editing and UI
 
 The application should expose domain operations through small, testable services. Page-specific state and event handlers should move out of `MainWindow`; extracting partial-class files is a safe first step but does not by itself remove coupling.
