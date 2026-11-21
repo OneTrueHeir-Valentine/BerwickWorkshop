@@ -87,7 +87,7 @@ try {
         throw 'The release archive must contain the executable, README and Licenses files only.'
     }
     foreach ($entry in $archive.Entries) {
-        $path = $entry.FullName.Replace('\\', '/')
+        $path = $entry.FullName.Replace('\', '/')
         if ($path -match '(^|/)\.\.(/|$)' -or $path -match '(^|/)\.(git|vs)(/|$)') {
             throw 'The archive contains an unsafe or private path.'
         }

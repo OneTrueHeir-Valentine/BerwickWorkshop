@@ -50,6 +50,12 @@ Prepare the final Windows archive only after the source commit is fixed. Run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\check-release.ps1 -Version 0.119.0 -Package .\Berwick.Workshop.0.119.0.zip -Evidence C:\path\outside\repository\release-check.json
 ```
 
+Alternatively, use the gated publisher after verification:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\publish-release.ps1 -Version 0.119.0 -Package .\Berwick.Workshop.0.119.0.zip -Evidence C:\path\outside\repository\release-check.json -ReleaseNotes .\release-notes.txt
+```
+
 Use the verified commit as the release tag target. Keep release notes factual and restricted to changes confirmed by the build and tests. Do not replace the existing public release until the new one has been verified.
 
 GitHub's hosted offline workflow cannot access privately owned game images or directly validate PCSX2. The local checks and signed-off verification record therefore remain a required manual release step.
