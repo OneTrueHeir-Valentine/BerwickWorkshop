@@ -17,33 +17,7 @@ void Throws<T>(Action action) where T:Exception
     throw new Exception($"Expected {typeof(T).Name}");
 }
 if (args is ["--inspect-placement", string imagePath, string archiveIndex, string placementGroup, string placementSlot])
-{
-    try
-    {
-        if (!int.TryParse(archiveIndex, out int top) || top < 0 ||
-            !int.TryParse(placementGroup, out int group) || group is < Placement.FirstGroup or >= Placement.FirstGroup + Placement.Groups ||
-            !int.TryParse(placementSlot, out int slot) || slot is < 1 or >= Placement.Slots)
-            throw new ArgumentException("Specify a nonnegative map archive, group 1 to 15, and slot 1 to 63.");
-        using var stream = File.OpenRead(imagePath);
-        using var image = new IsoImage(stream);
-        var archives = new GameArchives(image);
-        var topArchive = archives.Top(top);
-        var map = Tarc.Parse(topArchive).SingleOrDefault(entry => entry.Name == "map")
-            ?? throw new InvalidDataException("The archive does not contain a map record.");
-        var record = Placement.Read(Tarc.Extract(topArchive, map))
-            ?? throw new InvalidDataException("The map has no complete placement table.");
-        var location = Placement.Slot(record, group, slot);
-        Console.WriteLine(location is { } hex
-            ? $"Map archive {top}, group {group}, slot {slot}: {hex.X}, {hex.Y}"
-            : $"Map archive {top}, group {group}, slot {slot}: unused");
-        return 0;
-    }
-    catch (Exception e) when (e is IOException or InvalidDataException or ArgumentException or EditException)
-    {
-        Console.Error.WriteLine(e.Message);
-        return 1;
-    }
-}
+    return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
