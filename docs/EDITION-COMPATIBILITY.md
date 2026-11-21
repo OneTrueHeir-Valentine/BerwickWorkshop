@@ -1,65 +1,31 @@
-# Edition compatibility checklist
+# Edition compatibility
 
-Repeat this checklist separately for Japanese retail and English v2.3. A successful build or synthetic test does not establish retail compatibility. Read-only inspection, desktop interaction and PCSX2 execution are separate results.
+Verify Japanese retail and English v2.3 separately. Record the application commit, recognized image and executable hashes, Windows/PCSX2 versions, battle, map archive, army record, group/slot, coordinates and starting save conditions. Use pass, fail, not run or not applicable for each result, with a local evidence path. Static inspection and Core tests do not establish desktop or gameplay compatibility.
 
-## Record each run
+Use disposable projects, separate export paths and disposable saves or memory cards. Preserve original images and emulator settings. Keep selected logs and screenshots under the ignored `release-handoff/` directory; do not publish game data or copy results between editions.
 
-- Application commit and build configuration.
-- Edition, recognized profile, original disc SHA-256 and executable SHA-256.
-- Windows and PCSX2 versions, relevant emulator settings and starting save conditions.
-- Battle number, map archive, army, record key/index, team, group, slot and opening/source events.
-- Original and edited coordinates, shared-reference warnings and expected later arrivals.
-- Result for each item: pass, fail, not run or not applicable, with a reason and local evidence path.
+## Verification coverage
 
-Use disposable projects and new export paths. Keep original discs, saves, memory cards and emulator settings intact. Store selected logs and screenshots under the ignored `release-handoff/` directory with the evidence collector. Do not upload game data or copy verification statuses from another edition.
+| Area | Checks for each edition |
+| --- | --- |
+| Maps | Compare artwork, terrain, deployment positions, units, arrivals and event spots with the baseline. Check zoom, scrolling, overlays, stacked-marker selection, hit testing and rapid battle/project switching. Test eligible-unused defaults, access to placed/unsupported records, removal, no-op feedback and shared-map acknowledgement. Reject border, deployment and occupied-hex collisions without edits. |
+| Armies | Match army, record index/key/offset, team, group and slot. Placement/removal must change only the coordinate pair, preserving the army record and other consumers. Review shared army and map uses. |
+| Scripts | Check both launch layouts and opening-event paths. Verified finite calls must retain every destination; changed or genuinely ambiguous graphs must be refused. Direct script edits that invalidate the original graph must explain why placement is unavailable. |
+| Reinforcements | Confirm starting-placement edits leave arrival commands, turns, conditions, origins and destinations unchanged. Reach relevant arrival conditions in game and check duplicate-unit interactions; otherwise record not run. |
+| Projects | Add/remove is one undo step. Verify undo/redo, map refresh, save/reopen and identity/refusal details. Rejected or no-op actions must not add project changes. |
+| Export | Write a new image for each edition, reopen it and compare added presence, removed absence, unchanged army/script records and unrelated maps. Confirm original hashes remain unchanged and outputs retain their correct base edition. |
+| PCSX2 | Enter the selected battle from a state that reloads starting placements; an existing battle/save state is insufficient. Compare unit identity, team, position, removal and deployment with the baseline. Check movement, combat, basic victory/defeat conditions, later arrivals and other affected battles; retain edition-specific evidence. |
 
-## Maps
+## First placement case
 
-- [ ] Open Story mission 1, A Reason to Fight: internal battle 26, `bmap026.ar` (archive 3701). Both originals have army 158, team 1, group 1; record index 21/key 158021 uses unused slot 22. Recheck eligibility in the current project before selecting it. If it no longer qualifies, record the reason and use the actual mission-order table to find an early simple alternative; numeric battle IDs are not story order.
-- [ ] Check map artwork, terrain, deployment positions, starting units, event spots and later arrivals. Compare positions with the unmodified game.
-- [ ] Check sizing, scrolling, overlays, hover/hit testing, stacked markers and unit selection. Rapid battle switches and page/project changes must not retain stale selections.
-- [ ] Confirm the placement selector defaults to eligible unused slots. Show placed and unsupported records; verify removal remains accessible and refusal explanations identify the problem.
-- [ ] Add one unit at a valid hex. Check its marker and selection immediately. Try a border, deployment position and occupied coordinate; each must be refused without edits.
-- [ ] Remove an originally occupied starting placement. Confirm it disappears from the map and remains available as an existing army record.
-- [ ] Inspect a shared map. Verify affected battles and matching assignments, require acknowledgement, reset acknowledgement on record/filter changes and refuse ambiguous consumers.
-- [ ] Confirm a no-op leaves the dialog open with an explanation and does not report success or add an undo step.
+Story mission 1, **A Reason to Fight**, is internal battle **26**, `bmap026.ar`, archive **3701**. Its starting army is **158**, team **1**, group **1**. Record **21**, key **158021**, uses slot **22**, initially empty on both original images. Recheck the current project's eligibility before placing it. If that record no longer qualifies, use the actual mission-order table to select an early simple alternative; numeric battle IDs are not story order.
 
-## Armies and scripts
+## Current verification
 
-- [ ] Match army, record index/key/offset and slot to the source data. Team and group must come from the opening event.
-- [ ] Confirm placement/removal changes only the intended coordinate pair. Compare underlying army records before and after, including other battles using that army.
-- [ ] Inspect both launch commands where present: `LaunchBMap(battle, file)` and `LaunchBMap2(mode, battle, file)`. Use distinct mode and battle values when testing parsing; record event and command offsets.
-- [ ] Confirm opening assignments reached through supported literal calls. Unsupported conditional/computed assignments and incomplete references must give a refusal rather than an inferred edit.
-- [ ] With a disposable project containing script edits, verify reference checks and map display use the current project scripts. Undo the script edits and confirm the original associations return.
+Both original editions pass the typed catalogue and placement-reference checks, including all three fingerprint-guarded mercenary calls. Separate disposable Core sessions placed the first-case record at `(1, 1)`, verified undo/redo and project reload, and preserved the army record and original image hashes. The coordinate was checked by the existing placement rules, not by an in-game movement test.
 
-## Reinforcements
+Manual desktop interaction, original-image export/readback and PCSX2 gameplay remain untested for this change. Complete those checks independently for each edition before claiming gameplay compatibility. Passing automated checks does not approve a release or alter verification flags.
 
-- [ ] Record the chosen unit's known later-arrival references before placement. The dialog must warn that starting placement does not cancel those arrivals.
-- [ ] Confirm arrival commands, turn conditions, origins, destinations and marching behavior are unchanged by starting-placement edits.
-- [ ] In PCSX2, reach the relevant arrival turn/condition and observe duplicate-unit or other interactions. If not reached, leave this item not run.
+## Further Maps interaction
 
-## Undo, project persistence and export
-
-- [ ] One add or removal is one undo step. Undo/redo restores coordinates, map display and selection consistently.
-- [ ] Save, close and reopen the disposable project. Confirm placement, removal and reference warnings persist correctly.
-- [ ] Export each edition to its own new output image. Reopen it and verify added presence, removed absence and unchanged army/script records and unrelated maps.
-- [ ] Verify original image hashes remain unchanged. A modified output must remain associated with the correct base edition.
-- [ ] Confirm rejected/no-op operations introduce no serialized changes or unexpected export patches.
-
-## PCSX2 acceptance
-
-- [ ] Boot the corresponding exported edition using disposable saves/memory cards. Enter the selected battle from a state that actually loads its starting placements; an already-running battle or old save state is insufficient.
-- [ ] Compare the unmodified baseline with the exported game. Verify added unit identity/team/position, removed starting absence and unchanged surviving units/deployment behavior.
-- [ ] Check a basic turn, movement, combat, victory/defeat triggers and any relevant later arrival. Record crashes, softlocks, duplicate units or unexpected enemy changes.
-- [ ] Recheck another battle sharing the army or map and compare its behavior with the reported shared effects.
-- [ ] Retain edition-specific screenshots/logs and record remaining untested conditions. Do not approve a release or mark another edition passed from this checklist alone.
-
-## Future interaction
-
-Future Maps work should let the user select an existing unit, click a destination hex on the map, inspect a placement preview and validation result, then confirm or cancel. Preserve shared-reference acknowledgement and existing undo operations. This interaction is outside PR #27 and does not imply reinforcement or army-record creation support.
-
-## Current static verification
-
-Read-only checks on both recognized originals account for all 4,096 catalogue slots and exact EOF: 1,518 battle, 152 general and 2,426 empty entries. The initial kind-1 entry is a startup-script binding, not padding. All populated entries remain represented; the battle projection excludes general records and zero script targets after validating them.
-
-Manual placement acceptance is still blocked by unresolved computed calls in events 133 and 151. The first mission has an unused existing record, but no battle is approved while the complete-reference guard refuses these calls. Do not substitute another battle or bypass the refusal. No desktop smoke test, original-image export readback or PCSX2 gameplay has been performed for these changes. Record such results separately for each edition when actually tested.
+Selecting an existing unit and clicking a destination hex should eventually provide a preview, validation and explicit confirmation or cancellation, with shared-reference acknowledgement and the existing undo system. That interaction, original `onmap` sprite rendering and reinforcement editing remain outside the current placement change.

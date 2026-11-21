@@ -37,15 +37,16 @@ public sealed class BattlePlacementReferences
                 if (matches.Count > 1)
                     throw new EditException($"Map {file} has ambiguous archive-index entries.");
                 return matches.Count == 1 ? matches[0].Top : -1;
-            });
+            }, EventCallFacts.ForOriginal(session.Disc));
         }
     }
 
     public static BattlePlacementReferences Analyze(IReadOnlyList<PlacementEventSource> sources,
-        IReadOnlyList<MapEventRecord> mapEvents, Func<string, int> findMap) => new ReferenceReader(sources, mapEvents, findMap).Read();
+        IReadOnlyList<MapEventRecord> mapEvents, Func<string, int> findMap, EventCallFacts? callFacts = null) =>
+        new ReferenceReader(sources, mapEvents, findMap, callFacts).Read();
 
     private sealed class ReferenceReader(IReadOnlyList<PlacementEventSource> sources,
-        IReadOnlyList<MapEventRecord> mapEvents, Func<string, int> findMap)
+        IReadOnlyList<MapEventRecord> mapEvents, Func<string, int> findMap, EventCallFacts? callFacts)
     {
         private const int LaunchBattleMap = 0x2DE;
         private const int LaunchBattleMapWithMode = 0x2DF;
@@ -60,6 +61,8 @@ public sealed class BattlePlacementReferences
         private readonly Dictionary<int, PlacementEventSource> events = sources.ToDictionary(source => source.Number);
         private readonly Dictionary<int, HashSet<int>> eventBattles = sources.ToDictionary(source => source.Number, _ => new HashSet<int>());
         private readonly Dictionary<int, HashSet<int>> archiveBattles = [];
+        private readonly IReadOnlyDictionary<(int Event, int Offset), IReadOnlyList<int>> verifiedCalls =
+            callFacts?.Verify(sources) ?? new Dictionary<(int, int), IReadOnlyList<int>>();
 
         public BattlePlacementReferences Read()
         {
@@ -137,19 +140,40 @@ public sealed class BattlePlacementReferences
                 {
                     foreach (var node in Walk(source.Nodes).Where(node => node.Command == ScriptParser.RunEvent))
                     {
-                        if (node.Args.Count == 0 || node.Args[0] is not [{ Value: int target }] || !eventBattles.TryGetValue(target, out var battles))
+                        foreach (int target in CallTargets(source.Number, node))
                         {
-                            string problem = $"Event {source.Number} has an unresolved event call.";
-                            if (!result.problems.Contains(problem))
-                                result.problems.Add(problem);
-                            continue;
+                            if (!eventBattles.TryGetValue(target, out var battles))
+                            {
+                                UnresolvedCall(source.Number);
+                                continue;
+                            }
+                            int before = battles.Count;
+                            battles.UnionWith(eventBattles[source.Number]);
+                            changed |= before != battles.Count;
                         }
-                        int before = battles.Count;
-                        battles.UnionWith(eventBattles[source.Number]);
-                        changed |= before != battles.Count;
                     }
                 }
             } while (changed);
+        }
+
+        private IReadOnlyList<int> CallTargets(int number, ScriptNode node)
+        {
+            if (node.Args.Count > 0 && node.Args[0] is [{ Value: int target }])
+                return [target];
+            if (node.Args.Count > 0 && node.Args[0] is [{ Command: ScriptParser.Variable }] &&
+                verifiedCalls.TryGetValue((number, node.Offset), out var targets))
+                return targets;
+            UnresolvedCall(number);
+            return [];
+        }
+
+        private void UnresolvedCall(int number)
+        {
+            string problem = $"Event {number} has an unresolved event call.";
+            if (callFacts is not null && verifiedCalls.Count != callFacts.Calls.Count)
+                problem += " The active scripts differ from the verified original scripts.";
+            if (!result.problems.Contains(problem))
+                result.problems.Add(problem);
         }
 
         private void VisitOpeningEvent(int number, int battle, int opening, bool conditional, HashSet<int> path)
@@ -170,10 +194,11 @@ public sealed class BattlePlacementReferences
             {
                 if (node.Command == ScriptParser.RunEvent)
                 {
-                    if (node.Args.Count > 0 && node.Args[0] is [{ Value: int target }])
-                        VisitOpeningEvent(target, battle, opening, conditional, path);
-                    else
-                        result.problems.Add($"Opening event {opening} has a computed event call.");
+                    foreach (int target in CallTargets(source.Number, node))
+                    {
+                        bool computed = node.Args[0] is not [{ Value: int }];
+                        VisitOpeningEvent(target, battle, opening, conditional || computed, path);
+                    }
                 }
                 if (node.Command == AppearArmy)
                     AddAssignment(source.Number, node, battle, opening, conditional);

@@ -117,7 +117,13 @@ The strict reader validates every slot and its type, all payload lengths/counts,
 
 Both executable mission-order tables identify Story mission 1, **A Reason to Fight**, as internal battle **26**, map **`bmap026.ar`**, archive **3701**. Event 2955 launches that battle. Its opening catalogue references events 2958, 2959, 2965, 2961, 2957, 2960, 2964 and 2968. Event **2958** at offset **`0x14`** places starting army **158**, enemy team **1**, group **1**, with 22 existing records. Record index **21**, key **158021**, slot **22** has both coordinates set to 255 on both originals. This is the preferred first candidate, not battle 1 or `bmap001.ar`.
 
-Catalogue parsing now succeeds on both editions, but the unchanged reference guard refuses computed calls in events **133** and **151**. No discovered battle currently passes that complete-reference check, so neither the first mission nor an alternate is approved for editing. Resolve those call targets without weakening the guard before manual acceptance. Read-only identification does not establish desktop interaction, export behavior or PCSX2 compatibility.
+Reference checks pass on both original editions, and this record is eligible. Disposable Core sessions placed it at `(1, 1)`, verified one-step undo/redo and project reload, then restored the session; the army record and original image hashes remained unchanged. This checks the data operation, not desktop interaction, exported-game behavior, movement suitability or PCSX2 compatibility.
+
+### Computed mercenary calls
+
+`GUnitGetMercenaryCheckScript` reads the 18-row mercenary table at `0x0042D450`, resolves its hash field through the event index at `0x0043BB40`, and returns one of events **142–150** or `-1`. Events 133 and 151 call these checks only after excluding `-1`. Event 133's recruitment-handler argument comes from 17 callers: 15 supply zero, event 769 supplies 768 and event 964 supplies 963. Zero cannot reach the handler call because its result flag remains zero. The destination closure is 132, 142–150, 768 and 963; it contains no map-launch or archive-army reference commands.
+
+All finite destinations remain edges in placement reference analysis. These facts require a recognized original image, its matching executable and the verified fingerprint of the analyzed event graph, including archive identities. Direct script or numeric-script edits that change that graph invalidate the facts and leave computed calls refused. This is deliberately narrower than general computed-call interpretation. Separate price-only export transformations do not change these targets. A finite computed opening path still counts as conditional and cannot authorize an ambiguous army placement.
 
 ### Development order
 
