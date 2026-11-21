@@ -94,10 +94,10 @@ try {
         'build', 'Tests', '-c', 'Release', '--nologo'
     )
     Invoke-Check 'offline-tests' $dotnet @(
-        'Tests/bin/Release/net9.0/Berwick.Tests.dll'
+        'Tests/bin/Release/net10.0/Berwick.Tests.dll'
     )
     Invoke-Check 'windows-animation-tests' $dotnet @(
-        'Tests/bin/Release/net9.0-windows/Berwick.Tests.dll', '--animation-export'
+        'Tests/bin/Release/net10.0-windows/Berwick.Tests.dll', '--animation-export'
     )
 
     if ($PublishApp) {
