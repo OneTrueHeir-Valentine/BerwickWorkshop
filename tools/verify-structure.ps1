@@ -37,7 +37,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect tracked files.' }
 foreach ($file in $gitFiles) {
     $normalized = $file.Replace('\', '/')
     if ($normalized -match '^docs/' -or
-        $normalized -match '(^|/)(AGENTS\.md|CLAUDE\.md|HANDOFF\.md|SESSION_LOG\.md)
+        $normalized -match '(^|/)(AGENTS\.md|CLAUDE\.md|HANDOFF\.md|SESSION_LOG\.md)$' -or
         $normalized -match '\.(iso|chd|cso|bin|cue)$') {
         throw "Private coordination file or game asset is tracked: $file"
     }
