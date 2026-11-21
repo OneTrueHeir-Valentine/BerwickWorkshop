@@ -45,6 +45,14 @@ Before merging a refactor, run the Windows build and offline tests. Behavior-pre
 
 Versioned release artifacts contain the executable, user guide and required third-party license credits. Keep test files, local notes, extracted game assets and development caches out of the release package.
 
+## Working branches
+
+Keep a local branch that tracks `origin/main` as the clean starting point for development. Make code changes on task branches, review the diff and tests, and squash-merge complete changes through pull requests. Compare local-only history with `origin/main` before rebasing or cherry-picking to avoid reintroducing changes already upstream.
+
+After a pull request is merged, update the local starting point with `git fetch origin` and `git merge --ff-only origin/main` from a clean working tree. Tools that need access to ignored verification records must operate in the same local checkout.
+
+The local validation command is `tools/run-local-checks.ps1`. Logs are written to the Git-ignored `release-handoff/checks/` directory, with the source commit and exit code recorded for each check. This command does not edit release evidence or perform game-edition or PCSX2 testing.
+
 ## Refactor sequence
 
 1. Separate page code and cohesive patch families without changing behavior.
