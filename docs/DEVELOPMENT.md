@@ -55,6 +55,10 @@ After a task is merged, update a clean local `develop` checkout with `git fetch 
 
 The local validation command is `tools/run-local-checks.ps1`. Logs are written to the Git-ignored `release-handoff/checks/` directory, with the source commit and exit code recorded for each check. This command does not edit release evidence or perform game-edition or PCSX2 testing.
 
+`Tests` has a portable .NET 9 target and a Windows/WPF target, using the same runner. Build both with `dotnet build Tests -c Release`. Run focused export checks with `dotnet Tests/bin/Release/net9.0/Berwick.Tests.dll --animation-export`, or use `net9.0-windows` in that path to include PNG encoding and export-dialog controls. Local checks and Windows CI run both the portable suite and the focused Windows checks.
+
+Animation export fixtures are synthetic. They check shared canvases, source records, metadata, PNG pixels, output cleanup and dialog defaults without game files. Checking every retail set, edition-specific palettes, real animation fidelity and PCSX2 playback still requires separate verification with the original Japanese and English discs. Control tests do not replace an interactive export/cancel smoke test.
+
 ## Refactor sequence
 
 1. Separate page code and cohesive patch families without changing behavior.
