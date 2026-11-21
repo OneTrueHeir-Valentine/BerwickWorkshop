@@ -42,19 +42,14 @@ foreach ($file in $gitFiles) {
     }
 }
 
-# Git must keep shell sources as LF even on Windows checkouts.
+# Shell and assembly sources must keep Unix line endings in Windows checkouts.
 foreach ($script in @(Get-ChildItem -LiteralPath (Join-Path $root 'tools') -Filter '*.sh' -File)) {
     if ([IO.File]::ReadAllText($script.FullName).Contains("`r`n")) {
         throw "Bash script has Windows CRLF line endings: $($script.Name)"
     }
 }
 $attribute = & git -C $root check-attr eol -- 'tools/compare-shield-assembly.sh'
-if ($LASTEXITCODE -ne 0 -or $attribute -notmatch ': eol: lf
-if ($LASTEXITCODE -ne 0 -or -not $ignored) {
-    throw 'Local release-handoff evidence must remain Git-ignored.'
-}
-Write-Host 'Source boundaries and public file checks passed.'
-) {
+if ($LASTEXITCODE -ne 0 -or $attribute -notmatch ': eol: lf$') {
     throw 'Bash scripts must be checked out with LF line endings.'
 }
 
