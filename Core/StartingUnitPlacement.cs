@@ -11,7 +11,7 @@ public sealed record StartingUnitCandidate(ArmyUnit Unit, StartingArmyReference 
 public static class StartingUnitPlacement
 {
     public static IReadOnlyList<StartingUnitCandidate> Candidates(BattleMap map, BattlePlacementReferences references,
-        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record, ReadOnlySpan<byte> sourceRecord = default)
+        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record, ReadOnlySpan<byte> sourceRecord = default, bool verifiedOriginalDisc = false)
     {
         if (record.Length != Placement.RecordLength)
             throw new EditException("The placement record has an unsupported length.");
@@ -47,6 +47,8 @@ public static class StartingUnitPlacement
                 string? placementProblem = references.Assignments
                     .Where(other => mapBattles.Contains(other.Battle) && other.Group == assignment.Group)
                     .Select(other => other.PlacementProblem).FirstOrDefault(message => message is not null);
+                if (problem is null && placementProblem is null && !verifiedOriginalDisc)
+                    placementProblem = "The source disc has not been verified as an original edition. Restore this position from an original disc instead.";
                 if (problem is null && placementProblem is null)
                 {
                     var source = sourceRecord.Length == Placement.RecordLength ? Placement.Slot(sourceRecord, assignment.Group, slot) : null;
@@ -113,7 +115,7 @@ public static class StartingUnitPlacement
         var references = BattlePlacementReferences.Read(library, session);
         var record = session.EditedBytes(EditSession.Placements, map.Top);
         var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
-        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span)
+        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, !session.Disc.IsModified)
             .Where(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group).ToList();
         if (matches.Count != 1)
             throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");
