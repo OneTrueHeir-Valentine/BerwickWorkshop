@@ -14,7 +14,7 @@ Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chap
 
 **Maps and events.** View the painted maps, terrain, deployment positions, starting units, reinforcements and event spots. The Maps page supports editing existing positions and deployment hexes. The Events page reads the game's scripts as commands and can change values, individual lines or complete scripts, including reinforcement timing.
 
-**Rules and mechanics.** Change supported battle rules for Parry, shield use, durability, experience, stat limits and skill behavior. The Mechanics page explains the formulas and their verification status. Rules without sufficient in-game verification are not offered for editing.
+**Rules and mechanics.** Change supported battle rules for Parry, shield use, durability, experience, stat limits and skill behavior. The Skills page describes the game's 90 skills, including commands and known effects. The Mechanics page explains formulas and their verification status. Rules without sufficient in-game verification are not offered for editing.
 
 ## Maps, graphics and animations
 
