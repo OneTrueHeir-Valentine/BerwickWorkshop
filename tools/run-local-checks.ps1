@@ -93,6 +93,9 @@ try {
     Invoke-Check 'offline-tests' $dotnet @(
         'Tests/bin/Release/net9.0/Berwick.Tests.dll'
     )
+    Invoke-Check 'windows-animation-tests' $dotnet @(
+        'Tests/bin/Release/net9.0-windows/Berwick.Tests.dll', '--animation-export'
+    )
 
     if ($PublishApp) {
         $output = "release-handoff/checks/$runId/app"

@@ -14,9 +14,20 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
-ChangeReviewTests.Run(Test);
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
+AnimationCanvasTests.Run(Test);
+EffectExportTests.Run(Test);
+#if WINDOWS
+AnimationPngTests.Run(Test);
+AnimationExportWindowTests.Run(Test);
+#endif
+if (args is ["--animation-export"])
+{
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
+ChangeReviewTests.Run(Test);
 MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
