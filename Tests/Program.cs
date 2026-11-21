@@ -18,6 +18,7 @@ ChangeReviewTests.Run(Test);
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
 MipsAssemblyTests.Run(Test);
+MapEditsTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{
