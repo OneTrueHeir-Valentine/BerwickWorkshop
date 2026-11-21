@@ -227,7 +227,7 @@ public partial class MapEditorView : UserControl
                 if (document != current || shownMap != map || MapList.SelectedValue is not int activeBattle || activeBattle != map.Battle)
                     throw new EditException("The selected battle changed. Open starting placements again.");
                 if (!current.ApplyStartingPlacement(map, candidate, remove, x, y, acknowledged))
-                    return;
+                    return false;
                 selection.Reset();
                 string message = remove ? "Starting placement removed. The army record was kept." : $"Unit placed at {x}, {y}.";
                 Changed(message + " Save the project to keep this change.");
@@ -240,6 +240,7 @@ public partial class MapEditorView : UserControl
                 RefreshSelectedUnit();
                 SelectionChanged?.Invoke();
                 Redraw();
+                return true;
             }) { Owner = Window.GetWindow(this) };
             window.ShowDialog();
         }

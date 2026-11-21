@@ -419,7 +419,7 @@ public sealed class EventLibrary
     /// <summary>The top-level archive that holds an event; a battle's events share one archive.</summary>
     public int TopOf(int number) => topOf.TryGetValue(number, out int top) ? top : throw new InvalidDataException($"Event {number} is not on this disc.");
 
-    // Commands, by the game's own names: LaunchBMap and LaunchBMap2 start a battle (battle number first), PreloadUnitList,
+    // LaunchBMap takes (battle, file); LaunchBMap2 takes (mode, battle, file). PreloadUnitList,
     // PreloadUnit, AppearUnitOld, AppearUnit and AppearUnitEx name a unit file ("ud371" or "ud371.ar"), AppearUnitOld as its second argument.
     private const int LaunchBMap = 0x2DE, LaunchBMap2 = 0x2DF, PreloadUnitList = 0x167, PreloadUnit = 0x328;
     private static readonly int[] UnitCommands = [PreloadUnitList, PreloadUnit, 0x32A, 0x32B, 0x32C];
@@ -446,7 +446,7 @@ public sealed class EventLibrary
             foreach (var n in Walk(nodes))
             {
                 if (n.Args.Count == 0) continue;
-                if (n.Command is LaunchBMap or LaunchBMap2 && n.Args[0] is [{ Value: int battle }] && battle > 0)
+                if (TryBattleMapLaunch(n, out int battle, out _))
                     (battles.TryGetValue(top, out var set) ? set : battles[top] = []).Add(battle);
                 else if (UnitCommands.Contains(n.Command)
                     && n.Args.Select(a => a is [{ Text: { } text }] ? UnitFile.Match(text) : null).FirstOrDefault(x => x is { Success: true }) is { } m)
@@ -754,11 +754,24 @@ public sealed class EventLibrary
             try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
             foreach (var n in Walk(nodes))
             {
-                int first = n.Command == LaunchBMap2 ? 1 : n.Command == LaunchBMap ? 0 : -1;
-                if (first >= 0 && n.Args.Count >= first + 2 && n.Args[first] is [{ Value: int battle }] && n.Args[first + 1] is [{ Text: { } file }] && battle > 0)
+                if (TryBattleMapLaunch(n, out int battle, out string file))
                     result.TryAdd(battle, file);
             }
         }
         return result;
+    }
+
+    internal static bool TryBattleMapLaunch(ScriptNode node, out int battle, out string file)
+    {
+        battle = 0;
+        file = "";
+        int battleIndex = node.Command == LaunchBMap2 ? 1 : node.Command == LaunchBMap ? 0 : -1;
+        if (battleIndex < 0 || node.Args.Count < battleIndex + 2 ||
+            node.Args[battleIndex] is not [{ Value: int number }] || number <= 0 ||
+            node.Args[battleIndex + 1] is not [{ Text: { } name }])
+            return false;
+        battle = number;
+        file = name;
+        return true;
     }
 }

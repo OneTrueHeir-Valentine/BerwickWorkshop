@@ -87,7 +87,7 @@ Use a disposable project for edit checks. Do not overwrite original images or sa
 
 ### Existing starting-unit placements
 
-Maps offers **Place existing unit...** for an identified battle. Choose an existing record, review its army, opening/source event, team, group, slot and known battle/event uses, then enter a column and row. Team and group come from the opening script; this workflow does not change them. An unused slot can be activated, or an occupied supported slot can be removed. Removal clears the starting coordinates, never the army record or later arrival commands.
+Maps offers **Place existing unit...** for an identified battle. The selector initially lists eligible unused slots; enable **Show placed and unsupported records** to remove a starting placement or inspect refusal reasons. Choose an existing record, review its army, opening/source event, team, group, slot and known battle/event uses, then enter a column and row. Team and group come from the opening script; this workflow does not change them. Removal clears the starting coordinates, never the army record or later arrival commands. An operation that makes no change keeps the dialog open with an explanation.
 
 Placement requires one unambiguous army/group assignment and a supported unit index (0 to 62, using slots 1 to 63). Off-map and border hexes, deployment positions, occupied coordinates and half-empty slots are refused. Shared maps require acknowledgement of their listed battles; conflicting consumers, conditional/computed assignments, unresolved event calls and incomplete references are refused. A launch naming an archive proven absent in the archive index is not treated as a consumer of a real map, while an unresolved battle-map reference still blocks edits.
 

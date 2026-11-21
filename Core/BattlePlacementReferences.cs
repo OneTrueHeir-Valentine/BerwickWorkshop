@@ -80,11 +80,9 @@ public sealed class BattlePlacementReferences
                 {
                     if (node.Data is not null)
                         result.problems.Add($"Event {source.Number} contains undecoded commands.");
-                    int battleArgumentIndex = node.Command == LaunchBattleMap ? 0 : node.Command == LaunchBattleMapWithMode ? 1 : -1;
-                    if (battleArgumentIndex < 0)
+                    if (node.Command is not (LaunchBattleMap or LaunchBattleMapWithMode))
                         continue;
-                    if (node.Args.Count <= battleArgumentIndex + 1 || node.Args[battleArgumentIndex] is not [{ Value: int battle }] ||
-                        node.Args[battleArgumentIndex + 1] is not [{ Text: { } file }] || battle <= 0 || Path.GetFileName(file) != file)
+                    if (!EventLibrary.TryBattleMapLaunch(node, out int battle, out string file) || Path.GetFileName(file) != file)
                     {
                         result.problems.Add($"Event {source.Number} has a computed or unsupported battle-map reference.");
                         continue;

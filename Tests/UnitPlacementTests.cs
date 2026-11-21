@@ -5,6 +5,28 @@ internal static class UnitPlacementTests
 {
     public static void Run(Action<string, Action> test)
     {
+        test("Starting placement resolves both documented battle launch variants", () =>
+        {
+            foreach (var launch in new[] { Launch(201, "demo.ar"), LaunchWithMode(7, 201, "demo.ar") })
+            {
+                var references = BattlePlacementReferences.Analyze([new(12, 0, [launch, Appear(5, 2)])], [new(12, 201, 13, [])], _ => 3);
+                Check(references.Problems.Count == 0 && references.MapArchives.Count == 1 && references.MapArchives[201] == 3, "Mode and battle indexes were confused");
+                Check(references.ArmyBattles[5].SetEquals([201]), "Launch assigned the army to the wrong battle");
+            }
+        });
+        test("Starting placement refuses incomplete and computed launch variants", () =>
+        {
+            foreach (var launch in new ScriptNode[]
+            {
+                new() { Command = 0x2DE, Args = [[Number(201)]] },
+                new() { Command = 0x2DF, Args = [[Number(201)], [Text("demo.ar")]] },
+                new() { Command = 0x2DF, Args = [[Number(7)], [new() { Command = ScriptParser.Variable, Variable = 1 }], [Text("demo.ar")]] }
+            })
+            {
+                var references = BattlePlacementReferences.Analyze([new(12, 0, [launch])], [new(12, 201, 13, [])], _ => 3);
+                Check(references.Problems.Count > 0, "Unsupported launch layout was guessed");
+            }
+        });
         test("Starting placement uses existing army records and slots 1 through 63", () =>
         {
             var record = EmptyRecord();
@@ -118,6 +140,7 @@ internal static class UnitPlacementTests
     internal static ScriptNode Text(string value) => new() { Command = ScriptParser.TextValue, Text = value };
     internal static ScriptNode Appear(int army, int group) => new() { Command = 0x32C, Args = [[Text($"ud{army:000}")], [Number(1)], [Number(group)]] };
     internal static ScriptNode Launch(int battle, string file) => new() { Command = 0x2DE, Args = [[Number(battle)], [Text(file)]] };
+    internal static ScriptNode LaunchWithMode(int mode, int battle, string file) => new() { Command = 0x2DF, Args = [[Number(mode)], [Number(battle)], [Text(file)]] };
     internal static BattleMap Map() => new(9, "first.ar", 12, 12, new int[BattleMaps.Side * BattleMaps.Side], []) { Top = 0 };
     internal static byte[] EmptyRecord() => Enumerable.Repeat((byte)255, Placement.RecordLength).ToArray();
     private static IReadOnlyList<StartingUnitCandidate> Candidates(BattlePlacementReferences references, byte[]? record = null) =>

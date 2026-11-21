@@ -44,6 +44,8 @@ internal static class UnitPlacementIntegration
         using var iso = new IsoImage(stream);
         var archives = new GameArchives(iso);
         var library = new EventLibrary(archives);
+        Check(library.BattleMapFiles().Keys.Order().SequenceEqual(new[] { 9, 10 }), "Launch variants lost battle-map identities");
+        Check(library.ArmyBattles()[5].SequenceEqual(new[] { 9, 10 }), "LaunchBMap2 mode was interpreted as a battle");
         var session = new EditSession(disc);
         var map = BattleMaps.Load(archives, library, 9, "first.ar") ?? throw new Exception("Synthetic map did not load");
         var refs = BattlePlacementReferences.Read(library, session);
@@ -174,7 +176,7 @@ internal static class UnitPlacementIntegration
         {
             ["evdata.dat"] = events,
             ["e0000012.dat"] = ScriptWriter.Write([Launch(9, "first.ar"), Appear(5, 2)]),
-            ["e0000013.dat"] = ScriptWriter.Write([Launch(10, sharedMap ? "first.ar" : "second.ar"), Appear(5, 2)])
+            ["e0000013.dat"] = ScriptWriter.Write([LaunchWithMode(7, 10, sharedMap ? "first.ar" : "second.ar"), Appear(5, 2)])
         };
         byte[][] tops = [Archive(new() { ["map"] = map }), Archive(new() { ["map"] = map }), Archive(children)];
         string[] names = ["first.ar", "second.ar", "events.ar"];

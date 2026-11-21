@@ -7,6 +7,8 @@ namespace Berwick.Workshop;
 internal sealed class StartingPlacementWindow : Window
 {
     private readonly ComboBox units = new() { DisplayMemberPath = "Label", MinWidth = 440 };
+    private readonly CheckBox showAll = new() { Content = "Show placed and unsupported records", Margin = new(0, 8, 0, 0) };
+    private readonly IReadOnlyList<StartingUnitCandidate> candidates;
     private readonly TextBlock details = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 12, 0, 12) };
     private readonly TextBox column = new() { Text = "1", Width = 60 };
     private readonly TextBox row = new() { Text = "1", Width = 60 };
@@ -14,15 +16,17 @@ internal sealed class StartingPlacementWindow : Window
     private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 8) };
     private readonly Button place = new() { Content = "Place unit", Margin = new(0, 0, 8, 0), MinWidth = 100 };
     private readonly Button remove = new() { Content = "Remove starting placement", Margin = new(0, 0, 8, 0) };
-    private readonly Action<StartingUnitCandidate, bool, int, int, bool> applyChange;
+    private readonly Func<StartingUnitCandidate, bool, int, int, bool, bool> applyChange;
     private sealed record UnitChoice(StartingUnitCandidate Candidate)
     {
-        public string Label => $"{Candidate.Unit.Name}, army {Candidate.Assignment.Army:000}, group {Candidate.Assignment.Group}, slot {Candidate.Slot}";
+        public string Label => $"{Candidate.Unit.Name}, army {Candidate.Assignment.Army:000}, group {Candidate.Assignment.Group}, slot {Candidate.Slot}" +
+            (Candidate.Problem is not null ? " (unsupported)" : Candidate.Occupied ? " (placed)" : "");
     }
 
     public StartingPlacementWindow(int battle, IReadOnlyList<StartingUnitCandidate> candidates, int? selectedKey,
-        Action<StartingUnitCandidate, bool, int, int, bool> apply)
+        Func<StartingUnitCandidate, bool, int, int, bool, bool> apply)
     {
+        this.candidates = candidates;
         applyChange = apply;
         Title = $"Battle {battle} starting unit placements";
         Width = 620;
@@ -33,11 +37,13 @@ internal sealed class StartingPlacementWindow : Window
         MaxHeight = Math.Max(400, SystemParameters.WorkArea.Height - 80);
         Content = BuildContent();
         units.SelectionChanged += (_, _) => UpdateSelection();
+        showAll.Checked += (_, _) => RefreshChoices();
+        showAll.Unchecked += (_, _) => RefreshChoices();
         acknowledge.Checked += (_, _) => UpdateButtons();
         acknowledge.Unchecked += (_, _) => UpdateButtons();
         place.Click += (_, _) => Apply(false);
         remove.Click += (_, _) => Apply(true);
-        SelectInitialUnit(candidates, selectedKey);
+        RefreshChoices(selectedKey);
     }
 
     private ScrollViewer BuildContent()
@@ -51,6 +57,7 @@ internal sealed class StartingPlacementWindow : Window
             Margin = new(0, 10, 0, 12)
         });
         panel.Children.Add(units);
+        panel.Children.Add(showAll);
         panel.Children.Add(details);
         var coordinates = new StackPanel { Orientation = Orientation.Horizontal };
         AddCoordinate(coordinates, "Column", column);
@@ -67,12 +74,14 @@ internal sealed class StartingPlacementWindow : Window
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
-    private void SelectInitialUnit(IReadOnlyList<StartingUnitCandidate> candidates, int? selectedKey)
+    private void RefreshChoices(int? selectedKey = null)
     {
-        units.ItemsSource = candidates.Select(candidate => new UnitChoice(candidate)).ToList();
-        var preferred = candidates.FirstOrDefault(candidate => candidate.Unit.Key == selectedKey) ?? candidates.FirstOrDefault(candidate => candidate.CanPlace);
-        units.SelectedItem = ((IEnumerable<UnitChoice>)units.ItemsSource).FirstOrDefault(choice => choice.Candidate == preferred);
-        if (units.SelectedIndex < 0 && candidates.Count > 0)
+        selectedKey ??= (units.SelectedItem as UnitChoice)?.Candidate.Unit.Key;
+        var choices = candidates.Where(candidate => showAll.IsChecked == true || candidate.CanPlace)
+            .Select(candidate => new UnitChoice(candidate)).ToList();
+        units.ItemsSource = choices;
+        units.SelectedItem = choices.FirstOrDefault(choice => choice.Candidate.Unit.Key == selectedKey);
+        if (units.SelectedIndex < 0 && choices.Count > 0)
             units.SelectedIndex = 0;
         UpdateSelection();
     }
@@ -90,7 +99,11 @@ internal sealed class StartingPlacementWindow : Window
         }
         try
         {
-            applyChange(choice.Candidate, removing, x, y, acknowledge.IsChecked == true);
+            if (!applyChange(choice.Candidate, removing, x, y, acknowledge.IsChecked == true))
+            {
+                error.Text = "No changes were made. Close and reopen starting placements to refresh the available records.";
+                return;
+            }
             DialogResult = true;
         }
         catch (Exception exception) when (exception is EditException or System.IO.IOException or System.IO.InvalidDataException)
@@ -105,7 +118,10 @@ internal sealed class StartingPlacementWindow : Window
         acknowledge.IsChecked = false;
         if (units.SelectedItem is not UnitChoice choice)
         {
-            details.Text = "No existing army records can be identified for this battle.";
+            details.Text = showAll.IsChecked == true
+                ? "No existing army records can be identified for this battle."
+                : "No eligible unused starting slots are available. Show placed and unsupported records to inspect existing placements and refusal reasons.";
+            acknowledge.Visibility = Visibility.Collapsed;
             UpdateButtons();
             return;
         }
