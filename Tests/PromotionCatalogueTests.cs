@@ -47,6 +47,28 @@ public static class PromotionCatalogueTests
                 || !rows[134].KnownConditions.Any(c => c.Expression.Contains(" AND ", StringComparison.Ordinal)))
                 throw new Exception("Known logical requirements or effective-stat semantics were lost.");
         });
+        test("Destination 237 preserves class-dependent and OR-grouped proficiency checks", () =>
+        {
+            var p = Profiles.All[0];
+            var rows = PromotionCatalogue.Read(p, p.Sha256, p.ExecutableSha256, false).Paths.ToDictionary(x => x.UnitId);
+            string Shared(int id) => rows[id].KnownConditions.Single(c => c.Scope == "Shared destination, event 237").Expression;
+            if (!Shared(85).Contains("current class 231") || !Shared(85).Contains("Medium Shield >= 10")
+                || !Shared(96).Contains("ELSE") || !Shared(96).Contains("Spear >= 20"))
+                throw new Exception("Destination 160 lost its current-class branch.");
+            if (!Shared(113).Contains("Fire >= 30 OR Thunder >= 30 OR Wind >= 30")
+                || !Shared(127).Contains("Fire >= 30 OR Thunder >= 30 OR Wind >= 30"))
+                throw new Exception("Magic promotion OR predicate became an AND or was hidden.");
+            if (!Shared(87).Contains("Spear >= 30 AND Small Shield >= 20")
+                || !Shared(97).Contains("Axe >= 30 AND Small Shield >= 20 AND Medium Shield >= 10")
+                || !Shared(124).Contains("Bow >= 20 AND Crossbow >= 20"))
+                throw new Exception("Original destination thresholds were lost.");
+            if (rows.Values.Any(r => !r.KnownConditions.Any(c => c.Scope == "Mercenary gate, event 236")
+                || !r.KnownConditions.Any(c => c.Scope == "Proficiency semantics")))
+                throw new Exception("The shared mercenary gate or capped point semantics were omitted.");
+            if (rows[134].UnresolvedConditions.Any(c => c.StartsWith("The required source-class literal"))
+                || !rows[87].UnresolvedConditions.Any(c => c.StartsWith("The required source-class literal")))
+                throw new Exception("Confirmed wildcard or unverified source-class argument is mislabeled.");
+        });
         test("Shared destinations name known users without claiming complete coverage", () =>
         {
             var p = Profiles.All[0];
