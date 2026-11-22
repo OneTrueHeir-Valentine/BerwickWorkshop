@@ -36,6 +36,7 @@ if (args is ["--animation-export"])
     return failed == 0 ? 0 : 1;
 }
 ChangeReviewTests.Run(Test);
+PromotionCatalogueTests.Run(Test);
 MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
 MapPresentationTests.Run(Test);
