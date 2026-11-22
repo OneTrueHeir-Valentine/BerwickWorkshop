@@ -246,10 +246,19 @@
      </Border>
      <TabControl Grid.Row="1" x:Name="PromotionTabs" SelectionChanged="PromotionTabChanged">
       <TabItem Header="Promotions">
-       <Grid>
-        <Grid.ColumnDefinitions><ColumnDefinition Width="3*" MinWidth="460"/><ColumnDefinition Width="12"/><ColumnDefinition Width="2*" MinWidth="400"/></Grid.ColumnDefinitions>
-      <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"/>
-      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <Grid x:Name="PromotionSplit" SizeChanged="PromotionSplit_SizeChanged" ClipToBounds="True">
+        <Grid.ColumnDefinitions>
+         <ColumnDefinition x:Name="PromotionListColumn" Width="2*"/>
+         <ColumnDefinition x:Name="PromotionDividerColumn" Width="12"/>
+         <ColumnDefinition x:Name="PromotionDetailColumn" Width="3*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+         <RowDefinition x:Name="PromotionListRow" Height="*"/>
+         <RowDefinition x:Name="PromotionDividerRow" Height="0"/>
+         <RowDefinition x:Name="PromotionDetailRow" Height="0"/>
+        </Grid.RowDefinitions>
+      <GridSplitter x:Name="PromotionSplitter" Grid.Column="1" Width="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" DragCompleted="PromotionSplitter_DragCompleted" Background="Transparent" Cursor="SizeWE" ToolTip="Drag to resize the promotion list" Focusable="False"/>
+      <Border x:Name="PromotionListPane" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="PromotionGrid" SelectionChanged="PromotionSelected" AutomationProperties.Name="Original promotion paths" IsReadOnly="True">
         <DataGrid.Columns>
          <DataGridTextColumn Header="Unit" Binding="{Binding UnitText}" Width="62"/>
@@ -260,7 +269,7 @@
         </DataGrid.Columns>
        </DataGrid>
       </Border>
-      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+      <Border x:Name="PromotionDetailPane" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,0,12,0">
          <TextBlock Text="ORIGINAL PROMOTION" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
