@@ -95,27 +95,9 @@ public partial class MainWindow
             ? "No comparison card selected."
             : $"Comparing against {savesComparisonName}. Only file metadata and fingerprints are compared; gameplay state is not decoded.";
 
-        var other = savesComparison?.BerwickFiles.ToDictionary(
-            item => (item.Directory, item.Name));
-        var rows = info.BerwickFiles
-            .OrderBy(f => f.Directory, StringComparer.Ordinal)
-            .ThenBy(f => f.Name, StringComparer.Ordinal)
-            .Select(file =>
-            {
-                var status = "Not compared";
-                if (other is not null)
-                    status = !other.TryGetValue((file.Directory, file.Name), out var match)
-                        ? "Missing in comparison"
-                        : file.Length == match.Length && file.Sha256 == match.Sha256 ? "Same" : "Different";
-                return new SaveFileRow(file, status);
-            }).ToList();
-        if (other is not null)
-        {
-            var current = rows.Select(r => (r.Directory, r.Name)).ToHashSet();
-            rows.AddRange(savesComparison!.BerwickFiles
-                .Where(file => !current.Contains((file.Directory, file.Name)))
-                .Select(file => new SaveFileRow(file, "Only in comparison")));
-        }
+        var rows = Ps2MemoryCardComparison.Compare(info, savesComparison)
+            .Select(entry => new SaveFileRow(entry.File, entry.Status))
+            .ToList();
         SavesGrid.ItemsSource = rows;
         SavesCount.Text = $"{rows.Count} Berwick file entries; a nonzero file is not proof that a save is loadable.";
         SavesGrid.SelectedItem = rows.FirstOrDefault(r => r.Kind == "Normal slot" &&
