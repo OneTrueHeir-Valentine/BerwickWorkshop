@@ -154,7 +154,8 @@ public static class Ps2MemoryCardInspector
                     uint size = BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(4, 4));
                     uint first = BinaryPrimitives.ReadUInt32LittleEndian(entry.Slice(0x10, 4));
                     if (directory ? (size is < 2 or > MaxDirectoryEntries || first >= allocationEnd)
-                                  : (size > 0 && first >= allocationEnd))
+                                  : (size > 0 && first >= allocationEnd
+                                      || size > (long)allocationEnd * clusterSize))
                         throw new InvalidDataException("A file or directory entry has invalid bounds.");
 
                     if (results.Count >= MaxDirectoryEntries)
