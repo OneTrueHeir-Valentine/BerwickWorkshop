@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Texts, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
+    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Texts, Shops, Live, Saves, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -96,7 +96,7 @@ public partial class MainWindow : Window
                 Search.Clear();Category.SelectedIndex=0;OnlyDifferences.IsChecked=false;
                 CharacterSearch.Clear();CharacterDifferencesOnly.IsChecked=false;
                 ClassSearch.Clear();ClassDifferencesOnly.IsChecked=false;StartingClassesOnly.IsChecked=true;
-                view=result.Supported?(view is View.Characters or View.Classes?view:View.Items):View.Disc;
+                view=result.Supported?(view is View.Characters or View.Classes or View.Saves?view:View.Items):(view==View.Saves?View.Saves:View.Disc);
                 if(!result.Supported) Notify("This image does not match a supported edition. Disc details are available, but item data has not been loaded.");
             }
             RefreshDocument();Status.Text="Disc checked. No files changed.";return true;
@@ -956,9 +956,9 @@ public partial class MainWindow : Window
     private void ShowLive(object sender,RoutedEventArgs e) { view=View.Live;UpdatePage(); }
     private void UpdatePage()
     {
-        if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
+        if(view is not (View.Disc or View.Mechanics or View.Saves) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Texts=>"Text", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Texts=>"Text", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Saves=>"Saves", View.Animations=>"Battle animations", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -979,8 +979,10 @@ public partial class MainWindow : Window
         if(view!=View.Animations)animationTimer.Stop();else if(animationPlaying && animationFrames.Count>1)animationTimer.Start();
         MechanicsPage.Visibility=view==View.Mechanics?Visibility.Visible:Visibility.Collapsed;
         LivePage.Visibility=view==View.Live && supported?Visibility.Visible:Visibility.Collapsed;
+        SavesPage.Visibility=view==View.Saves?Visibility.Visible:Visibility.Collapsed;
+        SavesLiveButton.IsEnabled=supported;
         if(view==View.Mechanics) EmptyState.Visibility=Visibility.Collapsed;
-        EmptyState.Visibility=primary is null && view!=View.Mechanics?Visibility.Visible:Visibility.Collapsed;
+        EmptyState.Visibility=primary is null && view is not (View.Mechanics or View.Saves)?Visibility.Visible:Visibility.Collapsed;
         var active=new SolidColorBrush(Color.FromRgb(60,84,69));
         ItemsNav.Background=view==View.Items?active:Brushes.Transparent;
         CharactersNav.Background=view==View.Characters?active:Brushes.Transparent;
@@ -999,6 +1001,7 @@ public partial class MainWindow : Window
         AnimationsNav.Background=view==View.Animations?active:Brushes.Transparent;
         MechanicsNav.Background=view==View.Mechanics?active:Brushes.Transparent;
         LiveNav.Background=view==View.Live?active:Brushes.Transparent;
+        SavesNav.Background=view==View.Saves?active:Brushes.Transparent;
         if(view==View.Live)UpdateLiveButtons();
         DiscNav.Background=view==View.Disc?active:Brushes.Transparent;
     }
