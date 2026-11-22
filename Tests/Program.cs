@@ -14,6 +14,34 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+// Read-only local card inspector. Never exports, mounts or edits the supplied memory card.
+if (args is ["--inspect-memory-card", var cardPath])
+{
+    try
+    {
+        var card = Ps2MemoryCardInspector.Inspect(cardPath);
+        Console.WriteLine($"PS2 memory card format {card.Version}; {card.ClustersPerCard} clusters, {card.PageSize}-byte pages");
+        Console.WriteLine($"Spare/ECC byte slots: {(card.HasSpareBytes ? "present" : "not present")}");
+        Console.WriteLine($"SHA256: {card.Sha256}");
+        Console.WriteLine("Directory entries (read-only, game save fields not decoded):");
+        foreach (var entry in card.Entries)
+            Console.WriteLine($"{(entry.IsDirectory ? "DIR " : "FILE")} {entry.Path}  {(entry.IsDirectory ? "entries" : "bytes")}={entry.Size}");
+        return 0;
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+    {
+        Console.Error.WriteLine("Could not inspect this card: " + e.Message);
+        return 1;
+    }
+}
+if (args.Length > 0 && args[0] == "--inspect-memory-card")
+{
+    Console.Error.WriteLine("Usage: --inspect-memory-card <path-to-copy-of-card.ps2>");
+    return 1;
+}
+
+Ps2MemoryCardTests.Run(Test);
+
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
