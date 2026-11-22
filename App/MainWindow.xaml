@@ -254,7 +254,7 @@
         <DataGrid.Columns>
          <DataGridTextColumn Header="Unit" Binding="{Binding UnitText}" Width="62"/>
          <DataGridTextColumn Header="Character" Binding="{Binding CharacterName}" Width="*" MinWidth="90"/>
-         <DataGridTextColumn Header="Destination" Binding="{Binding DestinationText}" Width="108"/>
+         <DataGridTextColumn Header="Destination" Binding="{Binding DestinationDisplay}" Width="180"/>
          <DataGridTextColumn Header="Minimum" Binding="{Binding MinimumLevelText}" Width="84"/>
          <DataGridTextColumn Header="Quest" Binding="{Binding QuestText}" Width="86"/>
         </DataGrid.Columns>
