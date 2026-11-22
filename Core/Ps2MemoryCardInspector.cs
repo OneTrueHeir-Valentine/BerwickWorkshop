@@ -121,7 +121,7 @@ public static class Ps2MemoryCardInspector
             if (depth > MaxDepth || initial >= allocationEnd || !visited.Add(initial))
                 throw new InvalidDataException("The card contains an unsafe directory loop or depth.");
             int perCluster = clusterSize / DirectoryEntrySize;
-            if (perCluster < 2) throw new InvalidDataException("Directory cluster cannot hold the required entries.");
+            if (perCluster < 1) throw new InvalidDataException("Directory cluster cannot hold a directory entry.");
 
             byte[] initialBytes = ReadPhysicalCluster(allocation + initial);
             uint entries = knownLength ?? U32(initialBytes, 0x04);
@@ -145,7 +145,7 @@ public static class Ps2MemoryCardInspector
                         throw new InvalidDataException("A directory is missing its dot entries.");
                     if (read < 2 || (mode & 0x8000) == 0) continue;
                     if (string.IsNullOrEmpty(name) || name.Contains('/') || name.Contains('\\')
-                        || name.Contains("..", StringComparison.Ordinal))
+                        || name.Contains("..", StringComparison.Ordinal) || name.Any(char.IsControl))
                         throw new InvalidDataException("Unsafe or malformed memory-card directory name.");
 
                     bool directory = (mode & 0x20) != 0;
