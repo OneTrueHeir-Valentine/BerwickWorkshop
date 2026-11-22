@@ -244,9 +244,11 @@
      <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
       <TextBlock x:Name="PromotionSourceText" TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Open a supported original disc to inspect promotion requirements."/>
      </Border>
-     <Grid Grid.Row="1">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="270"/><ColumnDefinition Width="16"/><ColumnDefinition Width="330" MinWidth="250"/></Grid.ColumnDefinitions>
-      <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"/>
+     <TabControl Grid.Row="1" x:Name="PromotionTabs" SelectionChanged="PromotionTabChanged">
+      <TabItem Header="Promotions">
+       <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="3*" MinWidth="460"/><ColumnDefinition Width="12"/><ColumnDefinition Width="2*" MinWidth="400"/></Grid.ColumnDefinitions>
+      <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="PromotionGrid" SelectionChanged="PromotionSelected" AutomationProperties.Name="Original promotion paths" IsReadOnly="True">
         <DataGrid.Columns>
@@ -268,7 +270,24 @@
         </StackPanel>
        </ScrollViewer>
       </Border>
-     </Grid>
+       </Grid>
+      </TabItem>
+      <TabItem Header="Other class changes">
+       <Grid Background="White">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock x:Name="OtherClassChangeStatus" TextWrapping="Wrap" FontSize="13" Padding="12" Foreground="{StaticResource Muted}" Text="These are not regular promotions and have different verification requirements."/>
+        <DataGrid Grid.Row="1" x:Name="OtherClassChangeGrid" IsReadOnly="True" AutomationProperties.Name="Other class changes">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="Character" Binding="{Binding Character}" Width="125"/>
+          <DataGridTextColumn Header="Mechanism" Binding="{Binding Mechanism}" Width="130"/>
+          <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="180"/>
+          <DataGridTextColumn Header="Evidence" Binding="{Binding Evidence}" Width="*"/>
+         </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Grid.Row="2" Margin="12,12,12,12" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Text="The native UnitChangeClass battle-context operation and other scripted class transitions still require classification. No edit controls are available here."/>
+       </Grid>
+      </TabItem>
+     </TabControl>
      <StackPanel Grid.Row="2" Margin="0,10,0,0">
       <TextBlock x:Name="PromotionCount" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
       <TextBlock x:Name="PromotionCoverageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,5,0,0"/>
