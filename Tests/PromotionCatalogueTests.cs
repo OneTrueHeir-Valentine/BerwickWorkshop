@@ -129,6 +129,26 @@ public static class PromotionCatalogueTests
             }
         });
 
+        test("Other class changes stay separate, reference-only and non-editable", () =>
+        {
+            foreach (var profile in Profiles.All)
+            {
+                var original = PromotionCatalogue.Read(profile, profile.Sha256, profile.ExecutableSha256, false);
+                if (!original.OriginalSourceVerified || original.OtherClassChanges.Count != 1)
+                    throw new Exception("The separate original-disc reference section was not populated.");
+                var toggle = original.OtherClassChanges[0];
+                if (toggle.Character != "Owen" || toggle.Mechanism != "Convert"
+                    || toggle.WriteAllowed
+                    || !toggle.Evidence.Contains("not yet traced"))
+                    throw new Exception("Owen's reference-only class toggle was misclassified or exposed for editing.");
+                if (original.Paths.Any(x => x.CharacterName == "Owen"))
+                    throw new Exception("The class toggle was incorrectly counted as a promotion path.");
+                var unsupported = PromotionCatalogue.Read(profile, profile.Sha256, profile.ExecutableSha256, true);
+                if (unsupported.OtherClassChanges.Count != 0)
+                    throw new Exception("Unverified source inherited original-reference entries.");
+            }
+        });
+
         test("Incomplete callers preserve unknown conditions and no fake live status", () =>
         {
             var p = Profiles.All[0];
