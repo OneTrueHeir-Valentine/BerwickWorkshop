@@ -52,6 +52,51 @@ public static class Ps2MemoryCardTests
             Reject(b => Write32(b, 2 * 1024 + 0, 0x80000000)); // root FAT cycle
             Reject(b => Write32(b, 4 * 1024 + 4, 20000)); // impossible root entry count
         });
+        test("Read-only Berwick save summary identifies zero and nonzero files", () =>
+        {
+            byte[] image = Build(true, berwick: true);
+            byte[] prior = (byte[])image.Clone();
+            using var stream = new MemoryStream(image, writable: false);
+            var card = Ps2MemoryCardInspector.Inspect(stream);
+            if (card.BerwickFiles.Count != 1)
+                throw new Exception("Expected one synthetic Berwick save file summary.");
+            var file = card.BerwickFiles[0];
+            if (file.Directory != "BISLPS-25497" || file.Name != "savedata.001"
+                || file.Length != 128 || file.NonZeroBytes != 3 || file.LastNonZeroOffset != 3
+                || !file.HasNonZeroBytes || file.ValidSaveConfirmed || card.GameSaveFieldsDecoded)
+                throw new Exception("File occupancy was confused with gameplay save validity.");
+            if (file.Sha256 != Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(new byte[128]
+                        .Select((b, i) => i == 0 ? (byte)0x4A : i == 2 ? (byte)0x50 : i == 3 ? (byte)0x2A : b)
+                        .ToArray())).ToLowerInvariant())
+                throw new Exception("File fingerprint did not include the exact payload length.");
+            if (!image.SequenceEqual(prior))
+                throw new Exception("Berwick header inspection modified the source.");
+        });
+
+        test("Read-only Berwick save inspection rejects truncated FAT chains", () =>
+        {
+            byte[] b = Build(false, berwick: true);
+            Write32(b, 8 * 1024 + 4, 2048); // synthetic file length grows beyond its FAT chain
+            try
+            {
+                Ps2MemoryCardInspector.Inspect(new MemoryStream(b, writable: false));
+            }
+            catch (InvalidDataException) { return; }
+            throw new Exception("Short save-file chain was wrongly accepted.");
+        });
+
+        test("An erased PS2 memory card is identified as unformatted, not decoded", () =>
+        {
+            byte[] b = Enumerable.Repeat((byte)0xFF, 128 * 1024).ToArray();
+            try
+            {
+                Ps2MemoryCardInspector.Inspect(new MemoryStream(b, writable: false));
+            }
+            catch (InvalidDataException e) when (e.Message.Contains("unformatted")) { return; }
+            throw new Exception("All-FF raw card was accepted or misclassified.");
+        });
+
         test("PS2 card inspector rejects unsupported or truncated images", () =>
         {
             byte[] image = Build(false);
@@ -70,7 +115,7 @@ public static class Ps2MemoryCardTests
         });
     }
 
-    private static byte[] Build(bool spare)
+    private static byte[] Build(bool spare, bool berwick = false)
     {
         const int clusters = 64, page = 512, perCluster = 2;
         int physicalPage = spare ? 528 : 512;
@@ -124,10 +169,11 @@ public static class Ps2MemoryCardTests
         }
         Entry(4, 0, ".", 0x8020, 3, 0);
         Entry(4, 1, "..", 0x8020, 0, 0);
-        Entry(7, 0, "BWSAVE", 0x8020, 3, 1);
+        Entry(7, 0, berwick ? "BISLPS-25497" : "BWSAVE", 0x8020, 3, 1);
         Entry(5, 0, ".", 0x8020, 0, 0);
         Entry(5, 1, "..", 0x8020, 0, 0);
-        Entry(8, 0, "DATA", 0x8010, 128, 2);
+        Entry(8, 0, berwick ? "savedata.001" : "DATA", 0x8010, 128, 2);
+        if (berwick) WriteCluster(6, 0, new byte[] { 0x4A, 0, 0x50, 0x2A });
         return bytes;
     }
     private static void Write16(byte[] b, int i, ushort value) =>
