@@ -45,6 +45,24 @@ public static class PromotionCatalogue
         (109,154,15,379), (90,227,15,380), (127,119,15,401), (113,118,15,402)
     ];
 
+    /// <summary>Destination-wide test in original event 237; no validation of arbitrary target classes is implied.</summary>
+    private static string SharedRequirement(int destination) => destination switch
+    {
+        37 => "(Sword >= 20 AND Spear >= 20 AND Small Shield >= 20)",
+        28 => "(Spear >= 30 AND Small Shield >= 20)",
+        24 => "(Bow >= 20 AND Crossbow >= 20)",
+        164 => "(Axe >= 30 AND Small Shield >= 20 AND Medium Shield >= 10)",
+        160 => "IF current class 231 THEN (Sword >= 20 AND Small Shield >= 20 AND Medium Shield >= 10); ELSE (Sword >= 20 AND Spear >= 20 AND Small Shield >= 20), including current class 158",
+        121 => "Effective derived Mind >= 5",
+        226 or 227 => "Bow >= 30",
+        114 => "Holy >= 30",
+        81 => "Sword >= 30",
+        154 => "Axe >= 30",
+        118 or 119 => "(Fire >= 30 OR Thunder >= 30 OR Wind >= 30)",
+        4 or 85 => "No additional proficiency test in the examined event-237 branch",
+        _ => "Destination branch unverified; helper default success is not proof this class is a valid promotion"
+    };
+
     public static PromotionCatalogueResult Read(InspectionResult? disc)
     {
         if (disc is null) return Unavailable("Open a supported original disc to inspect promotions.");
@@ -71,27 +89,34 @@ public static class PromotionCatalogue
         {
             var facts = new List<PromotionCondition>
             {
-                new("Caller", $"Level at least {minimum} (input to event 236)"),
-                new("Caller", "Current class must differ from destination; unit/team checks also apply")
+                new("Caller, event 236", $"Level >= {minimum} AND member of primary team AND current class != destination class"),
+                new("Mercenary gate, event 236",
+                    "(Not from mercenaries) OR (original mercenary unit AND not currently mercenary AND mercenary-level-up) OR (unit is one of 149, 109, 90, 129, 113)"),
+                new("Source-class gate, event 236", "Required source class 0 is a wildcard; otherwise current class must match the required class"),
+                new("Shared destination, event 237", SharedRequirement(destination)),
+                new("Proficiency semantics", "Weapon and shield comparisons use effective capped whole points, not raw tenths")
             };
             var consequences = new List<string>();
             var unknown = new List<string>
             {
                 "The current unit level, class, flags, team and quest availability are not available from an ISO.",
-                "Other native or computed callers may exist; the destination user set is not complete."
+                "The required source-class literal has not been independently reproduced for this caller in this catalogue.",
+                "Other native or computed callers may exist; the destination user set is not complete.",
+                "Whether the restored QUEST list was refreshed at the current moment is unknown."
             };
             int? quest = null, check = null, application = null, root = null;
             switch (unit)
             {
                 case 134: // Ruby
                     (quest,check,application,root) = (169,375,175,953);
-                    facts.Add(new("Shared destination", "Sword at least 20 AND Spear at least 20 AND Small Shield at least 20"));
                     facts.Add(new("Story", "Event flag 214 required by the original check"));
                     facts.Add(new("Quest", "Campaign counter T from 1 through 12; phase and quest-history filters also apply"));
                     facts.Add(new("Offer order", "Other candidates can take priority before quest 169 is applied"));
                     consequences.Add("Ruby's event clears flags 236 and 369 and records status key 207; Clifford-related quest 121 reads related state.");
                     consequences.Add("An alternative town route can introduce Clifford's recruitment without being the same as Ruby's class-change operation.");
                     unknown.Add("Complete live town scheduling, optional events and reload refresh timing have not been accepted.");
+                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
+                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 case 83: // Reese
                     (quest,check,application,root) = (162,368,163,1083);
@@ -99,18 +124,21 @@ public static class PromotionCatalogue
                     facts.Add(new("Quest", "Normal executable quest window T from 1 through 9; phase and quest-history filters also apply"));
                     consequences.Add("The class-change event adjusts team mercenary favor and branches into Larentia's recruitment sequence.");
                     unknown.Add("Additional destination-class eligibility and the complete normal-entry sequence are not a live result.");
+                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
+                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 case 132: // Enid
                     (quest,check,application,root) = (158,364,876,1129);
-                    facts.Add(new("Shared destination", "Effective (derived) Mind at least 5, not necessarily personal Mind"));
                     facts.Add(new("Story", "Enid in primary team AND Perceval in primary or secondary team AND flag 296 unset AND flag 297 set"));
                     facts.Add(new("Quest", "Campaign counter T from 7 through 12; internal phase filter 1 and quest history also apply"));
                     facts.Add(new("Offer order", "Quest 140 can take priority before Enid's promotion offer"));
                     consequences.Add("Original event includes a town battle, item 256 delivery and flag 297 changes, with downstream Derrick-related conditions.");
                     unknown.Add("Town battle, item recipient, alternate dispatch and reload effects are not fully accepted.");
+                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
+                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 default:
-                    unknown.Add("Additional weapon, shield, story and quest conditions for this caller are not fully catalogued.");
+                    unknown.Add("Caller-specific story/quest gates and the complete application route are not yet catalogued.");
                     unknown.Add("The complete original application event and town entry have not been confirmed for this caller.");
                     break;
             }
