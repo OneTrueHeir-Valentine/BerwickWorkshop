@@ -29,6 +29,7 @@
      <Button x:Name="CharactersNav" Content="C_haracters" Style="{StaticResource NavButton}" Click="ShowCharacters" IsEnabled="False"/>
      <Button x:Name="ArmiesNav" Content="_Armies" Style="{StaticResource NavButton}" Click="ShowArmies" IsEnabled="False"/>
      <Button x:Name="ClassesNav" Content="C_lasses" Style="{StaticResource NavButton}" Click="ShowClasses" IsEnabled="False"/>
+     <Button x:Name="PromotionsNav" Content="_Promotions" Style="{StaticResource NavButton}" Click="ShowPromotions" IsEnabled="False"/>
      <Button x:Name="AnimationsNav" Content="_Battle animations" Style="{StaticResource NavButton}" Click="ShowAnimations" IsEnabled="False"/>
      <Button x:Name="MovementNav" Content="Mo_vement" Style="{StaticResource NavButton}" Click="ShowMovement" IsEnabled="False"/>
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
@@ -237,6 +238,38 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="3" x:Name="ClassCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="PromotionsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock x:Name="PromotionSourceText" TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Open a supported original disc to inspect promotion requirements."/>
+     </Border>
+     <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="270"/><ColumnDefinition Width="16"/><ColumnDefinition Width="330" MinWidth="250"/></Grid.ColumnDefinitions>
+      <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent"/>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <DataGrid x:Name="PromotionGrid" SelectionChanged="PromotionSelected" AutomationProperties.Name="Original promotion paths" IsReadOnly="True">
+        <DataGrid.Columns>
+         <DataGridTextColumn Header="Unit" Binding="{Binding UnitText}" Width="62"/>
+         <DataGridTextColumn Header="Character" Binding="{Binding CharacterName}" Width="*" MinWidth="90"/>
+         <DataGridTextColumn Header="Destination" Binding="{Binding DestinationText}" Width="108"/>
+         <DataGridTextColumn Header="Minimum" Binding="{Binding MinimumLevelText}" Width="84"/>
+         <DataGridTextColumn Header="Quest" Binding="{Binding QuestText}" Width="86"/>
+        </DataGrid.Columns>
+       </DataGrid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,12,0">
+         <TextBlock Text="ORIGINAL PROMOTION" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+         <TextBlock x:Name="PromotionName" Text="Select a promotion" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
+         <TextBlock x:Name="PromotionIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,12" TextWrapping="Wrap"/>
+         <StackPanel x:Name="PromotionDetails"/>
+        </StackPanel>
+       </ScrollViewer>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="2" x:Name="PromotionCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
     <Grid x:Name="MovementPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
