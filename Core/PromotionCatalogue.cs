@@ -15,6 +15,8 @@ public sealed record PromotionPath(
 {
     public string UnitText => $"0x{UnitId:X3}";
     public string DestinationText => $"Class 0x{DestinationClassId:X2}";
+    public string DestinationDisplay => GameNames.Class(DestinationClassId) is { Length: > 0 } name
+        ? $"{name} ({DestinationText})" : DestinationText;
     public string MinimumLevelText => $"Level {MinimumLevel}";
     public string QuestText => QuestId is int id ? $"Quest {id}" : "Not traced";
     public string RootText => TownRoot is int id ? $"Event {id}" : "Not traced";
