@@ -65,9 +65,39 @@ public static class PromotionCatalogueTests
             if (rows.Values.Any(r => !r.KnownConditions.Any(c => c.Scope == "Mercenary gate, event 236")
                 || !r.KnownConditions.Any(c => c.Scope == "Proficiency semantics")))
                 throw new Exception("The shared mercenary gate or capped point semantics were omitted.");
-            if (rows[134].UnresolvedConditions.Any(c => c.StartsWith("The required source-class literal"))
-                || !rows[87].UnresolvedConditions.Any(c => c.StartsWith("The required source-class literal")))
-                throw new Exception("Confirmed wildcard or unverified source-class argument is mislabeled.");
+            if (rows.Values.Any(r => !r.KnownConditions.Any(c =>
+                    c.Scope == "Source-class gate, event 236"
+                    && c.Expression.Contains("literal is 0 (wildcard)"))
+                    || r.UnresolvedConditions.Any(c => c.Contains("required source-class literal"))))
+                throw new Exception("The 16 verified required-source-class wildcard literals were not retained.");
+        });
+        test("All 16 original outer caller conditions preserve original logic", () =>
+        {
+            foreach (var edition in Profiles.All)
+            {
+                var rows = PromotionCatalogue.Read(edition, edition.Sha256, edition.ExecutableSha256, false)
+                    .Paths.ToDictionary(x => x.CallerEvent);
+                if (rows.Count != 16) throw new Exception("Original caller inventory incomplete.");
+                string Gate(int e) => rows[e].KnownConditions.Single(c => c.Scope == "Caller gate").Expression;
+                foreach (var e in new[] {369,370,371,372,374,375,376})
+                    if (Gate(e) != "Event flag 214 must be set")
+                        throw new Exception($"Flag-214 outer check missing from caller {e}.");
+                if (!Gate(373).Contains("mission 10 is completed")
+                    || !Gate(373).Contains("AND"))
+                    throw new Exception("Christine's caller mission condition was lost.");
+                foreach (var e in new[] {377,401,402})
+                    if (!Gate(e).Contains("quest 84 is not offered"))
+                        throw new Exception($"Quest-history condition missing from caller {e}.");
+                foreach (var e in new[] {378,379,380})
+                    if (!Gate(e).Contains("No additional outer predicate"))
+                        throw new Exception($"Additional condition was invented for caller {e}.");
+                if (!Gate(368).Contains("ScoreGet >= 18 OR campaign counter >= 9")
+                    || !Gate(368).Contains("NOT quest 84"))
+                    throw new Exception("Reese's two-level outer predicate is incomplete.");
+                if (!Gate(364).Contains("NOT flag 296 AND flag 297")
+                    || !Gate(364).Contains("Perceval"))
+                    throw new Exception("Enid's team/flag caller test is incomplete.");
+            }
         });
         test("Shared destinations name known users without claiming complete coverage", () =>
         {
