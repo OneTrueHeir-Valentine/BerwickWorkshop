@@ -50,7 +50,8 @@ public partial class MainWindow
         PromotionIdentity.Text = $"{path.UnitText}  ·  {path.DestinationText}"
             + (destinationName is null ? "" : $" ({destinationName})")
             + $"  ·  {path.MinimumLevelText}";
-        AddSection(PromotionDetails, "Known original conditions (all groups required)");
+        AddSection(PromotionDetails, "Known original conditions and interpretation");
+        AddText(PromotionDetails, "Eligibility groups combine with AND. Internal OR conditions and class-dependent branches are shown explicitly.");
         foreach (var condition in path.KnownConditions)
         {
             AddText(PromotionDetails, condition.Scope);
