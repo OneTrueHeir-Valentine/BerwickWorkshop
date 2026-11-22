@@ -27,9 +27,17 @@ public sealed record PromotionPath(
 /// <summary>Fail-closed, immutable results of a source-identified static catalogue lookup.</summary>
 public sealed record PromotionCoverageGap(string Category, string Description);
 
+/// <summary>Known non-promotion behavior recorded separately from promotion eligibility.</summary>
+public sealed record OtherClassChange(
+    string Character, string Mechanism, string Classification, string Evidence,
+    string RemainingResearch)
+{
+    public bool WriteAllowed => false;
+}
+
 public sealed record PromotionCatalogueResult(
     bool OriginalSourceVerified, string SourceDescription, IReadOnlyList<PromotionPath> Paths,
-    IReadOnlyList<PromotionCoverageGap> CoverageGaps)
+    IReadOnlyList<PromotionCoverageGap> CoverageGaps, IReadOnlyList<OtherClassChange> OtherClassChanges)
 {
     public bool HasLiveSnapshot => false;
     public bool WriteAllowed => false;
@@ -77,6 +85,16 @@ public static class PromotionCatalogue
                 "Computed event references and native dispatch can reach promotion logic without a literal caller in this catalogue."),
             new PromotionCoverageGap("Scripted and historical cases",
                 "Story-only and historical class changes may bypass the ordinary eligibility helper; their complete pathways are not verified here.")
+        });
+
+    // This is a behavior-level reference, not a verified original script/offset binding.
+    // Do not mix Owen's class toggle with true promotion paths or infer a game writer.
+    private static readonly IReadOnlyList<OtherClassChange> DocumentedOtherChanges =
+        Array.AsReadOnly(new[]
+        {
+            new OtherClassChange("Owen", "Convert", "Class toggle, not promotion",
+                "Published gameplay reference; original native mechanism not yet traced",
+                "Activation, destination classes, duration, save persistence and script identity remain unverified")
         });
 
     public static PromotionCatalogueResult Read(InspectionResult? disc)
@@ -180,9 +198,9 @@ public static class PromotionCatalogue
         }
         return new(true,
             $"Static conditions for verified {recognized.Name}. Live eligibility is unknown; project edits are not included.",
-            paths.OrderBy(p => p.CharacterName, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly(), KnownGaps);
+            paths.OrderBy(p => p.CharacterName, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly(), KnownGaps, DocumentedOtherChanges);
     }
 
     private static PromotionCatalogueResult Unavailable(string reason) =>
-        new(false, reason, Array.Empty<PromotionPath>(), Array.Empty<PromotionCoverageGap>());
+        new(false, reason, Array.Empty<PromotionPath>(), Array.Empty<PromotionCoverageGap>(), Array.Empty<OtherClassChange>());
 }
