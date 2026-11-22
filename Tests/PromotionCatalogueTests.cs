@@ -81,6 +81,24 @@ public static class PromotionCatalogueTests
             if (rows[87].CallerSetComplete || rows[96].CallerSetComplete)
                 throw new Exception("Known destination users were incorrectly presented as exhaustive.");
         });
+        test("Promotion coverage gaps are explicit and do not create fictional paths", () =>
+        {
+            foreach (var original in Profiles.All)
+            {
+                var result = PromotionCatalogue.Read(original, original.Sha256, original.ExecutableSha256, false);
+                if (result.Paths.Count != 16 || result.CoverageGaps.Count != 3)
+                    throw new Exception("The finite caller count or documented gaps changed.");
+                if (!result.CoverageGaps.Any(g => g.Category.Contains("Inherited")
+                    && g.Description.Contains("187"))
+                    || !result.CoverageGaps.Any(g => g.Category.Contains("Computed"))
+                    || !result.CoverageGaps.Any(g => g.Category.Contains("Scripted")))
+                    throw new Exception("Incomplete promotion pathways are not disclosed.");
+                var rejected = PromotionCatalogue.Read(original, original.Sha256, original.ExecutableSha256, true);
+                if (rejected.CoverageGaps.Count != 0 || rejected.Paths.Count != 0)
+                    throw new Exception("Unsupported source inherited original-disc coverage assertions.");
+            }
+        });
+
         test("Incomplete callers preserve unknown conditions and no fake live status", () =>
         {
             var p = Profiles.All[0];
