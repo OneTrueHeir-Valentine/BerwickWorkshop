@@ -7,6 +7,89 @@ namespace Berwick.Workshop;
 public partial class MainWindow
 {
     private List<PromotionPath> promotionRows = [];
+    private bool promotionStacked;
+    private double promotionWideShare = 0.42;
+    private double promotionStackedShare = 0.40;
+    private double promotionLastWidth = -1;
+    private double promotionLastHeight = -1;
+
+    // Reflow the list above the details when the available tab width no longer fits both.
+    // Preserve manual splitter proportions on subsequent window resizes.
+    private void PromotionSplit_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (PromotionListColumn is null || PromotionSplit is null || PromotionSplitter is null)
+            return;
+        double width = e.NewSize.Width, height = e.NewSize.Height;
+        if (!double.IsFinite(width) || !double.IsFinite(height) || width < 1 || height < 1)
+            return;
+
+        bool stacked = width < 1050;
+        if (stacked == promotionStacked
+            && Math.Abs(width - promotionLastWidth) < 1
+            && Math.Abs(height - promotionLastHeight) < 1)
+            return;
+        promotionLastWidth = width;
+        promotionLastHeight = height;
+        promotionStacked = stacked;
+
+        if (stacked)
+        {
+            PromotionListColumn.Width = new GridLength(1, GridUnitType.Star);
+            PromotionDividerColumn.Width = new GridLength(0);
+            PromotionDetailColumn.Width = new GridLength(0);
+            PromotionListRow.Height = new GridLength(Math.Clamp(height * promotionStackedShare, 150, Math.Max(150, height - 140)));
+            PromotionDividerRow.Height = new GridLength(10);
+            PromotionDetailRow.Height = new GridLength(1, GridUnitType.Star);
+            Grid.SetColumn(PromotionListPane, 0);
+            Grid.SetRow(PromotionListPane, 0);
+            Grid.SetColumn(PromotionDetailPane, 0);
+            Grid.SetRow(PromotionDetailPane, 2);
+            Grid.SetColumn(PromotionSplitter, 0);
+            Grid.SetRow(PromotionSplitter, 1);
+            PromotionSplitter.ResizeDirection = GridResizeDirection.Rows;
+            PromotionSplitter.Width = double.NaN;
+            PromotionSplitter.Height = 10;
+            PromotionSplitter.Cursor = System.Windows.Input.Cursors.SizeNS;
+            PromotionSplitter.ToolTip = "Drag to resize the list and promotion details";
+        }
+        else
+        {
+            PromotionListRow.Height = new GridLength(1, GridUnitType.Star);
+            PromotionDividerRow.Height = new GridLength(0);
+            PromotionDetailRow.Height = new GridLength(0);
+            double listWidth = Math.Clamp((width - 12) * promotionWideShare, 460, Math.Max(460, width - 460));
+            PromotionListColumn.Width = new GridLength(listWidth);
+            PromotionDividerColumn.Width = new GridLength(12);
+            PromotionDetailColumn.Width = new GridLength(1, GridUnitType.Star);
+            Grid.SetColumn(PromotionListPane, 0);
+            Grid.SetRow(PromotionListPane, 0);
+            Grid.SetColumn(PromotionDetailPane, 2);
+            Grid.SetRow(PromotionDetailPane, 0);
+            Grid.SetColumn(PromotionSplitter, 1);
+            Grid.SetRow(PromotionSplitter, 0);
+            PromotionSplitter.ResizeDirection = GridResizeDirection.Columns;
+            PromotionSplitter.Height = double.NaN;
+            PromotionSplitter.Width = 12;
+            PromotionSplitter.Cursor = System.Windows.Input.Cursors.SizeWE;
+            PromotionSplitter.ToolTip = "Drag to resize the promotion list";
+        }
+    }
+
+    private void PromotionSplitter_DragCompleted(object sender,
+        System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        if (PromotionSplit is null) return;
+        if (promotionStacked)
+        {
+            if (PromotionSplit.ActualHeight > 10)
+                promotionStackedShare = Math.Clamp(PromotionListPane.ActualHeight / (PromotionSplit.ActualHeight - 10), 0.2, 0.8);
+        }
+        else
+        {
+            if (PromotionSplit.ActualWidth > 12)
+                promotionWideShare = Math.Clamp(PromotionListPane.ActualWidth / (PromotionSplit.ActualWidth - 12), 0.2, 0.8);
+        }
+    }
 
     private void RefreshPromotions()
     {
