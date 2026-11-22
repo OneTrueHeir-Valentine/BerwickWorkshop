@@ -26,6 +26,15 @@ if (args is ["--inspect-memory-card", var cardPath])
         Console.WriteLine("Directory entries (read-only, game save fields not decoded):");
         foreach (var entry in card.Entries)
             Console.WriteLine($"{(entry.IsDirectory ? "DIR " : "FILE")} {entry.Path}  {(entry.IsDirectory ? "entries" : "bytes")}={entry.Size}");
+        if (card.BerwickFiles.Count > 0)
+        {
+            Console.WriteLine("Berwick file occupancy (read-only; not save validity or decoded game state):");
+            foreach (var entry in card.BerwickFiles)
+                Console.WriteLine($"{entry.Directory}/{entry.Name}: {entry.Length} bytes; " +
+                    (entry.HasNonZeroBytes
+                        ? $"contains {entry.NonZeroBytes} nonzero bytes (validity unknown)"
+                        : "zero-filled"));
+        }
         return 0;
     }
     catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
