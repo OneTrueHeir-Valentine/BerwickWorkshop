@@ -108,7 +108,7 @@ public static class PromotionCatalogue
                 new("Caller, event 236", $"Level >= {minimum} AND member of primary team AND current class != destination class"),
                 new("Mercenary gate, event 236",
                     "(Not from mercenaries) OR (original mercenary unit AND not currently mercenary AND mercenary-level-up) OR (unit is one of 149, 109, 90, 129, 113)"),
-                new("Source-class gate, event 236", "Required source class 0 is a wildcard; otherwise current class must match the required class"),
+                new("Source-class gate, event 236", "Original required-source-class literal is 0 (wildcard); any current class passes this clause"),
                 new("Shared destination, event 237", SharedRequirement(destination)),
                 new("Proficiency semantics", "Weapon and shield comparisons use effective capped whole points, not raw tenths")
             };
@@ -116,45 +116,61 @@ public static class PromotionCatalogue
             var unknown = new List<string>
             {
                 "The current unit level, class, flags, team and quest availability are not available from an ISO.",
-                "The required source-class literal has not been independently reproduced for this caller in this catalogue.",
                 "Other native or computed callers may exist; the destination user set is not complete.",
                 "Whether the restored QUEST list was refreshed at the current moment is unknown."
             };
             int? quest = null, check = null, application = null, root = null;
+            // Original outer caller logic from the verified 16-row event 236 source table.
+            // These are conditions outside helper 236; all helper gates still apply.
+            switch (caller)
+            {
+                case 369 or 370 or 371 or 372 or 374 or 375 or 376:
+                    facts.Add(new("Caller gate", "Event flag 214 must be set"));
+                    break;
+                case 373:
+                    facts.Add(new("Caller gate", "(Flag 214 is set AND mission 10 is completed)"));
+                    break;
+                case 377 or 401 or 402:
+                    facts.Add(new("Caller gate", "(Flag 214 is set AND quest 84 is not offered)"));
+                    break;
+                case 364:
+                    facts.Add(new("Caller gate", "Enid primary-team check AND Perceval in either team AND NOT flag 296 AND flag 297"));
+                    break;
+                case 368:
+                    facts.Add(new("Caller gate", "NOT quest 84 offered AND (ScoreGet >= 18 OR campaign counter >= 9)"));
+                    break;
+                case 378 or 379 or 380:
+                    facts.Add(new("Caller gate", "No additional outer predicate in the inspected caller; shared helper gates still apply"));
+                    break;
+                default:
+                    unknown.Add("Original outer caller predicate is not fully verified for this path.");
+                    break;
+            }
             switch (unit)
             {
                 case 134: // Ruby
                     (quest,check,application,root) = (169,375,175,953);
-                    facts.Add(new("Story", "Event flag 214 required by the original check"));
                     facts.Add(new("Quest", "Campaign counter T from 1 through 12; phase and quest-history filters also apply"));
                     facts.Add(new("Offer order", "Other candidates can take priority before quest 169 is applied"));
                     consequences.Add("Ruby's event clears flags 236 and 369 and records status key 207; Clifford-related quest 121 reads related state.");
                     consequences.Add("An alternative town route can introduce Clifford's recruitment without being the same as Ruby's class-change operation.");
                     unknown.Add("Complete live town scheduling, optional events and reload refresh timing have not been accepted.");
-                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
-                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 case 83: // Reese
                     (quest,check,application,root) = (162,368,163,1083);
-                    facts.Add(new("Story", "Quest 84 is not offered AND (ScoreGet at least 18 OR campaign counter T at least 9)"));
                     facts.Add(new("Quest", "Normal executable quest window T from 1 through 9; phase and quest-history filters also apply"));
                     consequences.Add("The class-change event adjusts team mercenary favor and branches into Larentia's recruitment sequence.");
                     unknown.Add("Additional destination-class eligibility and the complete normal-entry sequence are not a live result.");
-                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
-                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 case 132: // Enid
                     (quest,check,application,root) = (158,364,876,1129);
-                    facts.Add(new("Story", "Enid in primary team AND Perceval in primary or secondary team AND flag 296 unset AND flag 297 set"));
                     facts.Add(new("Quest", "Campaign counter T from 7 through 12; internal phase filter 1 and quest history also apply"));
                     facts.Add(new("Offer order", "Quest 140 can take priority before Enid's promotion offer"));
                     consequences.Add("Original event includes a town battle, item 256 delivery and flag 297 changes, with downstream Derrick-related conditions.");
                     unknown.Add("Town battle, item recipient, alternate dispatch and reload effects are not fully accepted.");
-                    unknown.Remove("The required source-class literal has not been independently reproduced for this caller in this catalogue.");
-                    facts.Add(new("Source-class literal", "Original eligibility helper uses wildcard required-source-class 0"));
                     break;
                 default:
-                    unknown.Add("Caller-specific story/quest gates and the complete application route are not yet catalogued.");
+                    unknown.Add("Additional story, phase and quest availability outside this caller have not been fully traced.");
                     unknown.Add("The complete original application event and town entry have not been confirmed for this caller.");
                     break;
             }
