@@ -20,7 +20,12 @@ public partial class MainWindow
                 : "");
         int? prior = (PromotionGrid.SelectedItem as PromotionPath)?.UnitId;
         PromotionGrid.ItemsSource = promotionRows;
-        PromotionCount.Text = $"{promotionRows.Count} original promotion paths in this catalogue. Coverage is incomplete.";
+        PromotionCount.Text = catalogue.OriginalSourceVerified
+            ? $"{promotionRows.Count} source-verified literal promotion callers. This is not a complete promotion-path inventory."
+            : "Original promotion conditions are unavailable for this source.";
+        PromotionCoverageText.Text = catalogue.OriginalSourceVerified
+            ? "Research gaps: " + string.Join("  |  ", catalogue.CoverageGaps.Select(g => g.Category))
+            : "";
         PromotionGrid.SelectedItem = promotionRows.FirstOrDefault(r => r.UnitId == prior)
             ?? promotionRows.FirstOrDefault();
         if (promotionRows.Count == 0) ClearPromotion();
