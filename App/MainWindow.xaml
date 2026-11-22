@@ -40,7 +40,8 @@
      <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
      <Button x:Name="MapsNav" Content="Ma_ps" Style="{StaticResource NavButton}" Click="ShowMaps" IsEnabled="False"/>
      <Button x:Name="EventsNav" Content="Eve_nts" Style="{StaticResource NavButton}" Click="ShowEvents" IsEnabled="False"/>
-     <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
+     <Button x:Name="SavesNav" Content="_Saves" Style="{StaticResource NavButton}" Click="ShowSaves"/>
+      <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
      <Button x:Name="MechanicsNav" Content="_Mechanics" Style="{StaticResource NavButton}" Click="ShowMechanics"/>
      <Button x:Name="DiscNav" Content="_Disc details" Style="{StaticResource NavButton}" Click="ShowDisc"/>
      </StackPanel>
@@ -530,6 +531,56 @@
     </Grid>
     <ScrollViewer x:Name="MechanicsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="MechanicsList" Margin="0,0,8,0" MaxWidth="860" HorizontalAlignment="Left"/></ScrollViewer>
     <ScrollViewer x:Name="SkillsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="SkillsList" Margin="0,0,8,0" MaxWidth="820" HorizontalAlignment="Left"/></ScrollViewer>
+    <Grid x:Name="SavesPage" Visibility="Collapsed">
+     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+     </Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12" Margin="0,0,0,12">
+      <TextBlock TextWrapping="Wrap" Text="Saves (read-only): inspect a COPY of a PCSX2 raw .ps2 memory card. This page does not decode game progress, write saves, or synchronize with the running game. Close PCSX2 before copying an active card. Folder memory cards are not yet supported."/>
+     </Border>
+     <StackPanel Grid.Row="1" Margin="0,0,0,12">
+      <WrapPanel Margin="0,0,0,8">
+       <Button x:Name="SavesOpenButton" Content="Open copied card" Style="{StaticResource SmallButton}" Click="SavesOpenClicked" Margin="0,0,8,0"/>
+       <Button x:Name="SavesCompareButton" Content="Compare copied card" Style="{StaticResource SmallButton}" Click="SavesCompareClicked" Margin="0,0,8,0" IsEnabled="False"/>
+       <Button x:Name="SavesLiveButton" Content="Go to Live Game" Style="{StaticResource SmallButton}" Click="SavesGoLive" IsEnabled="False" ToolTip="Navigate only. Save-to-live state correlation is not implemented."/>
+      </WrapPanel>
+      <TextBlock x:Name="SavesCardSummary" Text="No card selected." TextWrapping="Wrap"/>
+      <TextBlock x:Name="SavesComparisonSummary" Text="No comparison card selected." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+      <TextBlock x:Name="SavesStatus" Text="Only copies of raw memory cards should be opened." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+     </StackPanel>
+     <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition Width="3*" MinWidth="320"/>
+       <ColumnDefinition Width="12"/>
+       <ColumnDefinition Width="2*" MinWidth="250"/>
+      </Grid.ColumnDefinitions>
+      <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Background="Transparent" Cursor="SizeWE" Focusable="False"/>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <DataGrid x:Name="SavesGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="SavesSelectedChanged" AutomationProperties.Name="Read-only Berwick save file inventory">
+        <DataGrid.Columns>
+         <DataGridTextColumn Header="Game directory" Binding="{Binding Directory}" Width="170"/>
+         <DataGridTextColumn Header="File" Binding="{Binding Name}" Width="130"/>
+         <DataGridTextColumn Header="Type" Binding="{Binding Kind}" Width="105"/>
+         <DataGridTextColumn Header="Bytes" Binding="{Binding Bytes}" Width="90"/>
+         <DataGridTextColumn Header="Data status" Binding="{Binding Occupancy}" Width="200"/>
+         <DataGridTextColumn Header="Comparison" Binding="{Binding Comparison}" Width="150"/>
+        </DataGrid.Columns>
+       </DataGrid>
+      </Border>
+      <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+         <TextBlock Text="READ-ONLY FILE DETAILS" Foreground="{StaticResource Muted}" FontWeight="SemiBold" Margin="0,0,0,16"/>
+         <TextBlock x:Name="SavesSelected" Text="Select a save, suspend or index file." TextWrapping="Wrap" LineHeight="21"/>
+        </StackPanel>
+       </ScrollViewer>
+      </Border>
+     </Grid>
+     <TextBlock Grid.Row="3" x:Name="SavesCount" Foreground="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap" Text="No card has been inspected."/>
+    </Grid>
     <Grid x:Name="LivePage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,12">
