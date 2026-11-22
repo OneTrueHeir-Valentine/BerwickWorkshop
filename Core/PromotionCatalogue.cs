@@ -25,8 +25,11 @@ public sealed record PromotionPath(
 }
 
 /// <summary>Fail-closed, immutable results of a source-identified static catalogue lookup.</summary>
+public sealed record PromotionCoverageGap(string Category, string Description);
+
 public sealed record PromotionCatalogueResult(
-    bool OriginalSourceVerified, string SourceDescription, IReadOnlyList<PromotionPath> Paths)
+    bool OriginalSourceVerified, string SourceDescription, IReadOnlyList<PromotionPath> Paths,
+    IReadOnlyList<PromotionCoverageGap> CoverageGaps)
 {
     public bool HasLiveSnapshot => false;
     public bool WriteAllowed => false;
@@ -62,6 +65,19 @@ public static class PromotionCatalogue
         4 or 85 => "No additional proficiency test in the examined event-237 branch",
         _ => "Destination branch unverified; helper default success is not proof this class is a valid promotion"
     };
+
+    // Confirmed gaps in the finite literal-caller index. They are not invented promotion
+    // paths or counted as verified eligible characters.
+    private static readonly IReadOnlyList<PromotionCoverageGap> KnownGaps =
+        Array.AsReadOnly(new[]
+        {
+            new PromotionCoverageGap("Inherited script routes",
+                "Wrapper event 187 and its inherited callers have not been resolved into a complete set of distinct promotion paths."),
+            new PromotionCoverageGap("Computed or native calls",
+                "Computed event references and native dispatch can reach promotion logic without a literal caller in this catalogue."),
+            new PromotionCoverageGap("Scripted and historical cases",
+                "Story-only and historical class changes may bypass the ordinary eligibility helper; their complete pathways are not verified here.")
+        });
 
     public static PromotionCatalogueResult Read(InspectionResult? disc)
     {
@@ -148,8 +164,9 @@ public static class PromotionCatalogue
         }
         return new(true,
             $"Static conditions for verified {recognized.Name}. Live eligibility is unknown; project edits are not included.",
-            paths.OrderBy(p => p.CharacterName, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly());
+            paths.OrderBy(p => p.CharacterName, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly(), KnownGaps);
     }
 
-    private static PromotionCatalogueResult Unavailable(string reason) => new(false, reason, Array.Empty<PromotionPath>());
+    private static PromotionCatalogueResult Unavailable(string reason) =>
+        new(false, reason, Array.Empty<PromotionPath>(), Array.Empty<PromotionCoverageGap>());
 }
