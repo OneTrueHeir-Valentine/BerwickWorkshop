@@ -14,6 +14,10 @@ public partial class MainWindow
         var catalogue = PromotionCatalogue.Read(primary);
         PromotionsNav.IsEnabled = primary.Supported;
         promotionRows = catalogue.Paths.ToList();
+        OtherClassChangeGrid.ItemsSource = catalogue.OtherClassChanges;
+        OtherClassChangeStatus.Text = catalogue.OriginalSourceVerified
+            ? "Separate from true promotions. These are documented behaviors, not yet verified native class-change bindings. They cannot be edited."
+            : "Open a verified original game image to view reference-only class changes.";
         PromotionSourceText.Text = catalogue.SourceDescription
             + (session?.ChangeCount > 0 && catalogue.OriginalSourceVerified
                 ? " Project edits may change these original conditions; they are not reflected here."
@@ -35,6 +39,16 @@ public partial class MainWindow
     {
         view = View.Promotions;
         UpdatePage();
+    }
+
+    private void PromotionTabChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // WPF SelectionChanged bubbles from DataGrids. Only react to a tab change.
+        if (PromotionTabs is null || !ReferenceEquals(e.Source, PromotionTabs) || PromotionCount is null)
+            return;
+        var showingPromotions = PromotionTabs.SelectedIndex == 0;
+        PromotionCount.Visibility = showingPromotions ? Visibility.Visible : Visibility.Collapsed;
+        PromotionCoverageText.Visibility = showingPromotions ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ClearPromotion()
