@@ -46,10 +46,16 @@ public partial class MainWindow
         if (PromotionGrid.SelectedItem is not PromotionPath path) { ClearPromotion(); return; }
         PromotionDetails.Children.Clear();
         PromotionName.Text = path.CharacterName;
-        PromotionIdentity.Text = $"{path.UnitText}  ·  {path.DestinationText}  ·  {path.MinimumLevelText}";
+        var destinationName = primary?.Classes.FirstOrDefault(c => c.Id == path.DestinationClassId)?.Name;
+        PromotionIdentity.Text = $"{path.UnitText}  ·  {path.DestinationText}"
+            + (destinationName is null ? "" : $" ({destinationName})")
+            + $"  ·  {path.MinimumLevelText}";
         AddSection(PromotionDetails, "Known original conditions");
         foreach (var condition in path.KnownConditions)
-            AddPair(PromotionDetails, condition.Scope, condition.Expression);
+        {
+            AddText(PromotionDetails, condition.Scope);
+            AddText(PromotionDetails, condition.Expression);
+        }
         AddSection(PromotionDetails, "Original event route");
         AddPair(PromotionDetails, "Caller", $"Event {path.CallerEvent}");
         AddPair(PromotionDetails, "Quest", path.QuestText);
