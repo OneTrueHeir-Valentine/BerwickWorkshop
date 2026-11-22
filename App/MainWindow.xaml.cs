@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private List<ClassRow> classRows=[];
     private List<MovementRow> movementRows=[];
     private List<TerrainKindRow> terrainRows=[];
-    private enum View { Items, Characters, Armies, Classes, Movement, Terrain, Furniture, Dishes, Texts, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
+    private enum View { Items, Characters, Armies, Classes, Promotions, Movement, Terrain, Furniture, Dishes, Texts, Shops, Live, Skills, Rules, Maps, Events, Mechanics, Disc, Animations }
     private View view=View.Items;
     private CancellationTokenSource? loading;
     private bool ready, closing;
@@ -96,7 +96,7 @@ public partial class MainWindow : Window
                 Search.Clear();Category.SelectedIndex=0;OnlyDifferences.IsChecked=false;
                 CharacterSearch.Clear();CharacterDifferencesOnly.IsChecked=false;
                 ClassSearch.Clear();ClassDifferencesOnly.IsChecked=false;StartingClassesOnly.IsChecked=true;
-                view=result.Supported?(view is View.Characters or View.Classes?view:View.Items):View.Disc;
+                view=result.Supported?(view is View.Characters or View.Classes or View.Promotions?view:View.Items):View.Disc;
                 if(!result.Supported) Notify("This image does not match a supported edition. Disc details are available, but item data has not been loaded.");
             }
             RefreshDocument();Status.Text="Disc checked. No files changed.";return true;
@@ -160,6 +160,7 @@ public partial class MainWindow : Window
         classRows=classes.Select(k=>new ClassRow(k,classGroups.TryGetValue(k.Id,out var list)?list:[],comparison is not null,starters.TryGetValue(k.Id,out var s)?s:[])
             { Edited=session?.IsEdited(EditSession.Classes,k.Id)==true }).ToList();
         ClassesNav.IsEnabled=primary.Supported;
+        RefreshPromotions();
         ClassComparisonBar.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         ClassChangeColumn.Visibility=comparison is null?Visibility.Collapsed:Visibility.Visible;
         if(comparison is not null)
@@ -958,7 +959,7 @@ public partial class MainWindow : Window
     {
         if(view is not (View.Disc or View.Mechanics) && primary is not null && !primary.Supported) view=View.Disc;
         if(editing is not null && editing.Page!=view) EndEdit();
-        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Texts=>"Text", View.Shops=>"Shops", View.Classes=>"Classes", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
+        PageTitle.Text=view switch { View.Events=>"Events", View.Maps=>"Maps", View.Disc=>"Disc details", View.Characters=>"Characters", View.Armies=>"Armies", View.Furniture=>"Furniture", View.Dishes=>"Dishes", View.Texts=>"Text", View.Shops=>"Shops", View.Classes=>"Classes", View.Promotions=>"Promotions", View.Movement=>"Movement", View.Terrain=>"Terrain", View.Skills=>"Skills", View.Rules=>"Game rules", View.Mechanics=>"Mechanics", View.Live=>"Live game", View.Animations=>"Battle animations", _=>"Item library" };
         bool supported=primary?.Supported==true;
         DiscPage.Visibility=view==View.Disc && primary is not null?Visibility.Visible:Visibility.Collapsed;
         ItemPage.Visibility=view==View.Items && supported?Visibility.Visible:Visibility.Collapsed;
@@ -969,6 +970,7 @@ public partial class MainWindow : Window
         TextsPage.Visibility=view==View.Texts && supported?Visibility.Visible:Visibility.Collapsed;
         ShopsPage.Visibility=view==View.Shops && supported?Visibility.Visible:Visibility.Collapsed;
         ClassPage.Visibility=view==View.Classes && supported?Visibility.Visible:Visibility.Collapsed;
+        PromotionsPage.Visibility=view==View.Promotions && supported?Visibility.Visible:Visibility.Collapsed;
         MovementPage.Visibility=view==View.Movement && supported?Visibility.Visible:Visibility.Collapsed;
         TerrainPage.Visibility=view==View.Terrain && supported?Visibility.Visible:Visibility.Collapsed;
         RulesPage.Visibility=view==View.Rules && supported?Visibility.Visible:Visibility.Collapsed;
@@ -990,6 +992,7 @@ public partial class MainWindow : Window
         TextNav.Background=view==View.Texts?active:Brushes.Transparent;
         ShopsNav.Background=view==View.Shops?active:Brushes.Transparent;
         ClassesNav.Background=view==View.Classes?active:Brushes.Transparent;
+        PromotionsNav.Background=view==View.Promotions?active:Brushes.Transparent;
         MovementNav.Background=view==View.Movement?active:Brushes.Transparent;
         TerrainNav.Background=view==View.Terrain?active:Brushes.Transparent;
         RulesNav.Background=view==View.Rules?active:Brushes.Transparent;
