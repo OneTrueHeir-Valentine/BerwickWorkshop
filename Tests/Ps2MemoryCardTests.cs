@@ -97,6 +97,24 @@ public static class Ps2MemoryCardTests
             throw new Exception("All-FF raw card was accepted or misclassified.");
         });
 
+        test("Copied-card comparison distinguishes same, changed and unpaired files", () =>
+        {
+            var original = Build(true, berwick: true);
+            var changed = (byte[])original.Clone();
+            changed[6 * 2 * 528 + 2] = 0x51;
+            var first = Ps2MemoryCardInspector.Inspect(new MemoryStream(original, writable: false));
+            var second = Ps2MemoryCardInspector.Inspect(new MemoryStream(changed, writable: false));
+            var same = Ps2MemoryCardComparison.Compare(first, first);
+            var different = Ps2MemoryCardComparison.Compare(first, second);
+            var unpaired = Ps2MemoryCardComparison.Compare(first, null);
+            if (same.Count != 1 || same[0].Status != "Same"
+                || different.Count != 1 || different[0].Status != "Different"
+                || unpaired.Count != 1 || unpaired[0].Status != "Not compared")
+                throw new Exception("Read-only copy comparison misclassified identical or differing files.");
+            if (!original.SequenceEqual(Build(true, berwick: true)))
+                throw new Exception("A comparison modified the original card image.");
+        });
+
         test("PS2 card inspector rejects unsupported or truncated images", () =>
         {
             byte[] image = Build(false);
