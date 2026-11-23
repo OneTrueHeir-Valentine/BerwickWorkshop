@@ -350,7 +350,7 @@ public sealed class EditSession
             [AnimationSets] = new(AnimationSets, "animation row", [AnimationTable.SetField], disc.AnimationSetBytes, values =>
                 values.TryGetValue(AnimationTable.SetField.Key, out int set) && !disc.AnimationSetsOnDisc.Contains(set)
                     ? $"There is no animation set {AnimationSet.FileName(set)} on this disc." : ""),
-            [AnimationPalettes] = new(AnimationPalettes, "colour row", [AnimationTable.PaletteField], disc.AnimationPaletteBytes),
+            [AnimationPalettes] = new(AnimationPalettes, "color row", [AnimationTable.PaletteField], disc.AnimationPaletteBytes),
             [MapSprites] = new(MapSprites, "map sprite", MapSpriteData.Fields, disc.MapSpriteBytes, MapSpriteData.Validate),
             [Bags] = new(Bags, "character", BagData.Fields, disc.BagBytes, values =>
             {
@@ -686,7 +686,7 @@ public sealed class EditSession
     {
         var (palette, classId, row) = AnimationTable.SplitId(id);
         string cls = originalClasses.TryGetValue(classId, out var k) ? k.Name : GameNames.Class(classId) ?? $"Class {classId}";
-        return $"{cls}, {(palette ? "colour" : "animation")} row {row + 1}";
+        return $"{cls}, {(palette ? "color" : "animation")} row {row + 1}";
     }
 
     public string ToJson(string? appVersion = null)
