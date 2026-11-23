@@ -15,7 +15,7 @@ Download [the latest Berwick Workshop release for Windows](https://github.com/On
 - **Events:** the game's event scripts as readable commands. Numbers, lines and whole scripts can be edited, for example the turn a reinforcement arrives.
 - **Game rules:** Parry, shield block and guard, durability and breaking, experience, stat limits, Luck, and many skill numbers and switches: activation chances, ranges, auras, command waits and strikes, the weapons a skill allows, Hurry, Deathmatch, Guard, Canto, Robbery, Provoke, Debility and more. Rules whose effect has not been confirmed in a running game stay hidden.
 
-Implemented features and remaining work are recorded in the [roadmap](docs/ROADMAP.md), with format findings in the [research notes](docs/RESEARCH.md).
+Report problems or request features in the [issue tracker](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues).
 
 ## Also included
 
@@ -36,8 +36,6 @@ Changes are saved as a `.bwproj` project and exported as a new ISO for PCSX2. Th
 - `App` Windows desktop interface (WPF)
 - `Tests` core test runner
 - `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT), and the game's own English names
-- `docs/ROADMAP.md` planned features
-- `docs/RESEARCH.md` notes on the game's data and program
 
 ## Building
 

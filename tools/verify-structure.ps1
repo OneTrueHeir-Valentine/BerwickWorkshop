@@ -32,18 +32,27 @@ foreach ($relative in $required) {
         throw "Missing architecture module: $relative"
     }
 }
+$publicMarkdown = @(
+    'README.md', 'LICENSE.md', 'LICENSING.md', 'CONTRIBUTING.md',
+    'CHANGELOG.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'NOTICE.md'
+)
 $gitFiles = & git -C $root ls-files
 if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect tracked files.' }
 foreach ($file in $gitFiles) {
     $normalized = $file.Replace('\', '/')
-    if ($normalized -match '(^|/)(AGENTS\.md|CLAUDE\.md|HANDOFF\.md|SESSION_LOG\.md)$' -or
+    if ($normalized -match '^(docs|release-handoff)/' -or
         $normalized -match '\.(iso|chd|cso|bin|cue)$') {
-        throw "Private coordination file or game asset is tracked: $file"
+        throw "Local working file or game image is tracked: $file"
+    }
+    if ($normalized -match '\.md$' -and $normalized -notin $publicMarkdown -and
+        $normalized -notmatch '^\.github/(ISSUE_TEMPLATE/[^/]+\.md|PULL_REQUEST_TEMPLATE\.md)$') {
+        throw "Markdown file is outside the reviewed public documentation locations: $file"
     }
 }
-
-$ignored = & git -C $root check-ignore -- 'release-handoff/release-test.evidence.json'
-if ($LASTEXITCODE -ne 0 -or -not $ignored) {
-    throw 'Local release-handoff evidence must remain Git-ignored.'
+foreach ($relative in @('docs/local-notes.md', 'release-handoff/release-test.evidence.json')) {
+    $ignored = & git -C $root check-ignore -- $relative
+    if ($LASTEXITCODE -ne 0 -or -not $ignored) {
+        throw "Local working path must remain Git-ignored: $relative"
+    }
 }
 Write-Host 'Source boundaries and public file checks passed.'

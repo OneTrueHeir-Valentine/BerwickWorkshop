@@ -5,3 +5,4 @@ obj/
 *.user
 # Release evidence and packaged local handoffs
 /release-handoff/
+/docs/
