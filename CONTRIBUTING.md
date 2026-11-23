@@ -27,4 +27,4 @@ Contributors retain copyright in their original work. No copyright assignment to
 
 By submitting a contribution for inclusion in Berwick Workshop, you agree to license that contribution under the [GNU General Public License, version 3 or later](LICENSE). You must have the right to grant that license. Retain existing notices, and identify any borrowed code or other third-party materials and their licenses in the pull request.
 
-The MinN-11 reference material keeps its separate MIT notice. Original *Berwick Saga* assets and translations are not covered by the project's GPL grant. See [Licensing](LICENSING.md) for details.
+Third-party reference material keeps its own license notices. Original *Berwick Saga* assets and translations are not covered by the project's GPL grant. See [Licensing](LICENSING.md) for details.
