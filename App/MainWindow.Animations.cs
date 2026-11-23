@@ -174,15 +174,15 @@ public partial class MainWindow
                 Row(text,AnimationEdited(false,value,r),()=>BeginAnimationEdit(false,value,at,text));
                 if(!sets.Any(s=>s.Value==number))sets.Add(new Choice(number,SetLabel(number)));
             }
-            Heading("Colours");
+            Heading("Colors");
             var palettes=table.Palettes(value);
-            if(palettes.Count==0)Line("The set's own colours for everyone.",true);
+            if(palettes.Count==0)Line("The set's own colors for everyone.",true);
             for(int r=0;r<palettes.Count;r++)
             {
                 var row=palettes[r];int number=AnimationValue(true,value,r,row.Value);int at=r;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 string when=row.Key==0?"":$" holding {AnimationTable.KeyText(row.Key)}";
-                string text=$"{who}{when}: {(number==0?"the set's own colours":$"palette {number}")}";
+                string text=$"{who}{when}: {(number==0?"the set's own colors":$"palette {number}")}";
                 Row(text,AnimationEdited(true,value,r),()=>BeginAnimationEdit(true,value,at,text));
             }
             if(primary?.MapSpriteBytes.ContainsKey(value)==true)
@@ -302,8 +302,8 @@ public partial class MainWindow
                 if(await AnimationSetFor(AnimationValue(false,classId,r,table.Sets(classId)[r].Value)) is { } set)numbers.UnionWith(set.Palettes);
             if(animationTable!=table || session is null)return;
             numbers.Add(AnimationValue(true,classId,row,table.Palettes(classId)[row].Value));
-            field=AnimationTable.PaletteField with {Choices=numbers.Select(n=>n==0?"Set's own colours":$"Palette {n}").ToList(),ChoiceValues=numbers.ToList()};
-            warning="Every unit this row applies to wears the chosen colours in all of this class's sets. Palettes are listed from the sets this class uses; a set without the chosen palette shows its own colours or wrong ones.";
+            field=AnimationTable.PaletteField with {Choices=numbers.Select(n=>n==0?"Set's own colors":$"Palette {n}").ToList(),ChoiceValues=numbers.ToList()};
+            warning="Every unit this row applies to wears the chosen colors in all of this class's sets. Palettes are listed from the sets this class uses; a set without the chosen palette shows its own colors or wrong ones.";
         }
         else
         {
@@ -315,7 +315,7 @@ public partial class MainWindow
             field=AnimationTable.SetField with {Choices=numbers.Select(n=>n==original?$"{SetLabel(n)} (the disc's)":named.Contains(n)?SetLabel(n):$"{SetLabel(n)} (no class uses it)").ToList(),ChoiceValues=numbers};
             warning=$"Every unit this row applies to plays the chosen set. Only the {numbers.Count} sets that have every motion of {SetLabel(original)} are listed, because a battle stops when a class plays a motion its set does not have. Units keep their map sprites.";
         }
-        OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Colour row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
+        OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Color row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
             [new(text,palette?EditSession.AnimationPalettes:EditSession.AnimationSets,[field])],warning));
     }
 
@@ -357,7 +357,7 @@ public partial class MainWindow
         Add(set.HasFrames?$"{set.Motions.Count} motions: {string.Join(", ",set.Motions)}.":"This set has pictures but no frames, so it cannot be shown.");
         Add(set.Palettes.Count==0?"No numbered palettes.":$"Palettes: {string.Join(", ",set.Palettes)}.");
 
-        var colours=new List<Choice>{new(0,"Set's own colours")};
+        var colors=new List<Choice>{new(0,"Set's own colors")};
         if(animationTable is { } table && AnimationList.SelectedValue is int cls && cls>0)
             for(int r=0;r<table.Palettes(cls).Count;r++)
             {
@@ -365,9 +365,9 @@ public partial class MainWindow
                 if(palNumber<=0 || !set.Palettes.Contains(palNumber))continue;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 if(row.Key!=0)who+=$" holding {AnimationTable.KeyText(row.Key)}";
-                colours.Add(new Choice(palNumber,$"{who} (palette {palNumber})"));
+                colors.Add(new Choice(palNumber,$"{who} (palette {palNumber})"));
             }
-        foreach(int pal in set.Palettes.Where(p=>!colours.Any(c=>c.Value==p)))colours.Add(new Choice(pal,$"Palette {pal}"));
+        foreach(int pal in set.Palettes.Where(p=>!colors.Any(c=>c.Value==p)))colors.Add(new Choice(pal,$"Palette {pal}"));
         var seen=new HashSet<string>();
 
         // Populate the controls together, then initialize frames and bounds explicitly.
@@ -375,7 +375,7 @@ public partial class MainWindow
         updatingAnimationSelectors=true;
         try
         {
-            AnimationPaletteBox.ItemsSource=colours.Where(c=>seen.Add(c.Text)).ToList();
+            AnimationPaletteBox.ItemsSource=colors.Where(c=>seen.Add(c.Text)).ToList();
             AnimationPaletteBox.SelectedIndex=0;
             AnimationMotionBox.ItemsSource=set.Motions;
             AnimationMotionBox.SelectedIndex=set.Motions.Count>0?0:-1;
