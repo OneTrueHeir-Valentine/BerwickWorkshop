@@ -91,7 +91,7 @@ public sealed class AnimationTable
 
     /// <summary>The value an edit changes: word 2 of a row, the set number or the palette number.</summary>
     public static TableField SetField { get; } = new("set", "Animation set", 8, 0, 32, 0, 999999) { Group = "Battle animation" };
-    public static TableField PaletteField { get; } = new("palette", "Colours", 8, 0, 32, 0, 99) { Group = "Battle animation" };
+    public static TableField PaletteField { get; } = new("palette", "Colors", 8, 0, 32, 0, 99) { Group = "Battle animation" };
 
     /// <summary>What a key means: anything, a weapon type, or one item.</summary>
     public static string KeyText(int key)
@@ -205,7 +205,7 @@ public sealed partial class AnimationSet
     public IReadOnlyList<string> Motions => files.Keys.Where(n => n.EndsWith("_0t.dat", StringComparison.OrdinalIgnoreCase) && n.Length > 7)
         .Select(n => n[..^7]).OrderBy(MotionGroup).ThenBy(MotionNumber).ToList();
 
-    /// <summary>The numbered palettes the set has (n.pal), besides its own colours.</summary>
+    /// <summary>The numbered palettes the set has (n.pal), besides its own colors.</summary>
     public IReadOnlyList<int> Palettes => files.Keys.Select(n => n.EndsWith(".pal", StringComparison.OrdinalIgnoreCase) && int.TryParse(n[..^4], out int v) ? v : -1)
         .Where(v => v >= 0).Order().ToList();
 
@@ -235,8 +235,8 @@ public sealed partial class AnimationSet
         return result;
     }
 
-    /// <summary>Draws one picture of a motion. Body and shield use the chosen palette (0 for the set's own colours);
-    /// the weapon keeps the set's colours. Layers are drawn in the order of the depth byte in each layer's header.</summary>
+    /// <summary>Draws one picture of a motion. Body and shield use the chosen palette (0 for the set's own colors);
+    /// the weapon keeps the set's colors. Layers are drawn in the order of the depth byte in each layer's header.</summary>
     public AnimationRect CanvasFor(string motion) => canvases.GetOrAdd(motion, key => AnimationCanvas.Expand(MotionTiles(key)));
 
     private IEnumerable<AnimationRect> MotionTiles(string motion)
@@ -254,7 +254,7 @@ public sealed partial class AnimationSet
         {
             var (x, y, u, v) = tile;
             if (u < 0 || v < 0 || (long)u + 8 > TextureWidth || (long)v + 8 > rows) continue;
-            // The first sixteen colours are frame markers, as in the original preview renderer.
+            // The first sixteen colors are frame markers, as in the original preview renderer.
             bool art = false;
             for (int i = 0; i < 64 && !art; i++) art = texture[(v + i / 8) * TextureWidth + u + i % 8] >= 0x10;
             if (art) yield return tile;
@@ -350,7 +350,7 @@ public sealed partial class AnimationSet
             }
     }
 
-    /// <summary>A 256-colour palette as stored for the PS2: RGBA bytes, with entries 8 to 15 and 16 to 23 of each block of 32 swapped.</summary>
+    /// <summary>A 256-color palette as stored for the PS2: RGBA bytes, with entries 8 to 15 and 16 to 23 of each block of 32 swapped.</summary>
     public static uint[] ReadPalette(byte[]? data)
     {
         var raw = new uint[256];
