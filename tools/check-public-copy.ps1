@@ -30,7 +30,7 @@ try {
                 $strings = @([regex]::Matches($text, '"(?:\\.|[^"\\])*"') |
                     ForEach-Object { $_.Value })
                 if ($strings.Count -eq 0) { continue }
-                $text = $strings -join ' '
+                $text = [regex]::Replace(($strings -join ' '), '\{[^{}]*\}', '')
             }
 
             foreach ($term in $terms) {
