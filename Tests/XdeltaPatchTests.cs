@@ -164,6 +164,76 @@ public static class XdeltaPatchTests
             Equal(data.Length, output.Length);
         });
 
+        test("Damaged or misleading manifests are refused before anything runs", () =>
+        {
+            using var dir = new Folder();
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            var good = XdeltaPatches.Create(tool, a, Sha(data), b, patch);
+            string Json(PatchManifest m) => System.Text.Json.JsonSerializer.Serialize(m);
+            var bad = new[]
+            {
+                Json(good with { Patch = @"..\elsewhere.xdelta" }), Json(good with { Patch = @"C:\p.xdelta" }), Json(good with { Patch = "" }),
+                Json(good with { TargetSha256 = "1234" }), Json(good with { SourceSha256 = new string('g', 64) }), Json(good with { TargetSize = -1 }),
+                Json(good with { Profile = "Shell" }), Json(good with { Format = "Something else" }), Json(good with { Version = 2 }),
+                "{ not json", "null", new string(' ', 70 * 1024),
+            };
+            for (int i = 0; i < bad.Length; i++)
+            {
+                string path = dir.Write($"bad{i}.json", Encoding.UTF8.GetBytes(bad[i]));
+                Throws<EditException>(() => XdeltaPatches.ReadManifest(path));
+            }
+            Throws<EditException>(() => XdeltaPatches.Apply(tool, a, patch, dir.Path("o.iso"), good with { PatchSha256 = "x" }));
+            Equal(false, File.Exists(dir.Path("o.iso")));
+            Equal(good, XdeltaPatches.ReadManifest(XdeltaPatches.ManifestPathFor(patch)));
+        });
+
+        test("A full drive, a crash and a timeout leave nothing behind and keep other partial files", () =>
+        {
+            using var dir = new Folder(ascii: true);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            var manifest = XdeltaPatches.Create(tool, a, Sha(data), b, patch);
+            string unrelated = dir.Write("out.iso.partial", [7]), other = dir.Write("other download.partial", [8]);
+            var full = Catch(() => XdeltaPatches.Apply(FakeTool(dir, "xdelta3: write failed: No space left on device", 1), a, patch, dir.Path("out.iso"), manifest));
+            Equal(true, full.Message.Contains("ran out of space"));
+            File.Delete(dir.Path("fake xdelta.cmd"));
+            var crash = Catch(() => XdeltaPatches.Apply(FakeTool(dir, "", -1073741819), a, patch, dir.Path("out.iso"), manifest));
+            Equal(true, crash.Message.Contains("exit code -1073741819"));
+            File.Delete(dir.Path("fake xdelta.cmd"));
+            var slow = Catch(() => XdeltaPatches.Apply(FakeTool(dir, "", 0, waitSeconds: 8, timeout: TimeSpan.FromSeconds(1)), a, patch, dir.Path("out.iso"), manifest));
+            Equal(true, slow.Message.Contains("took longer"));
+            Equal(false, File.Exists(dir.Path("out.iso")));
+            Equal(2, dir.Partials());
+            Equal(true, File.Exists(unrelated) && File.Exists(other));
+        });
+
+        test("A file that appears at the destination while running is kept, and the inputs cannot change meanwhile", () =>
+        {
+            using var dir = new Folder(ascii: true);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            var slow = FakeTool(dir, "", 0, waitSeconds: 3);
+            var run = Task.Run(() => Catch(() => XdeltaPatches.Create(slow, a, Sha(data), b, patch)));
+            while (dir.Partials() == 0 && !run.IsCompleted) Thread.Sleep(20);
+            Throws<IOException>(() => { using var writer = new FileStream(a, FileMode.Open, FileAccess.Write, FileShare.ReadWrite); });
+            File.WriteAllBytes(patch, [1, 2, 3]);
+            var error = run.Result;
+            Equal(true, error.Message.Contains("appeared while this was running"));
+            Equal(3, File.ReadAllBytes(patch).Length);
+            Equal(false, File.Exists(XdeltaPatches.ManifestPathFor(patch)));
+            Equal(0, dir.Partials());
+        });
+
+        test("A symbolic link to an input is never used as the output", () =>
+        {
+            using var dir = new Folder();
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            var manifest = XdeltaPatches.Create(tool, a, Sha(data), b, patch);
+            string link = dir.Path("link.iso");
+            try { File.CreateSymbolicLink(link, a); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return; } // creating links needs Developer Mode
+            Throws<EditException>(() => XdeltaPatches.Apply(tool, a, patch, link, manifest));
+            Equal(Sha(data), Sha(File.ReadAllBytes(a)));
+        });
+
         test("xdelta3 messages are explained in plain words", () =>
         {
             Equal(true, XdeltaPatches.Explain("xdelta3: unavailable secondary compressor: LZMA: XD3_INTERNAL", 1).Contains("compression method"));
@@ -214,10 +284,27 @@ public static class XdeltaPatchTests
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool CreateHardLink(string link, string existing, IntPtr security);
 
+    /// <summary>
+    /// A stand-in for xdelta3 for failure tests: a batch file that writes some bytes to the output it is given (its last
+    /// argument), optionally waits, prints a message and exits with a chosen code. It is pinned by its own hash.
+    /// </summary>
+    private static XdeltaTool FakeTool(Folder dir, string message, int exitCode, int waitSeconds = 0, TimeSpan? timeout = null)
+    {
+        string script = "@echo off\r\nset last=\r\nfor %%a in (%*) do set \"last=%%~a\"\r\n>\"%last%\" echo partial output\r\n" +
+            (waitSeconds > 0 ? $"ping -n {waitSeconds + 1} 127.0.0.1 >nul\r\n" : "") +
+            (message.Length > 0 ? $"echo {message} 1>&2\r\n" : "") + $"exit /b {exitCode}\r\n";
+        string path = dir.Write("fake xdelta.cmd", Encoding.ASCII.GetBytes(script));
+        return new XdeltaTool(path, Sha(File.ReadAllBytes(path)), "fake") { Timeout = timeout ?? TimeSpan.FromMinutes(1) };
+    }
+
     private sealed class Folder : IDisposable
     {
-        public string Root { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"berwick xdelta ü {Guid.NewGuid():N}");
-        public Folder() => Directory.CreateDirectory(Root);
+        public string Root { get; }
+        public Folder(bool ascii = false)
+        {
+            Root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), ascii ? $"berwick xdelta {Guid.NewGuid():N}" : $"berwick xdelta ü {Guid.NewGuid():N}");
+            Directory.CreateDirectory(Root);
+        }
         public string Path(string name) => System.IO.Path.Combine(Root, name);
         public string Write(string name, byte[] bytes) { string p = Path(name); File.WriteAllBytes(p, bytes); return p; }
         public int Partials() => Directory.GetFiles(Root, "*.partial").Length;

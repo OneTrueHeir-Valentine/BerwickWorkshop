@@ -1,13 +1,19 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+
+[assembly: InternalsVisibleTo("Berwick.Tests")]
 
 namespace Berwick.Core;
 
 /// <summary>The xdelta3 program used for patches, identified by the SHA-256 of the exact executable.</summary>
 public sealed record XdeltaTool(string Path, string Sha256, string Version)
 {
+    /// <summary>How long one run may take before it is stopped. Whole-disc runs take one to two minutes on a hard disk.</summary>
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromHours(1);
+
     /// <summary>Official xdelta3 3.2.2 release for Windows x64 (github.com/jmacd/xdelta, v3.2.2).</summary>
     public const string Release322WindowsX64Sha256 = "732980d52f9220dc81817ccdd0c295eadce8a0048a24c2a771a73f791ac824e9";
 }
@@ -73,23 +79,30 @@ public static class XdeltaPatches
         RefuseDestination(patch, source, target);
         RefuseDestination(manifestPath, source, target);
         CheckTool(tool);
-        RequireHash(source, sourceSha256, "The source disc image has changed since it was checked.", cancellation);
-        string targetSha = Hash(target, cancellation);
-        long targetSize = new FileInfo(target).Length;
+        // Both inputs stay open for reading only until the patch is finished, so nothing can change them meanwhile.
+        using var sourceLock = Lock(source);
+        using var targetLock = Lock(target);
+        if (!string.Equals(Hash(sourceLock, cancellation), sourceSha256, StringComparison.OrdinalIgnoreCase))
+            throw new EditException("The source disc image has changed since it was checked.");
+        string targetSha = Hash(targetLock, cancellation);
+        long targetSize = targetLock.Length;
         RequireSpace(patch, targetSize / 2);
 
         string finished = RunToPartial(tool, patch, partial => ["-e", .. EncodeOptions(profile), "-s", source, target, partial], cancellation,
             "The patch could not be created");
         var manifest = new PatchManifest(ManifestFormat, 1, Path.GetFileName(patch), Hash(finished, cancellation), sourceSha256.ToLowerInvariant(),
-            new FileInfo(source).Length, targetSha, targetSize, profile.ToString(), "xdelta3 " + tool.Version, tool.Sha256);
+            sourceLock.Length, targetSha, targetSize, profile.ToString(), "xdelta3 " + tool.Version, tool.Sha256);
+        bool wroteManifest = false;
         try
         {
             WriteNew(manifestPath, JsonSerializer.SerializeToUtf8Bytes(manifest, new JsonSerializerOptions { WriteIndented = true }));
-            File.Move(finished, patch, overwrite: false);
+            wroteManifest = true;
+            Promote(finished, patch);
         }
         catch
         {
             TryDelete(finished);
+            if (wroteManifest) TryDelete(manifestPath);
             throw;
         }
         return manifest;
@@ -125,17 +138,20 @@ public static class XdeltaPatches
         RefuseDestination(output, source, patch);
         CheckTool(tool);
         if (!File.Exists(patch)) throw new EditException("The patch file was not found.");
-        string sourceSha = Hash(source, cancellation);
+        using var sourceLock = Lock(source);
+        using var patchLock = Lock(patch);
+        string sourceSha = Hash(sourceLock, cancellation);
         if (manifest is not null)
         {
-            if (!string.Equals(Hash(patch, cancellation), manifest.PatchSha256, StringComparison.OrdinalIgnoreCase))
+            Validate(manifest);
+            if (!string.Equals(Hash(patchLock, cancellation), manifest.PatchSha256, StringComparison.OrdinalIgnoreCase))
                 throw new EditException("The patch file does not match its manifest.");
             if (!string.Equals(sourceSha, manifest.SourceSha256, StringComparison.OrdinalIgnoreCase))
                 throw new EditException("This disc image is not the one the patch was made for.");
         }
         else if (!KnownEditions.ContainsKey(sourceSha))
             throw new EditException("The disc image is not a known edition, and the patch has no manifest that names its source.");
-        RequireSpace(output, manifest?.TargetSize ?? new FileInfo(source).Length);
+        RequireSpace(output, manifest?.TargetSize ?? sourceLock.Length);
 
         string finished = RunToPartial(tool, output, partial => ["-d", "-s", source, patch, partial], cancellation,
             "The patch could not be applied");
@@ -151,7 +167,7 @@ public static class XdeltaPatches
             }
             else identity = KnownEditions.ContainsKey(sha) ? PatchedIdentity.KnownEdition : PatchedIdentity.Unrecognized;
             long size = new FileInfo(finished).Length;
-            File.Move(finished, output, overwrite: false);
+            Promote(finished, output);
             return new(output, sha, size, identity, KnownEditions.GetValueOrDefault(sha));
         }
         catch
@@ -197,15 +213,34 @@ public static class XdeltaPatches
         }
     }
 
+    /// <summary>Reads a manifest and checks every field. A manifest only describes files; nothing in it is run or followed.</summary>
     public static PatchManifest ReadManifest(string path)
     {
-        var manifest = JsonSerializer.Deserialize<PatchManifest>(File.ReadAllBytes(path))
-            ?? throw new EditException("The patch manifest is empty.");
+        var info = new FileInfo(path);
+        if (!info.Exists) throw new EditException("The patch manifest was not found.");
+        if (info.Length > 64 * 1024) throw new EditException("The patch manifest is too large to be one.");
+        PatchManifest? manifest;
+        try { manifest = JsonSerializer.Deserialize<PatchManifest>(File.ReadAllBytes(path)); }
+        catch (JsonException) { throw new EditException("The patch manifest could not be read."); }
+        if (manifest is null) throw new EditException("The patch manifest is empty.");
+        Validate(manifest);
+        return manifest;
+    }
+
+    internal static void Validate(PatchManifest manifest)
+    {
         if (manifest.Format != ManifestFormat || manifest.Version != 1)
             throw new EditException("This is not a patch manifest this version can read.");
-        if (manifest.Patch.IndexOfAny(['/', '\\', ':']) >= 0)
+        if (string.IsNullOrWhiteSpace(manifest.Patch) || manifest.Patch != Path.GetFileName(manifest.Patch) ||
+            manifest.Patch.IndexOfAny(['/', '\\', ':']) >= 0 || manifest.Patch is "." or "..")
             throw new EditException("The patch manifest names a folder, which it never should.");
-        return manifest;
+        foreach (string? hash in new[] { manifest.PatchSha256, manifest.SourceSha256, manifest.TargetSha256, manifest.ToolSha256 })
+            if (hash is not { Length: 64 } || !hash.All(Uri.IsHexDigit))
+                throw new EditException("The patch manifest has a damaged hash.");
+        if (manifest.SourceSize <= 0 || manifest.TargetSize <= 0)
+            throw new EditException("The patch manifest has an impossible file size.");
+        if (!Enum.TryParse<XdeltaProfile>(manifest.Profile, out _))
+            throw new EditException("The patch manifest names a patch format this version does not know.");
     }
 
     public static string ManifestPathFor(string patchPath) => patchPath + ".json";
@@ -223,12 +258,18 @@ public static class XdeltaPatches
         try
         {
             using var process = Process.Start(start) ?? throw new EditException("xdelta3 could not be started.");
-            var errors = process.StandardError.ReadToEndAsync(CancellationToken.None);
-            var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-            using (cancellation.Register(() => { try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } }))
-                process.WaitForExit();
+            var errors = Tail(process.StandardError);
+            var output = Tail(process.StandardOutput);
+            void Stop() { try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } }
+            bool finished;
+            using (cancellation.Register(Stop))
+            {
+                finished = process.WaitForExit(tool.Timeout);
+                if (!finished) { Stop(); process.WaitForExit(); }
+            }
             string message = (errors.Result + output.Result).Trim();
             cancellation.ThrowIfCancellationRequested();
+            if (!finished) throw new EditException($"{failure}. xdelta3 took longer than {tool.Timeout.TotalSeconds:0} seconds and was stopped.");
             if (process.ExitCode != 0 || !File.Exists(partial))
                 throw new EditException($"{failure}. {Explain(message, process.ExitCode)}");
             return partial;
@@ -240,8 +281,55 @@ public static class XdeltaPatches
         }
     }
 
+    /// <summary>Keeps only the last part of what a child process writes, so a noisy program cannot fill memory.</summary>
+    private static async Task<string> Tail(StreamReader reader)
+    {
+        const int Limit = 16 * 1024;
+        var kept = new System.Text.StringBuilder();
+        var buffer = new char[4096];
+        int read;
+        while ((read = await reader.ReadAsync(buffer, CancellationToken.None).ConfigureAwait(false)) > 0)
+        {
+            kept.Append(buffer, 0, read);
+            if (kept.Length > Limit) kept.Remove(0, kept.Length - Limit);
+        }
+        return kept.ToString();
+    }
+
+    /// <summary>Moves a finished file to its name, never replacing a file that appeared there in the meantime.</summary>
+    private static void Promote(string finished, string destination)
+    {
+        try { File.Move(finished, destination, overwrite: false); }
+        catch (IOException) when (File.Exists(destination) || Directory.Exists(destination))
+        {
+            throw new EditException("A file with that name appeared while this was running. It was left as it is, and nothing was saved.");
+        }
+    }
+
+    /// <summary>Opens a file for reading and stops anything else from writing to it while it is open.</summary>
+    private static FileStream Lock(string path)
+    {
+        try { return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4 * 1024 * 1024, FileOptions.SequentialScan); }
+        catch (FileNotFoundException) { throw new EditException($"{Path.GetFileName(path)} was not found."); }
+        catch (IOException) { throw new EditException($"{Path.GetFileName(path)} is being changed by another program. Close it and try again."); }
+    }
+
+    private static string Hash(FileStream stream, CancellationToken cancellation)
+    {
+        stream.Position = 0;
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[4 * 1024 * 1024];
+        int read;
+        while ((read = stream.Read(buffer)) > 0)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            hash.AppendData(buffer, 0, read);
+        }
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
     /// <summary>Turns xdelta3's own messages into a reason the user can act on.</summary>
-    public static string Explain(string message, int exitCode)
+    internal static string Explain(string message, int exitCode)
     {
         if (message.Contains("unavailable secondary compressor", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("unknown secondary compressor", StringComparison.OrdinalIgnoreCase))
@@ -266,11 +354,6 @@ public static class XdeltaPatches
         if (!File.Exists(tool.Path)) throw new EditException("xdelta3 was not found.");
         if (!string.Equals(Hash(tool.Path, default), tool.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new EditException("The xdelta3 program is not the verified version, so it was not run.");
-    }
-
-    private static void RequireHash(string path, string expected, string message, CancellationToken cancellation)
-    {
-        if (!string.Equals(Hash(path, cancellation), expected, StringComparison.OrdinalIgnoreCase)) throw new EditException(message);
     }
 
     /// <summary>Refuses a destination that exists, or that is one of the inputs under another name.</summary>
@@ -304,7 +387,7 @@ public static class XdeltaPatches
         file.Flush(true);
     }
 
-    public static string Hash(string path, CancellationToken cancellation)
+    internal static string Hash(string path, CancellationToken cancellation)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4 * 1024 * 1024, FileOptions.SequentialScan);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -324,7 +407,7 @@ public static class XdeltaPatches
     }
 
     /// <summary>Whether two paths name the same file, including hard links and links to it.</summary>
-    public static bool SameFile(string a, string b)
+    internal static bool SameFile(string a, string b)
     {
         if (OperatingSystem.IsWindows())
         {
