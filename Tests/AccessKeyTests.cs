@@ -36,7 +36,7 @@ internal static class AccessKeyTests
         });
     }
 
-    private static string SourceFile(params string[] parts)
+    internal static string SourceFile(params string[] parts)
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
