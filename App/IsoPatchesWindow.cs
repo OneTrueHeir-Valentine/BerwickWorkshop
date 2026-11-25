@@ -146,10 +146,11 @@ internal sealed class IsoPatchesWindow : Window
 
     private void UpdateMake()
     {
-        bool images = fromImages.IsChecked == true;
         var open = project();
+        fromProject.IsEnabled = open is not null;
+        if (open is null && fromProject.IsChecked == true) { fromImages.IsChecked = true; return; } // Checked runs this again.
+        bool images = fromImages.IsChecked == true;
         makeOriginal.Panel.Visibility = makeChanged.Panel.Visibility = images ? Visibility.Visible : Visibility.Collapsed;
-        if (!images && open is null) fromProject.IsEnabled = false;
         makeEstimate.Text = images
             ? "Making a patch reads both images in full. The patch itself is usually small."
             : open is { } p
