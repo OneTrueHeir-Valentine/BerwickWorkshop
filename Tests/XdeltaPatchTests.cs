@@ -234,6 +234,56 @@ public static class XdeltaPatchTests
             Equal(Sha(data), Sha(File.ReadAllBytes(a)));
         });
 
+        test("An existing manifest blocks a new patch and is left as it is", () =>
+        {
+            using var dir = new Folder();
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            string sidecar = dir.Write("p.xdelta.json", Encoding.UTF8.GetBytes("someone else's notes"));
+            Throws<EditException>(() => XdeltaPatches.Create(tool, a, Sha(data), b, patch));
+            Equal(false, File.Exists(patch));
+            Equal("someone else's notes", File.ReadAllText(sidecar));
+            Equal(0, dir.Partials());
+        });
+
+        test("A path through a directory junction that names an input is refused", () =>
+        {
+            using var dir = new Folder(ascii: true);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), patch = dir.Path("p.xdelta");
+            var manifest = XdeltaPatches.Create(tool, a, Sha(data), b, patch);
+            string junction = dir.Path("junction");
+            var mk = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe") { ArgumentList = { "/c", "mklink", "/J", junction, dir.Root }, CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true });
+            mk!.WaitForExit();
+            if (!Directory.Exists(junction)) throw new Exception("Could not create the junction for this test.");
+            try
+            {
+                string alias = Path.Combine(junction, "a.iso");
+                Equal(true, XdeltaPatches.SameFile(a, alias));
+                Throws<EditException>(() => XdeltaPatches.Apply(tool, a, patch, alias, manifest));
+                Throws<EditException>(() => XdeltaPatches.Apply(tool, alias, patch, Path.Combine(junction, "p.xdelta"), manifest));
+                Equal(Sha(data), Sha(File.ReadAllBytes(a)));
+                var through = XdeltaPatches.Apply(tool, alias, patch, Path.Combine(junction, "new.iso"), manifest);
+                Equal(true, File.Exists(dir.Path("new.iso")));
+                Equal(Sha(changed), through.Sha256);
+            }
+            finally { Directory.Delete(junction); }
+            Equal(0, dir.Partials());
+        });
+
+        test("Cancelling while hashing or exporting leaves nothing behind", () =>
+        {
+            using var dir = new Folder();
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed);
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            Throws<OperationCanceledException>(() => XdeltaPatches.Create(tool, a, Sha(data), b, dir.Path("p.xdelta"), XdeltaProfile.Compatible, cancelled.Token));
+            var changes = new[] { new DiscPatch(4096, [1, 2, 3, 4], data.AsSpan(4096, 4).ToArray()) };
+            Throws<OperationCanceledException>(() => XdeltaPatches.CreateFromProject(tool, a, Sha(data), changes, dir.Path("q.xdelta"), XdeltaProfile.Compatible, cancelled.Token));
+            var manifest = XdeltaPatches.Create(tool, a, Sha(data), b, dir.Path("r.xdelta"));
+            Throws<OperationCanceledException>(() => XdeltaPatches.Apply(tool, a, dir.Path("r.xdelta"), dir.Path("out.iso"), manifest, cancelled.Token));
+            var left = Directory.GetFiles(dir.Root).Select(Path.GetFileName).Order().ToArray();
+            Equal("a.iso,b.iso,r.xdelta,r.xdelta.json", string.Join(",", left));
+        });
+
         test("xdelta3 messages are explained in plain words", () =>
         {
             Equal(true, XdeltaPatches.Explain("xdelta3: unavailable secondary compressor: LZMA: XD3_INTERNAL", 1).Contains("compression method"));

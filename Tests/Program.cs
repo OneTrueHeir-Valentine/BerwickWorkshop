@@ -28,6 +28,8 @@ if (args is ["--xdelta", var xdeltaPath])
 }
 if (args is ["--xdelta-real", var realTool, var realJapanese, var realEnglish, var realLegacy, var realFolder])
     return XdeltaPatchTests.RunReal(realTool, realJapanese, realEnglish, realLegacy, realFolder);
+if (args is ["--xdelta-projects", var projectTool, var projectImage, var projectFile, var projectFolder])
+    return XdeltaProjectCheck.Run(projectTool, projectImage, projectFile, projectFolder);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);

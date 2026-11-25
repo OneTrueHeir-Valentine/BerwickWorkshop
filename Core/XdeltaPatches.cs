@@ -387,6 +387,9 @@ public static class XdeltaPatches
         file.Flush(true);
     }
 
+    /// <summary>The SHA-256 of a file, as lowercase hexadecimal.</summary>
+    public static string HashFile(string path) => Hash(path, default);
+
     internal static string Hash(string path, CancellationToken cancellation)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4 * 1024 * 1024, FileOptions.SequentialScan);
