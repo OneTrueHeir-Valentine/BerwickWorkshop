@@ -20,7 +20,7 @@ The Randomizer page changes starting items, character stat bonuses and growth ra
 
 ## Maps and events
 
-Maps displays the painted battle maps, terrain, deployment hexes, starting units, later arrivals and event spots. Existing unit positions, deployment positions and limits, and some reinforcement locations and turns can be changed there.
+Maps displays the painted battle maps, terrain, deployment hexes, starting units, later arrivals and event spots. Existing unit positions, deployment positions and limits, and some reinforcement locations and turns can be changed there. A starting unit removed in a project can be put back on its original hex; units that have no starting position on the original disc cannot be added.
 
 The Events page opens the game's scripts as readable commands. You can edit numbers, individual commands and complete scripts, including the conditions that determine when units arrive. Some event structures still require direct work in the Events editor rather than a dedicated Maps control.
 
