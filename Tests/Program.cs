@@ -106,6 +106,10 @@ ShieldGuardAssemblyTests.Run(Test);
 MindGrowthTests.Run(Test);
 AccessKeyTests.Run(Test);
 EmblemTests.Run(Test);
+ResponsiveLayoutXamlTests.Run(Test);
+#if WINDOWS
+ResponsiveSplitTests.Run(Test);
+#endif
 
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
