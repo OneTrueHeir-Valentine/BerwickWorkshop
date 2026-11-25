@@ -99,7 +99,7 @@
       <Button Grid.Column="3" x:Name="NewItemButton" Content="New item" Style="{StaticResource SmallButton}" Margin="14,0,0,0" Click="NewItem" ToolTip="Create a new item in a free slot (Ctrl+N)" Visibility="Collapsed"/>
      </Grid>
      <Border Grid.Row="1" x:Name="ComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><Button DockPanel.Dock="Right" Content="Remove" Padding="8,3" Click="RemoveComparison" Margin="10,0,0,0"/><CheckBox x:Name="OnlyDifferences" DockPanel.Dock="Right" Content="Differences only" Margin="12,0" VerticalAlignment="Center" Checked="UnusedChanged" Unchecked="UnusedChanged"/><TextBlock x:Name="ComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
-     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <Grid>
@@ -138,7 +138,7 @@
       <Grid><TextBox x:Name="ArmySearch" TextChanged="ArmyFilterChanged" AutomationProperties.Name="Search armies" ToolTip="Search by unit name, class or army number (Ctrl+F)"/><TextBlock x:Name="ArmySearchHint" Text="Search by unit name, class or army number" IsHitTestVisible="False" Foreground="#899286" VerticalAlignment="Center" Margin="12,0"/></Grid>
       <CheckBox Grid.Column="1" x:Name="NamedUnitsOnly" Content="Named units only" IsChecked="True" Margin="16,0,0,0" VerticalAlignment="Center" Checked="ArmyOptionChanged" Unchecked="ArmyOptionChanged" ToolTip="Show only units with a name of their own, such as bosses and leaders"/>
      </Grid>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <Grid>
@@ -202,7 +202,7 @@
 
      </Grid>
      <Border Grid.Row="1" x:Name="CharacterComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><CheckBox x:Name="CharacterDifferencesOnly" DockPanel.Dock="Right" Content="Differences only" Margin="12,0,0,0" VerticalAlignment="Center" Checked="CharacterOptionChanged" Unchecked="CharacterOptionChanged"/><TextBlock x:Name="CharacterComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
-     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <Grid>
@@ -243,7 +243,7 @@
       <CheckBox Grid.Column="1" x:Name="StartingClassesOnly" Content="Starting classes only" Margin="6,0,0,0" VerticalAlignment="Center" Checked="ClassOptionChanged" Unchecked="ClassOptionChanged"/>
      </Grid>
      <Border Grid.Row="1" x:Name="ClassComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><CheckBox x:Name="ClassDifferencesOnly" DockPanel.Dock="Right" Content="Differences only" Margin="12,0,0,0" VerticalAlignment="Center" Checked="ClassOptionChanged" Unchecked="ClassOptionChanged"/><TextBlock x:Name="ClassComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
-     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <Grid>
@@ -350,7 +350,7 @@
     <Grid x:Name="MovementPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="Every class has a movement type. Each hex costs the points shown for its terrain, and a unit keeps moving while the total stays within its Move. Costs can use tenths, such as 1.5. Choose which type a class uses on the Classes page."/></Border>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="MovementGrid" SelectionChanged="MovementSelected" AutomationProperties.Name="Movement types">
@@ -381,7 +381,7 @@
     <Grid x:Name="TerrainPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="Each kind of terrain has an avoid bonus for the unit standing on it, a change to recovery while resting, and whether flying units may end their move there. What each kind costs to cross is set per movement type on the Movement page."/></Border>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="TerrainGrid" SelectionChanged="TerrainSelected" AutomationProperties.Name="Terrain kinds">
@@ -409,7 +409,7 @@
     <Grid x:Name="ShopsPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="What each shop sells: the shops at the base and the shops on battle maps. An item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop to change, add or remove its items; the changes go into the shop's script when you export a disc. The stable and the furniture shop have their own pages."/></Border>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="ShopGrid" SelectionChanged="ShopSelected" AutomationProperties.Name="Shops">
@@ -453,7 +453,7 @@
     <Grid x:Name="FurniturePage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="The pieces the furniture shop sells and what each one costs. The price is set by the shop's own script, separately from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."/></Border>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="FurnitureGrid" SelectionChanged="FurnitureSelected" AutomationProperties.Name="Furniture">
@@ -482,7 +482,7 @@
       <ComboBox x:Name="TextKindBox" DockPanel.Dock="Right" Width="220" Margin="10,0,0,0" SelectionChanged="TextFilterChanged" AutomationProperties.Name="Kind of text"/>
       <TextBox x:Name="TextSearch" TextChanged="TextFilterChanged" AutomationProperties.Name="Search texts" ToolTip="Search by text or entry name"/>
      </DockPanel>
-     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="380" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="380" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="TextGrid" SelectionChanged="TextSelected" AutomationProperties.Name="Texts">
@@ -513,7 +513,7 @@
     <Grid x:Name="DishesPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Border Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><TextBlock TextWrapping="Wrap" FontSize="12" LineHeight="18" Text="The dishes the Kingfisher Pavilion serves. Each dish has a price, a menu tier and three sets of effects: one for a unit that likes it, one for a unit that finds it neutral and one for a unit that dislikes it. The effects last into the next battle. Which dishes each character likes is edited on the Characters page under Dish tastes."/></Border>
-     <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="360" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <DataGrid x:Name="DishGrid" SelectionChanged="DishSelected" AutomationProperties.Name="Dishes">
@@ -701,7 +701,7 @@
       <Button x:Name="LiveOwnBattlesButton" DockPanel.Dock="Left" Content="Use each sortie's own battle" Style="{StaticResource SmallButton}" Click="LiveOwnBattles" Margin="0,0,12,0" IsEnabled="False"/>
       <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource Muted}" Text="Choose at the base, then start any mission or quest: its map, units and events are those of the chosen battle."/>
      </DockPanel>
-     <Grid Grid.Row="3"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="340" MinWidth="200"/></Grid.ColumnDefinitions>
+     <Grid maps:ResponsiveSplit.Enabled="True" Grid.Row="3"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="340" MinWidth="200"/></Grid.ColumnDefinitions>
       <GridSplitter Grid.Column="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
        <Grid>
