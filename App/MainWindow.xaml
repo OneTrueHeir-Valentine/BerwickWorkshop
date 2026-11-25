@@ -4,7 +4,16 @@
   <Border Background="#253A31" Padding="22,30,22,20">
    <DockPanel>
     <StackPanel DockPanel.Dock="Top">
-     <Border Width="36" Height="40" HorizontalAlignment="Left" BorderBrush="#B7C7AD" BorderThickness="1" CornerRadius="4,4,14,14" Margin="0,0,0,18"><TextBlock Text="B" FontFamily="Georgia" FontSize="25" Foreground="#DAD8B8" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+     <!-- The application emblem, drawn from the same shapes as App/workshop.svg. -->
+     <Viewbox Width="40" Height="40" HorizontalAlignment="Left" Margin="0,0,0,18" AutomationProperties.Name="Berwick Workshop emblem">
+      <Canvas Width="24" Height="24">
+       <Rectangle Canvas.Left="0.75" Canvas.Top="0.75" Width="22.5" Height="22.5" RadiusX="4" RadiusY="4" Fill="#233B32"/>
+       <Path Data="M12 4L16 6V11L12 13L8 11V6Z" Fill="#E4DFBD"/>
+       <Path Data="M4 18v-5l4 -2l4 2v5l-4 2l-4 -2" Stroke="#E4DFBD" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Path Data="M8 11v-5l4 -2l4 2v5" Stroke="#E4DFBD" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+       <Path Data="M12 13l4 -2l4 2v5l-4 2l-4 -2" Stroke="#E4DFBD" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+      </Canvas>
+     </Viewbox>
      <TextBlock Text="BERWICK" Foreground="#F7F6EC" FontFamily="Georgia" FontSize="22"/>
      <TextBlock Text="WORKSHOP" Foreground="#C1CBB9" FontSize="11" Margin="1,5,0,38"/>
     </StackPanel>
