@@ -97,6 +97,45 @@ internal static class StartingUnitEligibilityTests
             var unverified = StartingUnitPlacement.Candidates(Map(), References(), [Army()], EmptyRecord(), SourceRecord(), verifiedOriginalDisc: false).Single();
             Check(unverified.OriginalPosition is null, "An unverified disc supplied an original hex");
         });
+        test("A changed opening assignment cannot take another unit's original position", () =>
+        {
+            var armies = new[] { Army(), new Army(6, "Other", [], 256, [new(6000, 6, 0, 375, "Stranger", 0, 180)]) };
+            var original = References();
+            var appear = Appear(5, 2);
+            foreach (var active in new[]
+            {
+                References(Appear(6, 2)),
+                References(new ScriptNode { Command = 0x32C, Args = [appear.Args[0], [Number(2)], .. appear.Args.Skip(2)] }),
+                References(Appear(5, 3))
+            })
+            {
+                foreach (var candidate in StartingUnitPlacement.Candidates(Map(), active, armies, EmptyRecord(), SourceRecord(),
+                    verifiedOriginalDisc: true, originalReferences: original).Where(c => c.Problem is null))
+                {
+                    Check(!candidate.CanPlace && candidate.OriginalPosition is null, $"Record {candidate.Unit.Key} took an original position under a changed assignment");
+                    Check(candidate.PlacementProblem!.Contains("assigns this placement group differently"), "The refusal does not explain the changed assignment");
+                }
+            }
+            var occupied = StartingUnitPlacement.Candidates(Map(), References(Appear(6, 2)), armies, SourceRecord(), SourceRecord(),
+                verifiedOriginalDisc: true, originalReferences: original).Single(c => c.Unit.Key == 6000);
+            Check(occupied.CanRemove, "A changed assignment disabled removal");
+            var unchanged = StartingUnitPlacement.Candidates(Map(), original, [Army()], EmptyRecord(), SourceRecord(),
+                verifiedOriginalDisc: true, originalReferences: original).Single();
+            Check(unchanged.CanPlace && unchanged.OriginalPosition == (1, 1), "An unchanged assignment could not be restored");
+        });
+        test("A map newly shared with another battle cannot be restored from the original positions", () =>
+        {
+            var events = new MapEventRecord[] { new(12, 9, 13, []), new(13, 10, 13, []) };
+            var original = BattlePlacementReferences.Analyze(
+                [new(12, 0, [Launch(9, "first.ar"), Appear(5, 2)]), new(13, 1, [Launch(10, "second.ar"), Appear(6, 3)])],
+                events, file => file == "first.ar" ? 0 : 1);
+            var active = BattlePlacementReferences.Analyze(
+                [new(12, 0, [Launch(9, "first.ar"), Appear(5, 2)]), new(13, 1, [Launch(10, "first.ar"), Appear(6, 3)])],
+                events, file => file == "first.ar" ? 0 : 1);
+            var candidate = StartingUnitPlacement.Candidates(Map(), active, [Army()], EmptyRecord(), SourceRecord(),
+                verifiedOriginalDisc: true, originalReferences: original).Single(c => c.Assignment.Battle == 9);
+            Check(!candidate.CanPlace && candidate.OriginalPosition is null, "A newly shared map kept its original positions");
+        });
         test("Only an exact original image counts as a verified original disc", () =>
         {
             const string hash = "aa";

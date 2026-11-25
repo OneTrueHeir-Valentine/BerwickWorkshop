@@ -37,8 +37,9 @@ internal static class UnitPlacementIntegration
         var profile = new GameProfile("Synthetic", hash, 0, 0);
         var disc = new InspectionResult(source, image.Length, "", "", "", hash, "", profile, [], [], 0)
         {
-            Armies = [new(5, "Army", [], 0, [new(100, 5, 0, 1, "First", 0, 180), new(101, 5, 1, 2, "Second", 256, 436)])],
-            ArmyUnitBytes = new Dictionary<int, ReadOnlyMemory<byte>> { [100] = new byte[256], [101] = new byte[256] }
+            Armies = [new(5, "Army", [], 0, [new(100, 5, 0, 1, "First", 0, 180), new(101, 5, 1, 2, "Second", 256, 436)]),
+                new(6, "Other", [], 0, [new(600, 6, 0, 3, "Stranger", 512, 692)])],
+            ArmyUnitBytes = new Dictionary<int, ReadOnlyMemory<byte>> { [100] = new byte[256], [101] = new byte[256], [600] = new byte[256] }
         };
         using var stream = File.OpenRead(source);
         using var iso = new IsoImage(stream);
@@ -59,7 +60,56 @@ internal static class UnitPlacementIntegration
         VerifyCurrentScripts(loaded, library);
         VerifyRemoval(loaded, library, map, Path.Combine(folder, "placement.bwproj"), originalArmy, sharedMap);
         VerifyModifiedSource(disc, library, map, sharedMap);
+        VerifyAssignmentIdentity(disc, library, map, folder, sharedMap);
         Console.WriteLine("Placement add/remove, active scripts, undo/redo, save/load and synthetic export/reopen passed.");
+    }
+
+    private static void VerifyAssignmentIdentity(InspectionResult disc, EventLibrary library, BattleMap map, string folder, bool sharedMap)
+    {
+        var session = new EditSession(disc);
+        MapEdits.MovePlacement(session, map, 2, 1, 7, 7, []);
+        StartingUnitPlacement.Apply(session, library, map, 100, 2, true, 0, 0, sharedMap);
+        var stale = StartingUnitPlacement.Candidates(map, BattlePlacementReferences.Read(library, session), disc.Armies,
+            session.EditedBytes(EditSession.Placements, map.Top), session.Table(EditSession.Placements).Records[map.Top].Span,
+            disc.IsVerifiedOriginal, BattlePlacementReferences.ReadOriginal(library, disc)).Single(c => c.Unit.Key == 100);
+        Check(stale.CanPlace && stale.OriginalPosition == (5, 4), "The removed unit was not restorable before the assignment changed");
+
+        // The project now puts army 6 in group 2, where army 5 starts on the original disc.
+        session.SetScript(12, ScriptWriter.Write([Launch(9, "first.ar"), Appear(6, 2)]));
+        int changes = session.ChangeCount;
+        var placements = session.EditedBytes(EditSession.Placements, map.Top).ToArray();
+        var script = session.EventScript(12)!.ToArray();
+        var strangerBytes = session.EditedBytes(EditSession.ArmyUnits, 600).ToArray();
+        var stranger = StartingUnitPlacement.Candidates(map, BattlePlacementReferences.Read(library, session), disc.Armies,
+            placements, session.Table(EditSession.Placements).Records[map.Top].Span, disc.IsVerifiedOriginal,
+            BattlePlacementReferences.ReadOriginal(library, disc)).Where(c => c.Unit.Key == 600).ToList();
+        Check(stranger.All(c => !c.CanPlace && c.OriginalPosition is null), "Army 6 was offered army 5's original position");
+        Refused(() => StartingUnitPlacement.Restore(session, library, map, 600, 2, sharedMap), "Army 6 restored into army 5's position");
+        Refused(() => StartingUnitPlacement.Apply(session, library, map, 600, 2, false, 5, 4, sharedMap), "Army 6 was placed on army 5's original hex");
+        Refused(() => StartingUnitPlacement.Apply(session, library, map, stale.Unit.Key, stale.Assignment.Group, false, 5, 4, sharedMap),
+            "A stale candidate restored army 5 after its assignment changed");
+        Check(session.ChangeCount == changes && session.EditedBytes(EditSession.Placements, map.Top).SequenceEqual(placements) &&
+            session.EventScript(12)!.SequenceEqual(script) && session.EditedBytes(EditSession.ArmyUnits, 600).SequenceEqual(strangerBytes),
+            "A refused restoration changed the project");
+
+        string project = Path.Combine(folder, "reassigned.bwproj");
+        session.Save(project);
+        var loaded = EditSession.Load(disc, project);
+        Refused(() => StartingUnitPlacement.Restore(loaded, library, map, 600, 2, sharedMap), "The reloaded project restored army 6 into army 5's position");
+
+        // Undoing the script edit gives group 2 back to army 5; then the normal restoration works.
+        session.Undo();
+        Check(!session.HasScript(12), "Undo did not remove the script edit");
+        StartingUnitPlacement.Restore(session, library, map, 100, 2, sharedMap);
+        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, map.Top), 2, 1) == (5, 4), "Restoration failed after the original assignment returned");
+        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, map.Top), 2, 2) == (7, 7), "Restoration changed an unrelated move");
+    }
+
+    private static void Refused(Action action, string message)
+    {
+        try { action(); }
+        catch (EditException) { return; }
+        throw new Exception(message);
     }
 
     private static void VerifyModifiedSource(InspectionResult original, EventLibrary library, BattleMap map, bool sharedMap)

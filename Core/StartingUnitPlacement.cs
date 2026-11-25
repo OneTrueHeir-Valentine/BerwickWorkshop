@@ -13,8 +13,12 @@ public sealed record StartingUnitCandidate(ArmyUnit Unit, StartingArmyReference 
 public static class StartingUnitPlacement
 {
     public static IReadOnlyList<StartingUnitCandidate> Candidates(BattleMap map, BattlePlacementReferences references,
-        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record, ReadOnlySpan<byte> sourceRecord = default, bool verifiedOriginalDisc = false)
+        IReadOnlyList<Army> armies, ReadOnlySpan<byte> record, ReadOnlySpan<byte> sourceRecord = default, bool verifiedOriginalDisc = false,
+        BattlePlacementReferences? originalReferences = null)
     {
+        // The original positions belong to the assignments in the disc's own scripts. Callers whose project may
+        // have edited scripts pass those original assignments; otherwise the current ones are the original ones.
+        originalReferences ??= references;
         if (record.Length != Placement.RecordLength)
             throw new EditException("The placement record has an unsupported length.");
         var result = new List<StartingUnitCandidate>();
@@ -49,6 +53,9 @@ public static class StartingUnitPlacement
                 string? placementProblem = references.Assignments
                     .Where(other => mapBattles.Contains(other.Battle) && other.Group == assignment.Group)
                     .Select(other => other.PlacementProblem).FirstOrDefault(message => message is not null);
+                if (problem is null && placementProblem is null && verifiedOriginalDisc &&
+                    !SameAssignments(references, originalReferences, map.Top, mapBattles, assignment.Group))
+                    placementProblem = "The opening event now assigns this placement group differently from the original disc, so its original positions may belong to other units. Restore the original assignment first.";
                 if (problem is null && placementProblem is null && !verifiedOriginalDisc)
                     placementProblem = "The open disc is not a verified original disc, so its positions cannot show where this unit started. Open the original disc to restore it.";
                 (int X, int Y)? original = null;
@@ -67,6 +74,23 @@ public static class StartingUnitPlacement
         }
         return result;
     }
+
+    /// <summary>
+    /// Whether the battles sharing this map, and every assignment of this placement group in them, are the same in the
+    /// project's scripts as on the original disc. Only then do the original positions in the group belong to its units.
+    /// </summary>
+    private static bool SameAssignments(BattlePlacementReferences active, BattlePlacementReferences original, int top,
+        IReadOnlyList<int> mapBattles, int group)
+    {
+        if (!original.MapArchives.Where(pair => pair.Value == top).Select(pair => pair.Key).Order().SequenceEqual(mapBattles))
+            return false;
+        return Assignments(active, mapBattles, group).SequenceEqual(Assignments(original, mapBattles, group));
+    }
+
+    private static IEnumerable<(int Battle, int Army, int Team, bool Conditional)> Assignments(
+        BattlePlacementReferences references, IReadOnlyList<int> battles, int group) =>
+        references.Assignments.Where(a => battles.Contains(a.Battle) && a.Group == group)
+            .Select(a => (a.Battle, a.Army, a.Team, a.Conditional)).Order();
 
     private static string? AssignmentProblem(BattleMap map, BattlePlacementReferences references, StartingArmyReference assignment, IReadOnlyList<int> mapBattles)
     {
@@ -124,7 +148,8 @@ public static class StartingUnitPlacement
         var references = BattlePlacementReferences.Read(library, session);
         var record = session.EditedBytes(EditSession.Placements, map.Top);
         var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
-        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal)
+        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal,
+                BattlePlacementReferences.ReadOriginal(library, session.Disc))
             .Where(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group).ToList();
         if (matches.Count != 1)
             throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");
@@ -155,7 +180,8 @@ public static class StartingUnitPlacement
         var references = BattlePlacementReferences.Read(library, session);
         var record = session.EditedBytes(EditSession.Placements, map.Top);
         var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
-        var candidate = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal)
+        var candidate = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal,
+                BattlePlacementReferences.ReadOriginal(library, session.Disc))
             .SingleOrDefault(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group)
             ?? throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");
         if (candidate.OriginalPosition is not { } original)

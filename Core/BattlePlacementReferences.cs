@@ -30,13 +30,20 @@ public sealed class BattlePlacementReferences
     public IReadOnlySet<int> UnsafeBattles => unsafeBattles;
     public IReadOnlyList<string> Problems => problems;
 
-    public static BattlePlacementReferences Read(EventLibrary library, EditSession session)
+    public static BattlePlacementReferences Read(EventLibrary library, EditSession session) =>
+        Read(library, session.Disc, session.EventScript);
+
+    /// <summary>Reads the assignments of the disc's own scripts, ignoring any script edits in the project.</summary>
+    public static BattlePlacementReferences ReadOriginal(EventLibrary library, InspectionResult disc) =>
+        Read(library, disc, _ => null);
+
+    private static BattlePlacementReferences Read(EventLibrary library, InspectionResult disc, Func<int, byte[]?> editedScript)
     {
         lock (library)
         {
             var sources = library.Numbers.Select(number =>
             {
-                var bytes = session.EventScript(number) ?? library.Bytes(number);
+                var bytes = editedScript(number) ?? library.Bytes(number);
                 return new PlacementEventSource(number, library.TopOf(number), ScriptParser.Parse(bytes)) { EncodedBytes = bytes };
             }).ToList();
             var maps = library.Archives.FolderFiles("bmap");
@@ -47,7 +54,7 @@ public sealed class BattlePlacementReferences
                 if (matches.Count > 1)
                     throw new EditException($"Map {file} has ambiguous archive-index entries.");
                 return matches.Count == 1 ? matches[0].Top : -1;
-            }, EventCallFacts.ForOriginal(session.Disc));
+            }, EventCallFacts.ForOriginal(disc));
         }
     }
 
