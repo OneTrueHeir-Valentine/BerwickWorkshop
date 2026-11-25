@@ -46,7 +46,8 @@ internal sealed class ChangeReviewWindow : Window
         tabs.Items.Add(new TabItem { Header = "Checks", Content = checks });
         tabs.Items.Add(new TabItem { Header = "Files", Content = files });
         Column(changes, "Table", "Table", 115); Column(changes, "Record", "Record", 175); Column(changes, "Field", "Field", 180);
-        Column(changes, "Original", "Original", 155); Column(changes, "Current", "Current", 155); Column(changes, "File", "File", 150);
+        Column(changes, "Original", "Original", 130); Column(changes, "Current", "Current", 130); Column(changes, "File", "File", 120);
+        Column(changes, "Evidence", "Evidence.Label", 215);
         Column(checks, "Result", "Severity", 85); Column(checks, "Record", "Id", 65); Column(checks, "Details", "Message", 760);
         Column(files, "File", "File", 230); Column(files, "Disc offset", "Offset", 160); Column(files, "Bytes", "Length", 100);
         changes.SelectionChanged += (_, _) => { if (changes.SelectedItem is ChangeEntry row) Show(row.Original, row.Current); };
@@ -92,7 +93,7 @@ internal sealed class ChangeReviewWindow : Window
         if (picker.ShowDialog(this) != true) return;
         try
         {
-            var document = new { Format = "Berwick Workshop change manifest", Version = 1, session.Disc.Edition, SourceSha256 = session.Disc.Sha256,
+            var document = new { Format = "Berwick Workshop change manifest", Version = 2, session.Disc.Edition, SourceSha256 = session.Disc.Sha256,
                 report.CanExport, report.Changes, report.Issues, report.Files };
             byte[] json = JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions { WriteIndented = true });
             using var stream = new FileStream(picker.FileName, FileMode.CreateNew, FileAccess.Write, FileShare.None); stream.Write(json);

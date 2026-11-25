@@ -1,52 +1,57 @@
 # Berwick Workshop
 
-An editor for Berwick Saga: Lazberia Chronicle, Chapter 174 (PlayStation 2). Supports the Japanese retail disc and the English v2.3 translation, each with its own verified addresses.
+Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chapter 174* on PlayStation 2. It reads the Japanese retail game and the English v2.3 translation, using the verified data locations for each edition. Changes are kept in a project until you export a new disc image.
 
-Download [the latest Berwick Workshop release for Windows](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest), unpack it, and run `Berwick Workshop.exe`. The release includes its runtime.
+[Download the latest Windows release](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest). Berwick Workshop needs the [Microsoft .NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). Install it first if you do not have it, then extract the archive and run `Berwick Workshop.exe`.
 
-## What it edits
+## What you can edit
 
-- **Items:** stats, durability, bonuses while equipped, resistances, special effects, stable prices for horses, Atelier recipes, and new items in the game's free slots.
-- **Characters:** class, level, stat bonuses, Luck, growth rates and growth band, weapon levels and growth, personal skills, starting items, bag contents, partners and bonds, mercenary fees. Expected stats by level are shown alongside.
-- **Armies:** every unit in the game's 275 armies (enemies, bosses, guests and story units): class, level, bonuses, weapon levels, skills, items and drops. Armies are named after the battles that place them where the events show it.
-- **Classes:** base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills.
-- **Movement and terrain:** the cost of each of the 64 kinds of terrain for every movement type, and each terrain's avoid, recovery and whether flyers may stop there.
-- **Shops and furniture:** what every shop sells and how, the stable, the Atelier and furniture prices.
-- **Events:** the game's event scripts as readable commands. Numbers, lines and whole scripts can be edited, for example the turn a reinforcement arrives.
-- **Game rules:** Parry, shield block and guard, durability and breaking, experience, stat limits, Luck, and many skill numbers and switches: activation chances, ranges, auras, command waits and strikes, the weapons a skill allows, Hurry, Deathmatch, Guard, Canto, Robbery, Provoke, Debility and more. Rules whose effect has not been confirmed in a running game stay hidden.
+The Items page covers weapon and equipment stats, durability, resistances, bonuses while equipped and known special effects. Shop inventories, the Stable, Atelier recipes and furniture prices have their own editors. New items can be made using the game's spare item records.
 
-Report problems or request features in the [issue tracker](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues).
+Characters have editable levels, classes, stat bonuses, growths, weapon skills and starting equipment. The page also covers bags, partners, bonds and mercenary fees, with expected stats shown for each level. The Armies page gives similar access to enemies, bosses, guests and story units, including their items and drops. Class base stats, movement types, weapon caps, shield permissions and class skills are edited separately, so changes to a class can affect more than one unit.
 
-## Also included
+Movement costs can be changed for each terrain type, along with terrain avoid, recovery and the places where flying units may stop. The Skills page documents the game's 90 skills and the parts of their behavior that can be edited. The Rules and Mechanics pages cover combat calculations and settings such as Parry, shields, durability, experience and stat limits. Settings that have not been verified sufficiently in the running game are not offered as editable rules.
 
-- **Review changes:** searchable original and current values, scripts, texts, copied records, affected files and JSON manifest export. Shared dependencies and known conflicts are checked before disc export.
+The Promotions page lists the 16 promotions read from the original events, with the quest, level and weapon level each one checks and the class the character becomes. Required levels and weapon levels can be changed, and so can the destination class for characters whose events have been checked for it. Promotion changes have not been tested through a full playthrough, so try them on a separate disc image and save.
 
-- **Skills page:** what each of the 90 skills does, whether it is a command, and various parts of different skills.
-- **Maps page:** every battle's map with terrain, starting positions, and reinforcements.
-- **Battle animations page:** the animation set each class plays and the colors each character wears, played back as in the game, plus the sets no class uses. Sets, colors and each class's map sprite can be changed. Export transparent PNG frames, sprite sheets and timing/alignment JSON for one motion or every motion in the selected set. Expanded canvases preserve larger artwork with origin coordinates in JSON; legacy 288 by 288 output remains available. Separate effect layers can be exported with original counters, record links, palettes and transform/blend metadata. These are source-art PNGs; runtime transforms and the final game composite are not simulated.
-- **Mechanics page:** the game's formulas with how well each is verified and links to the values you can change.
-- **Compare:** open a second disc to compare items, characters and classes.
-- **Live game:** with PCSX2 running on the same computer (PINE), change units on the current map (including giving or changing a horse), try the project's rules, and send the next sortie to any battle. Nothing on the disc, memory cards or save states is changed.
+## Randomizer
 
-Changes are saved as a `.bwproj` project and exported as a new ISO for PCSX2. The original disc image is never written to.
+The Randomizer page changes starting items, character stat bonuses and growth rates, or starting weapon levels and weapon growth. Each option has its own settings and a seed, so the same settings give the same result. A preview lists every change by character before anything is applied, and applying the changes is a single step you can undo. Horses are never handed out as ordinary items, and items that the game's events give to particular characters are left alone. Settings can be saved as a profile and loaded again later.
 
-## Layout
+## Maps and events
 
-- `Core` disc reading, edition detection, data tables, game rules, events, projects and export
-- `App` Windows desktop interface (WPF)
-- `Tests` core test runner
-- `reference` table layouts and names from the MinN-11 Berwick Saga editor (MIT), and the game's own English names
+Maps displays the painted battle maps, terrain, deployment hexes, starting units, later arrivals and event spots. Existing unit positions, deployment positions and limits, and some reinforcement locations and turns can be changed there.
+
+The Events page opens the game's scripts as readable commands. You can edit numbers, individual commands and complete scripts, including the conditions that determine when units arrive. Some event structures still require direct work in the Events editor rather than a dedicated Maps control.
+
+## Graphics
+
+Battle Animations plays the sets and palettes assigned to classes and characters, including sets that no class currently uses. Assignments can be changed, and the decoded animation frames can be exported as transparent PNGs or sprite sheets. JSON files record frame order, timing and alignment. Effect artwork has a separate export with its palette and transform information. The exports contain the decoded source artwork, not necessarily the complete image the game produces after runtime effects.
+
+The Maps page already draws its background from the opened disc. Decoding the smaller unit sprites used on the map is separate work. The application does not ship with extracted game graphics.
+
+## Projects and PCSX2
+
+A `.bwproj` file holds the edits, leaving the original ISO untouched. The change review shows what differs from the disc, including changes to scripts and text, and can export a JSON manifest. Export creates a new ISO that can be opened in PCSX2.
+
+Compare lets you inspect item, character and class differences between two discs. When PCSX2 is running on the same computer, the Live Game page can modify units in memory, try rule changes and select a different next sortie. These live changes do not rewrite the disc, saves or memory cards.
+
+Source changes and outstanding bugs are recorded in the [GitHub issues](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/issues).
 
 ## Building
 
-Requires the .NET 9 SDK.
+You need the .NET 10 SDK. From the repository root:
 
 ```powershell
 dotnet build Tests -c Release
-dotnet Tests\bin\Release\net9.0\Berwick.Tests.dll "<Japanese ISO>" "<English ISO>"
-dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\Berwick Workshop"
+dotnet Tests\bin\Release\net10.0\Berwick.Tests.dll "<Japanese ISO>" "<English ISO>"
+dotnet publish App -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o "..\Berwick Workshop"
 ```
 
-The ISO paths are optional. Without them only the offline tests run. An optional third path adds the Redux modified-disc check. Real-disc tests create temporary exports, verify them, then remove them. Allow at least 9 GB of free space. The originals are read only.
+The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a Redux modified disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
 
-No game files are included or needed to build.
+No game files are needed to build the application. The `Core` project handles formats, editing and export; `App` contains the Windows interface; `Tests` holds the checks. The `reference` folder contains credited source data. Its licensing and attribution details are in [LICENSING.md](LICENSING.md).
+
+## License and contributions
+
+Berwick Workshop's original source code is licensed under the [GNU GPL, version 3 or later](LICENSE). The [licensing notes](LICENSING.md) explain the separate rights for the game's content and credited reference material. To contribute code or corrections, see [Contributing](CONTRIBUTING.md). Contributors retain copyright in their work.

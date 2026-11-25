@@ -20,6 +20,195 @@ internal static class ChangeReviewTests
             var reopened = EditSession.FromJson(session.Disc, session.ToJson());
             Check(ChangeManifest.Build(reopened).SequenceEqual(ChangeManifest.Build(session)), "Reload differs");
         });
+        test("Experimental evidence survives project save/reload and manifest without silent promotion", () =>
+        {
+            var session = new EditSession(Fixture());
+            session.Apply(EditSession.Items, 1, new Dictionary<string, int> { ["might"] = 11 });
+            var changed = ChangeManifest.Build(session).Single(r => r.Table == EditSession.Items && r.Key == "might");
+            Check(changed.Evidence is { Interpretation: EvidenceLevel.SourceObserved,
+                Binding: EvidenceBinding.Bound, Gameplay: EvidenceAcceptance.Untested },
+                "A source edit was falsely described as gameplay-accepted.");
+            Check(session.ToJson().Contains("\"formatVersion\": 1") && !session.ToJson().Contains("\"evidence\""),
+                "Derived evidence unnecessarily upgraded the project format.");
+            var restored = EditSession.FromJson(session.Disc, session.ToJson());
+            var after = ChangeManifest.Build(restored).Single(r => r.Table == EditSession.Items && r.Key == "might");
+            Check(changed.Evidence == after.Evidence && after.Evidence?.Gameplay == EvidenceAcceptance.Untested,
+                "Saved project upgraded or discarded its experimental evidence.");
+            Check(ProjectReview.Build(restored).Issues.Any(i => i.Code == "research-provenance"),
+                "Export review omitted the experimental status warning.");
+            session.Undo();
+            Check(ChangeManifest.Build(session).Count == 0, "Undo retained evidence on a reverted field.");
+            session.Redo();
+            Check(ChangeManifest.Build(session).Single(x => x.Key == "might").Evidence?.Experimental == true,
+                "Redo erased experimental status.");
+        });
+        test("Imported evidence rejects unsupported claims with property-specific errors", () =>
+        {
+            var session = new EditSession(Fixture());
+            session.Apply(EditSession.Items, 1, new Dictionary<string, int> { ["might"] = 11 });
+            // The current serializer omits reconstructible evidence. Build an actual
+            // legacy-v5 fixture with canonical source-generated evidence before forging it.
+            var legacy = System.Text.Json.Nodes.JsonNode.Parse(session.ToJson())!;
+            legacy["formatVersion"] = 5;
+            legacy["evidence"] = System.Text.Json.JsonSerializer.SerializeToNode(
+                ChangeManifest.Build(session).Select(row => new ProjectEvidence(row.Table, row.Id, row.Key, row.Evidence!)).ToArray(),
+                new System.Text.Json.JsonSerializerOptions
+                { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+            string json = legacy.ToJsonString();
+            var original = EditSession.FromJson(session.Disc, json);
+            Check(ChangeManifest.Build(original).Single(x => x.Key == "might").Evidence?.Gameplay
+                == EvidenceAcceptance.Untested, "Unmodified project evidence failed to load.");
+
+            string? LoadError(System.Text.Json.Nodes.JsonNode root)
+            {
+                try { _ = EditSession.FromJson(session.Disc, root.ToJsonString()); return null; }
+                catch (EditException ex) { return ex.Message; }
+            }
+
+            void Reject(Action<System.Text.Json.Nodes.JsonObject> change, string property)
+            {
+                var root = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+                var entry = (System.Text.Json.Nodes.JsonObject)((System.Text.Json.Nodes.JsonArray)root["evidence"]!)[0]!;
+                var status = (System.Text.Json.Nodes.JsonObject)entry["status"]!;
+                change(status);
+                var error = LoadError(root);
+                Check(error is not null && error.Contains("items", StringComparison.OrdinalIgnoreCase)
+                    && error.Contains("might", StringComparison.OrdinalIgnoreCase)
+                    && error.Contains("unsupported evidence", StringComparison.OrdinalIgnoreCase)
+                    && error.Contains($"'{property}'", StringComparison.Ordinal),
+                    "Forged evidence was accepted or its exact property was not identified.");
+            }
+
+            Reject(status => { status["interpretation"] = (int)EvidenceLevel.Verified; }, "interpretation");
+            Reject(status => { status["binding"] = (int)EvidenceBinding.Unbound; }, "binding");
+            Reject(status => { status["gameplay"] = (int)EvidenceAcceptance.BothObserved; }, "gameplay");
+            Reject(status => { status["basis"] = "Gameplay verified by this project file"; }, "basis");
+
+            var unknown = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            ((System.Text.Json.Nodes.JsonObject)((System.Text.Json.Nodes.JsonArray)unknown["evidence"]!)[0]!)["key"] = "not-an-edited-field";
+            Check(LoadError(unknown)?.Contains("unknown change", StringComparison.OrdinalIgnoreCase) == true,
+                "Unknown evidence entry was accepted.");
+
+            var duplicate = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            var entries = (System.Text.Json.Nodes.JsonArray)duplicate["evidence"]!;
+            entries.Add(entries[0]!.DeepClone());
+            Check(LoadError(duplicate)?.Contains("twice", StringComparison.OrdinalIgnoreCase) == true,
+                "Duplicate evidence entry was accepted.");
+
+            var invalid = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            ((System.Text.Json.Nodes.JsonObject)((System.Text.Json.Nodes.JsonObject)((System.Text.Json.Nodes.JsonArray)invalid["evidence"]!)[0]!)["status"]!)["interpretation"] = 999;
+            Check(LoadError(invalid)?.Contains("'interpretation'", StringComparison.OrdinalIgnoreCase) == true,
+                "Invalid enum was not identified by property.");
+        });
+        test("Research notes use format 5 without granting verification authority", () =>
+        {
+            var session = new EditSession(Fixture());
+            session.Apply(EditSession.Items, 1, new Dictionary<string, int> { ["might"] = 11 });
+            Check(session.ToJson().Contains("\"formatVersion\": 1"), "An ordinary edit must use format 1.");
+            const string note = "Compare this value in an actual gameplay test.\nNot verified.";
+            session.SetResearchNote(EditSession.Items, 1, "might", note);
+            string json = session.ToJson();
+            Check(json.Contains("\"formatVersion\": 5") && json.Contains("\"notes\"")
+                && !json.Contains("\"evidence\""), "Only irreconstructible notes should require format 5.");
+            var loaded = EditSession.FromJson(session.Disc, json);
+            Check(loaded.ResearchNotes.Single().Text == note, "Research note was lost or normalized.");
+            Check(ChangeManifest.Build(loaded).Single(x => x.Key == "might").Evidence?.Gameplay == EvidenceAcceptance.Untested,
+                "Research note granted game acceptance.");
+            session.Undo();
+            Check(session.ResearchNotes.Single().Text == note && session.ToJson().Contains("\"formatVersion\": 5"),
+                "Undoing the field silently discarded its research note.");
+            session.Redo();
+            session.SetResearchNote(EditSession.Items, 1, "might", null);
+            Check(session.ResearchNotes.Count == 0 && session.ToJson().Contains("\"formatVersion\": 1"),
+                "Removing the note did not restore the oldest compatible format.");
+
+            string Error(string candidate)
+            {
+                try { _ = EditSession.FromJson(session.Disc, candidate); return ""; }
+                catch (EditException e) { return e.Message; }
+            }
+            var invalidVersion = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            invalidVersion["formatVersion"] = 4;
+            Check(Error(invalidVersion.ToJsonString()).Contains("format older", StringComparison.OrdinalIgnoreCase),
+                "Older format accepted nonreconstructible notes.");
+            var duplicate = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            var notes = (System.Text.Json.Nodes.JsonArray)duplicate["notes"]!;
+            notes.Add(notes[0]!.DeepClone());
+            Check(Error(duplicate.ToJsonString()).Contains("duplicate", StringComparison.OrdinalIgnoreCase),
+                "Duplicate research note accepted.");
+            var unknown = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            ((System.Text.Json.Nodes.JsonObject)((System.Text.Json.Nodes.JsonArray)unknown["notes"]!)[0]!)["key"] = "invalid-field";
+            Check(Error(unknown.ToJsonString()).Contains("invalid-field", StringComparison.OrdinalIgnoreCase),
+                "Unknown field note accepted.");
+            var oversized = new EditSession(Fixture());
+            oversized.SetResearchNote(EditSession.Items, 1, "might", new string('n', 4096));
+            bool rejected = false;
+            try { oversized.SetResearchNote(EditSession.Items, 1, "might", new string('n', 4097)); }
+            catch (EditException) { rejected = true; }
+            Check(rejected, "Unbounded research text accepted.");
+        });
+        test("Research notes mark a saved project as modified without changing gameplay undo", () =>
+        {
+            var session = new EditSession(Fixture());
+            Check(!session.IsDirty && !session.CanUndo, "New project should be clean.");
+            session.SetResearchNote(EditSession.Items, 1, "might", "First observation");
+            Check(session.IsDirty && !session.CanUndo, "Adding research did not mark project modified, or created gameplay undo.");
+            string path = Path.Combine(Path.GetTempPath(), $"berwick-research-{Guid.NewGuid():N}.bwproj");
+            try
+            {
+                session.Save(path);
+                Check(!session.IsDirty, "Saving research did not clear dirty status.");
+                session.SetResearchNote(EditSession.Items, 1, "might", "First observation");
+                Check(!session.IsDirty, "Unchanged research text incorrectly marked project modified.");
+                session.SetResearchNote(EditSession.Items, 1, "might", "Updated observation");
+                Check(session.IsDirty && !session.CanUndo, "Changing research did not mark project modified independently.");
+                var reopened = EditSession.FromJson(session.Disc, session.ToJson());
+                Check(reopened.ResearchNotes.Single().Text == "Updated observation", "Updated research did not round trip.");
+                session.SetResearchNote(EditSession.Items, 1, "might", null);
+                Check(session.IsDirty && session.ResearchNotes.Count == 0, "Removing research did not mark project modified.");
+            }
+            finally { if (File.Exists(path)) File.Delete(path); }
+        });
+        test("Canonical legacy version 5 evidence reopens and saves in the lowest compatible format", () =>
+        {
+            var session = new EditSession(Fixture());
+            session.Apply(EditSession.Items, 1, new Dictionary<string, int> { ["might"] = 11 });
+            var legacy = System.Text.Json.Nodes.JsonNode.Parse(session.ToJson())!;
+            legacy["formatVersion"] = 5;
+            legacy["evidence"] = System.Text.Json.JsonSerializer.SerializeToNode(
+                ChangeManifest.Build(session).Select(row => new ProjectEvidence(row.Table, row.Id, row.Key, row.Evidence!)).ToArray(),
+                new System.Text.Json.JsonSerializerOptions
+                { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+            var evidence = (System.Text.Json.Nodes.JsonArray)legacy["evidence"]!;
+            var entry = (System.Text.Json.Nodes.JsonObject)evidence[0]!;
+            Check(entry.ContainsKey("table") && entry.ContainsKey("status")
+                && ((System.Text.Json.Nodes.JsonObject)entry["status"]!).ContainsKey("interpretation"),
+                "Legacy fixture does not use the project JSON property names.");
+            var reopened = EditSession.FromJson(session.Disc, legacy.ToJsonString());
+            Check(reopened.ToJson().Contains("\"formatVersion\": 1") && !reopened.ToJson().Contains("\"evidence\""),
+                "Canonical legacy evidence prevented a lossless format downgrade.");
+            Check(ChangeManifest.Build(reopened).Single(x => x.Key == "might").Evidence?.Gameplay == EvidenceAcceptance.Untested,
+                "Legacy evidence gained gameplay authority.");
+        });
+        test("Verified-only filter hides source observations without deleting them", () =>
+        {
+            var levels = new[] { EvidenceLevel.SourceObserved, EvidenceLevel.Verified, EvidenceLevel.Unresolved };
+            Check(EvidenceVisibility.Filter(levels, x => x, false).SequenceEqual(levels),
+                "Default filter hid unverified entries.");
+            Check(EvidenceVisibility.Filter(levels, x => x, true).SequenceEqual(new[] { EvidenceLevel.Verified }),
+                "Verified-only filter leaked a non-verified record.");
+        });
+        test("Legacy projects load as unverified, not automatically upgraded", () =>
+        {
+            var session = new EditSession(Fixture());
+            session.Apply(EditSession.Items, 1, new Dictionary<string, int> { ["might"] = 11 });
+            var data = System.Text.Json.Nodes.JsonNode.Parse(session.ToJson())!;
+            data["formatVersion"] = 4;
+            ((System.Text.Json.Nodes.JsonObject)data).Remove("evidence");
+            var imported = EditSession.FromJson(session.Disc, data.ToJsonString());
+            Check(ChangeManifest.Build(imported).Single(x => x.Key == "might").Evidence?.Experimental == true,
+                "Old project was implicitly marked verified.");
+        });
         test("Manifest preserves display scaling and rule setting names", () =>
         {
             var session = new EditSession(Fixture());

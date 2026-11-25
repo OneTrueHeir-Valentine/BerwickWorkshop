@@ -12,8 +12,8 @@
      <Border Height="1" Background="#496050" Margin="0,0,0,18"/>
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
-     <Button Content="_Help" Style="{StaticResource NavButton}" Click="ShowHelp"/>
-     <TextBlock Text="Version 0.118.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <Button Content="Help" Style="{StaticResource NavButton}" Click="ShowHelp" ToolTip="Show help (F1)"/>
+     <TextBlock Text="Version 0.119.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -27,17 +27,19 @@
      <StackPanel>
      <Button x:Name="ItemsNav" Content="_Items" Style="{StaticResource NavButton}" Background="#3C5445" Click="ShowItems"/>
      <Button x:Name="CharactersNav" Content="C_haracters" Style="{StaticResource NavButton}" Click="ShowCharacters" IsEnabled="False"/>
+     <Button x:Name="RandomizerNav" Content="Randomi_zer" Style="{StaticResource NavButton}" Click="ShowRandomizer" IsEnabled="False" ToolTip="Set up random changes and review them before applying."/>
      <Button x:Name="ArmiesNav" Content="_Armies" Style="{StaticResource NavButton}" Click="ShowArmies" IsEnabled="False"/>
      <Button x:Name="ClassesNav" Content="C_lasses" Style="{StaticResource NavButton}" Click="ShowClasses" IsEnabled="False"/>
+     <Button x:Name="PromotionsNav" Content="P_romotions" Style="{StaticResource NavButton}" Click="ShowPromotions" IsEnabled="False"/>
      <Button x:Name="AnimationsNav" Content="_Battle animations" Style="{StaticResource NavButton}" Click="ShowAnimations" IsEnabled="False"/>
      <Button x:Name="MovementNav" Content="Mo_vement" Style="{StaticResource NavButton}" Click="ShowMovement" IsEnabled="False"/>
      <Button x:Name="TerrainNav" Content="_Terrain" Style="{StaticResource NavButton}" Click="ShowTerrain" IsEnabled="False"/>
      <Button x:Name="FurnitureNav" Content="_Furniture" Style="{StaticResource NavButton}" Click="ShowFurniture" IsEnabled="False"/>
-     <Button x:Name="DishesNav" Content="Dis_hes" Style="{StaticResource NavButton}" Click="ShowDishes" IsEnabled="False"/>
+     <Button x:Name="DishesNav" Content="Dish_es" Style="{StaticResource NavButton}" Click="ShowDishes" IsEnabled="False"/>
      <Button x:Name="TextNav" Content="Te_xt" Style="{StaticResource NavButton}" Click="ShowTexts" IsEnabled="False"/>
      <Button x:Name="ShopsNav" Content="_Shops" Style="{StaticResource NavButton}" Click="ShowShops" IsEnabled="False"/>
      <Button x:Name="SkillsNav" Content="S_kills" Style="{StaticResource NavButton}" Click="ShowSkills" IsEnabled="False"/>
-     <Button x:Name="RulesNav" Content="_Rules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
+     <Button x:Name="RulesNav" Content="R_ules" Style="{StaticResource NavButton}" Click="ShowRules" IsEnabled="False"/>
      <Button x:Name="MapsNav" Content="Ma_ps" Style="{StaticResource NavButton}" Click="ShowMaps" IsEnabled="False"/>
      <Button x:Name="EventsNav" Content="Eve_nts" Style="{StaticResource NavButton}" Click="ShowEvents" IsEnabled="False"/>
      <Button x:Name="LiveNav" Content="Live _game" Style="{StaticResource NavButton}" Click="ShowLive" IsEnabled="False"/>
@@ -75,7 +77,7 @@
      <Border BorderBrush="#8EA58E" BorderThickness="2" Width="68" Height="68" CornerRadius="34" Margin="0,0,0,24"><Border BorderBrush="#8EA58E" BorderThickness="2" Width="18" Height="18" CornerRadius="9"/></Border>
      <TextBlock Text="Open a game disc" FontFamily="Georgia" FontSize="30" HorizontalAlignment="Center"/>
      <TextBlock Text="Browse items, characters and classes, inspect your edition, and compare data between discs." TextAlignment="Center" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="15" LineHeight="23" Margin="0,15,0,24"/>
-     <Button x:Name="EmptyOpenButton" Content="Choose an _ISO" Click="OpenPrimary" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Padding="24,12"/>
+     <Button x:Name="EmptyOpenButton" Content="Choose an ISO" ToolTip="Open a game disc (Ctrl+O)" Click="OpenPrimary" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Center" Padding="24,12"/>
      <TextBlock Text="Japanese retail and English v2.3" Style="{StaticResource Caption}" HorizontalAlignment="Center" Margin="0,20,0,6"/>
      <TextBlock Text="You can also drop an ISO into this window." Style="{StaticResource Caption}" HorizontalAlignment="Center"/>
     </StackPanel>
@@ -85,7 +87,7 @@
       <Grid Margin="0,0,10,0"><TextBox x:Name="Search" TextChanged="FilterChanged" AutomationProperties.Name="Search items" ToolTip="Search by name or ID (Ctrl+F)"/><TextBlock x:Name="SearchHint" Text="Search by name or ID" IsHitTestVisible="False" Foreground="#899286" VerticalAlignment="Center" Margin="12,0"/></Grid>
       <ComboBox Grid.Column="1" x:Name="Category" SelectionChanged="CategoryChanged" AutomationProperties.Name="Item category"/>
       <CheckBox Grid.Column="2" x:Name="Unused" Content="Show unused" Margin="16,0,0,0" VerticalAlignment="Center" Checked="UnusedChanged" Unchecked="UnusedChanged"/>
-      <Button Grid.Column="3" x:Name="NewItemButton" Content="_New item" Style="{StaticResource SmallButton}" Margin="14,0,0,0" Click="NewItem" ToolTip="Create a new item in a free slot (Ctrl+N)" Visibility="Collapsed"/>
+      <Button Grid.Column="3" x:Name="NewItemButton" Content="New item" Style="{StaticResource SmallButton}" Margin="14,0,0,0" Click="NewItem" ToolTip="Create a new item in a free slot (Ctrl+N)" Visibility="Collapsed"/>
      </Grid>
      <Border Grid.Row="1" x:Name="ComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><Button DockPanel.Dock="Right" Content="Remove" Padding="8,3" Click="RemoveComparison" Margin="10,0,0,0"/><CheckBox x:Name="OnlyDifferences" DockPanel.Dock="Right" Content="Differences only" Margin="12,0" VerticalAlignment="Center" Checked="UnusedChanged" Unchecked="UnusedChanged"/><TextBlock x:Name="ComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
      <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="250" MinWidth="200"/></Grid.ColumnDefinitions>
@@ -108,7 +110,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditItemButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginEdit" ToolTip="Edit this item (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="ITEM DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditItemButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginEdit" ToolTip="Edit this item (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="ITEM DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="ItemName" Text="Select an item" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="ItemIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,16" TextWrapping="Wrap"/>
         <StackPanel x:Name="DetailFields"/>
@@ -146,7 +148,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditArmyUnitButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginArmyUnitEdit" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="UNIT DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditArmyUnitButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginArmyUnitEdit" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="UNIT DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="ArmyUnitName" Text="Select a unit" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="ArmyUnitIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6" TextWrapping="Wrap"/>
         <StackPanel x:Name="ArmyUnitFields"/>
@@ -156,11 +158,39 @@
      </Grid>
      <TextBlock Grid.Row="2" x:Name="ArmyCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
     </Grid>
+    <ScrollViewer x:Name="RandomizerPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+     <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+      <TextBlock Text="Choose what to randomize" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,8"/>
+      <TextBlock Text="Each option opens its own settings. You can review the proposed changes before applying them. Nothing is changed by opening a settings window or previewing results." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,20"/>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18" Margin="0,0,0,12">
+       <StackPanel>
+        <TextBlock Text="Starting items" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,5"/>
+        <TextBlock Text="Change the equipment and supplies that characters start with. Choose which item types to include. Mounted horses and horse pickups are excluded from ordinary starting-item randomization." TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <Button Content="Set up starting items" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="RandomizeItems" ToolTip="Choose item categories and a random seed, then review the changes."/>
+       </StackPanel>
+      </Border>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18" Margin="0,0,0,12">
+       <StackPanel>
+        <TextBlock Text="Character stats and growth rates" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,5"/>
+        <TextBlock Text="Change character stat bonuses or growth rates. Vary each stat on its own, or move points between stats while keeping their total the same." TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <Button Content="Set up stats and growths" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="RandomizeStats" ToolTip="Configure character stat and growth changes without editing class base stats."/>
+       </StackPanel>
+      </Border>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18" Margin="0,0,0,12">
+       <StackPanel>
+        <TextBlock Text="Weapon proficiency" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,5"/>
+        <TextBlock Text="Change characters' starting weapon and shield proficiencies or proficiency growths. Previously untrained types stay unchanged by default." TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <Button Content="Set up weapon proficiency" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="RandomizeProficiencies" ToolTip="Configure proficiency changes with class-aware limits."/>
+       </StackPanel>
+      </Border>
+      <TextBlock Text="Additional randomization categories will appear here after their safety tests pass. Use the individual editors for direct changes." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12"/>
+     </StackPanel>
+    </ScrollViewer>
     <Grid x:Name="CharacterPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <Grid Margin="0,0,0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <Grid><TextBox x:Name="CharacterSearch" TextChanged="CharacterFilterChanged" AutomationProperties.Name="Search characters" ToolTip="Search by name or ID (Ctrl+F)"/><TextBlock x:Name="CharacterSearchHint" Text="Search by name or ID" IsHitTestVisible="False" Foreground="#899286" VerticalAlignment="Center" Margin="12,0"/></Grid>
-      <Button Grid.Column="1" x:Name="RandomizeItemsButton" Content="_Randomize items" Style="{StaticResource SmallButton}" Margin="14,0,0,0" Click="RandomizeItems" ToolTip="Give characters random starting items" Visibility="Collapsed"/>
+
      </Grid>
      <Border Grid.Row="1" x:Name="CharacterComparisonBar" Visibility="Collapsed" Background="#EAF0E5" CornerRadius="5" Padding="12" Margin="0,0,0,12"><DockPanel><CheckBox x:Name="CharacterDifferencesOnly" DockPanel.Dock="Right" Content="Differences only" Margin="12,0,0,0" VerticalAlignment="Center" Checked="CharacterOptionChanged" Unchecked="CharacterOptionChanged"/><TextBlock x:Name="CharacterComparisonText" TextWrapping="Wrap" VerticalAlignment="Center" FontSize="12"/></DockPanel></Border>
      <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="220"/><ColumnDefinition Width="16"/><ColumnDefinition Width="300" MinWidth="200"/></Grid.ColumnDefinitions>
@@ -186,7 +216,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditCharacterButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginCharacterEdit" ToolTip="Edit this character (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditCharacterButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginCharacterEdit" ToolTip="Edit this character (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CHARACTER DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="CharacterName" Text="Select a character" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="CharacterIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6" TextWrapping="Wrap"/>
         <StackPanel x:Name="CharacterFields"/>
@@ -227,7 +257,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditClassButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginClassEdit" ToolTip="Edit this class (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CLASS DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditClassButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginClassEdit" ToolTip="Edit this class (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="CLASS DETAILS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="ClassName" Text="Select a class" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="ClassIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6"/>
         <StackPanel x:Name="ClassFields"/>
@@ -237,6 +267,76 @@
       </Border>
      </Grid>
      <TextBlock Grid.Row="3" x:Name="ClassCount" Style="{StaticResource Caption}" Margin="0,10,0,0"/>
+    </Grid>
+    <Grid x:Name="PromotionsPage" Visibility="Collapsed">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Border Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
+      <TextBlock x:Name="PromotionSourceText" TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="Open a supported original disc to inspect promotion requirements."/>
+     </Border>
+     <TabControl Grid.Row="1" x:Name="PromotionTabs" SelectionChanged="PromotionTabChanged">
+      <TabItem Header="Promotions">
+       <Grid x:Name="PromotionSplit" SizeChanged="PromotionSplit_SizeChanged" ClipToBounds="True">
+        <Grid.ColumnDefinitions>
+         <ColumnDefinition x:Name="PromotionListColumn" Width="2*"/>
+         <ColumnDefinition x:Name="PromotionDividerColumn" Width="12"/>
+         <ColumnDefinition x:Name="PromotionDetailColumn" Width="3*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+         <RowDefinition x:Name="PromotionListRow" Height="*"/>
+         <RowDefinition x:Name="PromotionDividerRow" Height="0"/>
+         <RowDefinition x:Name="PromotionDetailRow" Height="0"/>
+        </Grid.RowDefinitions>
+      <GridSplitter x:Name="PromotionSplitter" Grid.Column="1" Width="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" DragCompleted="PromotionSplitter_DragCompleted" Background="Transparent" Cursor="SizeWE" ToolTip="Drag to resize the promotion list" Focusable="False"/>
+      <Border x:Name="PromotionListPane" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+       <DockPanel>
+        <CheckBox x:Name="PromotionVerifiedOnly" DockPanel.Dock="Top" Content="Verified routes only" IsChecked="False"
+                  Padding="12,9,12,9" Checked="PromotionEvidenceFilterChanged" Unchecked="PromotionEvidenceFilterChanged"
+                  ToolTip="Unverified source observations are visible by default." />
+       <DataGrid x:Name="PromotionGrid" SelectionChanged="PromotionSelected" AutomationProperties.Name="Original promotion paths" IsReadOnly="True">
+        <DataGrid.Columns>
+         <DataGridTextColumn Header="Unit" Binding="{Binding UnitText}" Width="62"/>
+         <DataGridTextColumn Header="Character" Binding="{Binding CharacterName}" Width="*" MinWidth="90"/>
+         <DataGridTextColumn Header="Destination" Binding="{Binding DestinationDisplay}" Width="180"/>
+         <DataGridTextColumn Header="Minimum" Binding="{Binding MinimumLevelText}" Width="84"/>
+         <DataGridTextColumn Header="Quest" Binding="{Binding QuestText}" Width="80"/>
+         <DataGridTextColumn Header="Evidence" Binding="{Binding EvidenceLabel}" Width="110"/>
+        </DataGrid.Columns>
+       </DataGrid>
+       </DockPanel>
+      </Border>
+      <Border x:Name="PromotionDetailPane" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
+       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,12,0">
+         <TextBlock Text="ORIGINAL PROMOTION" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,14"/>
+         <TextBlock x:Name="PromotionName" Text="Select a promotion" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
+         <TextBlock x:Name="PromotionIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,12" TextWrapping="Wrap"/>
+         <StackPanel x:Name="PromotionDetails"/>
+        </StackPanel>
+       </ScrollViewer>
+      </Border>
+       </Grid>
+      </TabItem>
+      <TabItem Header="Other class changes">
+       <Grid Background="White">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock x:Name="OtherClassChangeStatus" TextWrapping="Wrap" FontSize="13" Padding="12" Foreground="{StaticResource Muted}" Text="These are not regular promotions and have different verification requirements."/>
+        <DataGrid Grid.Row="1" x:Name="OtherClassChangeGrid" IsReadOnly="True" AutomationProperties.Name="Other class changes">
+         <DataGrid.Columns>
+          <DataGridTextColumn Header="Character" Binding="{Binding Character}" Width="125"/>
+          <DataGridTextColumn Header="Mechanism" Binding="{Binding Mechanism}" Width="130"/>
+          <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="180"/>
+          <DataGridTextColumn Header="Evidence" Binding="{Binding Evidence}" Width="*"/>
+          <DataGridTextColumn Header="Status" Binding="{Binding EvidenceLabel}" Width="110"/>
+         </DataGrid.Columns>
+        </DataGrid>
+        <TextBlock Grid.Row="2" Margin="12,12,12,12" TextWrapping="Wrap" Foreground="{StaticResource Muted}" Text="The native UnitChangeClass battle-context operation and other scripted class transitions still require classification. No edit controls are available here."/>
+       </Grid>
+      </TabItem>
+     </TabControl>
+     <StackPanel Grid.Row="2" Margin="0,10,0,0">
+      <TextBlock x:Name="PromotionCount" Style="{StaticResource Caption}" TextWrapping="Wrap"/>
+      <TextBlock x:Name="PromotionCoverageText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+     </StackPanel>
     </Grid>
     <Grid x:Name="MovementPage" Visibility="Collapsed">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -259,7 +359,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditMovementButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginMovementEdit" ToolTip="Edit these terrain costs (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="TERRAIN COSTS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditMovementButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginMovementEdit" ToolTip="Edit these terrain costs (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="TERRAIN COSTS" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="MovementName" Text="Select a movement type" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="MovementIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6" TextWrapping="Wrap"/>
         <StackPanel x:Name="MovementFields"/>
@@ -287,7 +387,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditTerrainButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginTerrainEdit" ToolTip="Edit this terrain (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="TERRAIN" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditTerrainButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginTerrainEdit" ToolTip="Edit this terrain (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="TERRAIN" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="TerrainName" Text="Select a terrain" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <TextBlock x:Name="TerrainIdentity" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,6,0,6" TextWrapping="Wrap"/>
         <StackPanel x:Name="TerrainFields"/>
@@ -357,7 +457,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditFurnitureButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginFurnitureEdit" ToolTip="Edit this price (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="FURNITURE" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditFurnitureButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginFurnitureEdit" ToolTip="Edit this price (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="FURNITURE" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="FurnitureName" Text="Select a piece" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <StackPanel x:Name="FurnitureFields" Margin="0,8,0,0"/>
         <StackPanel x:Name="FurnitureEditorPanel" Visibility="Collapsed"/>
@@ -393,7 +493,7 @@
         <TextBox x:Name="GameTextEditor" TextWrapping="Wrap" AcceptsReturn="False" MinHeight="60" Margin="0,8,0,6" TextChanged="GameTextChanged" Visibility="Collapsed" AutomationProperties.Name="Text"/>
         <TextBlock x:Name="GameTextNote" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}" Margin="0,0,0,8"/>
         <StackPanel Orientation="Horizontal">
-         <Button x:Name="ApplyGameTextButton" Content="_Apply" Style="{StaticResource SmallButton}" Click="ApplyGameText" Visibility="Collapsed" Margin="0,0,8,0"/>
+         <Button x:Name="ApplyGameTextButton" Content="Apply" Style="{StaticResource SmallButton}" Click="ApplyGameText" Visibility="Collapsed" Margin="0,0,8,0"/>
          <Button x:Name="RestoreGameTextButton" Content="Restore original" Style="{StaticResource SmallButton}" Click="RestoreGameText" Visibility="Collapsed"/>
         </StackPanel>
        </StackPanel></ScrollViewer>
@@ -419,7 +519,7 @@
       </Border>
       <Border Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18">
        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,14,0">
-        <DockPanel Margin="0,0,0,14"><Button x:Name="EditDishButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginDishEdit" ToolTip="Edit this dish (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="DISH" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+        <DockPanel Margin="0,0,0,14"><Button x:Name="EditDishButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginDishEdit" ToolTip="Edit this dish (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="DISH" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
         <TextBlock x:Name="DishName" Text="Select a dish" FontFamily="Georgia" FontSize="22" TextWrapping="Wrap"/>
         <StackPanel x:Name="DishFields" Margin="0,8,0,0"/>
         <StackPanel x:Name="DishEditorPanel" Visibility="Collapsed"/>
@@ -454,15 +554,58 @@
                VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="NoWrap" AutomationProperties.Name="Event script"/>
      </DockPanel>
      <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="10">
-      <TabControl x:Name="ScriptTabs" BorderThickness="0" Padding="4,8,4,4">
+      <TabControl x:Name="ScriptTabs" BorderThickness="0" Padding="4,8,4,4" SelectionChanged="EventTabChanged">
        <TabItem Header="Numbers">
         <Grid>
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-         <DockPanel Margin="0,0,0,8"><Button x:Name="EditScriptNumberButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="BeginScriptNumberEdit" ToolTip="Change this number (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="NUMBERS IN THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+         <DockPanel Margin="0,0,0,8"><Button x:Name="EditScriptNumberButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="BeginScriptNumberEdit" ToolTip="Change this number (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="NUMBERS IN THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
          <ListBox Grid.Row="1" x:Name="ScriptNumberList" SelectionChanged="ScriptNumberSelected" DisplayMemberPath="Text" SelectedValuePath="Value" BorderBrush="{StaticResource Line}" AutomationProperties.Name="Numbers in this event"/>
          <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,10,0,0">
           <StackPanel Margin="0,0,8,0"><StackPanel x:Name="ScriptNumberFields"/><StackPanel x:Name="ScriptNumberEditor" Visibility="Collapsed"/></StackPanel>
          </ScrollViewer>
+        </Grid>
+       </TabItem>
+       <TabItem Header="References">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <TextBlock Text="CALLS TO THIS EVENT" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,0,0,7"/>
+         <TextBlock Grid.Row="1" Text="Double-click an event to open it" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,7"/>
+         <ListBox Grid.Row="2" x:Name="EventCallersList" DisplayMemberPath="Text" SelectedValuePath="Value" MouseDoubleClick="EventReferenceNavigate" AutomationProperties.Name="Events calling this event"/>
+         <TextBlock Grid.Row="3" Text="DIRECT EVENTS CALLED" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,10,0,7"/>
+         <ListBox Grid.Row="4" x:Name="EventCalleesList" DisplayMemberPath="Text" SelectedValuePath="Value" MouseDoubleClick="EventReferenceNavigate" AutomationProperties.Name="Direct events called"/>
+         <TextBlock Grid.Row="5" x:Name="EventReferencesStatus" TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,8,0,0" Text="Select References to index exact event calls."/>
+        </Grid>
+       </TabItem>
+       <TabItem Header="Commands">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <TextBox x:Name="EventCommandSearch" Padding="6" Margin="0,0,0,7" ToolTip="Filter exact command names or hex IDs" TextChanged="EventCommandSearchChanged"/>
+         <ListBox Grid.Row="1" x:Name="EventCommandList" DisplayMemberPath="Text" SelectedValuePath="Value" SelectionChanged="EventCommandChanged"/>
+         <TextBlock Grid.Row="2" Text="EVENTS USING THIS COMMAND" Style="{StaticResource Caption}" FontWeight="SemiBold" Margin="0,10,0,7"/>
+         <ListBox Grid.Row="3" x:Name="EventCommandSiteList" DisplayMemberPath="Text" SelectedValuePath="Value" MouseDoubleClick="EventReferenceNavigate"/>
+         <TextBlock Grid.Row="4" x:Name="EventCommandStatus" Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" Text="Observed source commands, not gameplay-validated effects."/>
+        </Grid>
+       </TabItem>
+       <TabItem Header="Dependencies">
+        <Grid>
+         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+         <ComboBox x:Name="EventDependencyKind" SelectionChanged="EventDependencyCategoryChanged" SelectedIndex="0" Margin="0,0,0,6" AutomationProperties.Name="Source dependency category">
+          <ComboBoxItem Content="All source operations"/>
+          <ComboBoxItem Content="Event flags"/>
+          <ComboBoxItem Content="Quests"/>
+          <ComboBoxItem Content="Class changes"/>
+          <ComboBoxItem Content="Skills"/>
+          <ComboBoxItem Content="Inventory changes"/>
+          <ComboBoxItem Content="Item references"/>
+          <ComboBoxItem Content="Shops and stock"/>
+          <ComboBoxItem Content="Horses and stable"/>
+          <ComboBoxItem Content="Unit references"/>
+         </ComboBox>
+         <TextBox Grid.Row="1" x:Name="EventDependencySearch" Margin="0,0,0,6" Padding="6" TextChanged="EventDependencySearchChanged" ToolTip="Filter by event number, command name, or literal argument" AutomationProperties.Name="Filter source dependencies"/>
+         <CheckBox Grid.Row="2" x:Name="EventDependencyVerifiedOnly" Content="Verified only" IsChecked="False" Margin="0,0,0,7" Checked="EventDependencyVerifiedChanged" Unchecked="EventDependencyVerifiedChanged" ToolTip="Unverified source observations are shown by default"/>
+         <ListBox Grid.Row="3" x:Name="EventDependencyList" DisplayMemberPath="Text" MouseDoubleClick="EventDependencyNavigate" SelectionChanged="EventDependencySelected" BorderBrush="{StaticResource Line}" ToolTip="Double-click to open the source event and select its first direct number" AutomationProperties.Name="Scripted dependency sites"/>
+         <TextBlock Grid.Row="4" x:Name="EventDependencyStatus" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,7" Text="Select Dependencies to index flags, quests, skills, grants, shops and stock."/>
+         <Button Grid.Row="5" Content="Export source index" Click="ExportEventDependencyIndex" Style="{StaticResource SmallButton}" HorizontalAlignment="Right" ToolTip="Create a read-only JSON research/randomizer dependency index; no game or project changes"/>
         </Grid>
        </TabItem>
        <TabItem Header="Lines">
@@ -505,7 +648,7 @@
       <GridSplitter Grid.Column="1" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
       <GridSplitter Grid.Column="3" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
-      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The animation each class shows in battle, and the colours each character wears in it. A class can have one set of animations for any weapon and others for certain weapon types; a character can have their own colours, or rarely a set of their own. Sets on the disc that no class uses are listed at the end. Choose Change beside a row to give it another set or other colours, or the class another map sprite."/>
+      <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20" Text="The animation each class shows in battle, and the colors each character wears in it. A class can have one set of animations for any weapon and others for certain weapon types; a character can have their own colors, or rarely a set of their own. Sets on the disc that no class uses are listed at the end. Choose Change beside a row to give it another set or other colors, or the class another map sprite."/>
      </Border>
      <ListBox Grid.Row="1" x:Name="AnimationList" SelectionChanged="AnimationClassSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Classes"/>
      <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
@@ -513,14 +656,14 @@
        <WrapPanel DockPanel.Dock="Top" Margin="12,10,12,0">
         <StackPanel Margin="0,0,12,8"><TextBlock Text="Set" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationSetBox" Width="200" SelectionChanged="AnimationViewChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Animation set"/></StackPanel>
         <StackPanel Margin="0,0,12,8"><TextBlock Text="Motion" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationMotionBox" Width="120" SelectionChanged="AnimationMotionChanged" AutomationProperties.Name="Motion"/></StackPanel>
-        <StackPanel Margin="0,0,12,8"><TextBlock Text="Colours" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationPaletteBox" Width="190" SelectionChanged="AnimationPaletteChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Colours"/></StackPanel>
+        <StackPanel Margin="0,0,12,8"><TextBlock Text="Colors" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationPaletteBox" Width="190" SelectionChanged="AnimationPaletteChanged" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Colors"/></StackPanel>
         <StackPanel Margin="0,0,12,8"><TextBlock Text="Size" FontSize="12" Margin="0,0,0,3"/><ComboBox x:Name="AnimationSizeBox" Width="80" SelectedIndex="1" SelectionChanged="AnimationSizeChanged" AutomationProperties.Name="Size"><ComboBoxItem Content="1x"/><ComboBoxItem Content="2x"/><ComboBoxItem Content="3x"/></ComboBox></StackPanel>
         <Button x:Name="AnimationPlayButton" Content="Pause" Click="ToggleAnimation" VerticalAlignment="Bottom" Margin="0,0,8,8" MinWidth="70" ToolTip="Play or pause the motion"/>
         <Button Content="Export" Click="ExportAnimation" VerticalAlignment="Bottom" Margin="0,0,8,8" ToolTip="Export PNG frames and sprite sheets"/>
         <Button x:Name="AnimationStepButton" Content="Next frame" Click="StepAnimation" VerticalAlignment="Bottom" Margin="0,0,0,8" ToolTip="Show the next frame"/>
        </WrapPanel>
        <TextBlock DockPanel.Dock="Bottom" x:Name="AnimationFrameText" Style="{StaticResource Caption}" Margin="12,0,12,10"/>
-       <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Border Background="#3A3D4A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"><Image x:Name="AnimationImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Animation frame"/></Border></ScrollViewer>
+       <ScrollViewer x:Name="AnimationFrameScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Border Background="#3A3D4A" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"><Image x:Name="AnimationImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" AutomationProperties.Name="Animation frame"/></Border></ScrollViewer>
       </DockPanel>
      </Border>
      <Border Grid.Row="1" Grid.Column="4" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="16">

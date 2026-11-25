@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - release-v0.118.0-candidate
+      - develop
   pull_request:
   workflow_dispatch:
 
@@ -17,10 +17,13 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Install .NET 9
+      - name: Install .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
+      - name: Review public copy
+        shell: powershell
+        run: ./tools/check-public-copy.ps1
       - name: Run local checks in Windows PowerShell
         shell: powershell
         run: ./tools/run-local-checks.ps1
@@ -30,7 +33,7 @@ jobs:
       - name: Publish Windows executable
         shell: pwsh
         run: |
-          dotnet publish App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$env:RUNNER_TEMP\Berwick Workshop"
+          dotnet publish App -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o "$env:RUNNER_TEMP\Berwick Workshop"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path "$env:RUNNER_TEMP\Berwick Workshop\Berwick Workshop.exe")) { throw "Executable missing" }
       - name: Upload verified executable

@@ -1,15 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Berwick Workshop</AssemblyName>
     <RootNamespace>Berwick.Workshop</RootNamespace>
-    <Version>0.118.0</Version>
+    <Version>0.119.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Berwick Workshop</Product>
+    <Copyright>Copyright © 2026 Berwick Workshop contributors</Copyright>
     <Description>Berwick Saga disc and item browser</Description>
     <ApplicationIcon>workshop.ico</ApplicationIcon>
     <DebugType>none</DebugType>

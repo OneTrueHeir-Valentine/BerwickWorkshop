@@ -349,6 +349,7 @@ public sealed class LiveGame : IDisposable
     /// </summary>
     public bool WriteRule(GameRule rule, int setting)
     {
+        if (LiveRuleReporting.Support(rule) == LiveRuleSupport.ExportOnly) return false;
         var original = rule.Original;
         var current = rule.Sites.Select((s, i) => s.Live ? ReadWord(s.Address) : original[i]).ToArray();
         if (rule.LiveDecode(current) is null) return false;

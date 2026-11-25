@@ -18,7 +18,7 @@ public sealed record RuleSite(uint Address, Func<int, uint> Encode, Func<uint, i
 
 /// <summary>
 /// A game rule: one or more instructions in the game program with a range of known settings.
-/// <see cref="Default"/> is the game's own behaviour. Addresses are the same in both supported editions.
+/// <see cref="Default"/> is the game's own behavior. Addresses are the same in both supported editions.
 /// </summary>
 public sealed class GameRule(int id, string key, string name, string description, RuleKind kind, int min, int max, int @default,
     IReadOnlyList<string>? choices, IReadOnlyList<RuleSite> sites, bool confirmed, Func<IReadOnlyList<uint>, int?>? decode = null, Func<int, string?>? check = null)
@@ -42,7 +42,7 @@ public sealed class GameRule(int id, string key, string name, string description
     public string Section { get; init; } = "";
     /// <summary>For a Pair rule: what each of the two numbers sets.</summary>
     public IReadOnlyList<string> PairLabels { get; init; } = [];
-    /// <summary>A colour shown beside the rule, as #RRGGBB (the durability band marks).</summary>
+    /// <summary>A color shown beside the rule, as #RRGGBB (the durability band marks).</summary>
     public string Swatch { get; init; } = "";
     public int Length => Sites.Count * 4;
     public uint[] Original => Encode(Default);
@@ -239,6 +239,7 @@ public static partial class GameRules
     /// <summary>Group explanations: the game's own formula, with the editable numbers named.</summary>
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
+        ["Campaign availability"] = "Promotion quest windows use inclusive campaign counters, separate from chapter and battle turn. Story, phase and quest-history conditions still apply. Changes require an exported image, and existing saves can retain adopted quest candidates.",
         [FurnitureGroup] = "Furniture bought from the furniture shop goes into Reese's room, where each piece can be shown or put away. While a piece is shown, Reese gets its bonus in every battle; the bonuses go to Reese only. Sword Mount adds to his weapon level growth for every weapon type, not only swords. Big Rug adds to the chance of his Adept extra attack when he has Adept. Deer Mount lowers enemy critical chance against him. Coat of Arms adds to his shield block chance. Tapestry adds to the range of his Commander and Leader auras. Bird Statue adds to his hit in fights on forest terrain. Art \"Hope\" lowers enemy hit against him. Maiden Statue gives him Miracle, a second roll against a hit that would defeat him, at 10 less hit. Art \"Revival\" adds to his chance that a weapon use costs no durability. Porcelain Vase raises the favor female mercenaries gain from 5 to 10 (events 136 and 152 on the Events page). Coffers and Treasure Chest can be opened in the room for items and gold. Luxury Bed is meant to add 10 to his HP growth, but the game checks it and ignores the result, so it does nothing.",
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
         ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Counter bonus after can also count a hit that does 0 damage, a parry, or a hit cancelled by a bane skill such as Swordbane. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
@@ -326,7 +327,7 @@ public static partial class GameRules
         ["Limited"] = "A unit with Limited uses items up to the highest rank normally. Items above it count as needing the level set here, so with the game's values (rank 3, level 50) the unit can never use them safely.",
         [StaffGroup] = "Using a staff gives the staff's level plus the base amount plus a random amount from 0 up to the random bonus, minus a fifth of the unit's level. It never goes below 0, and the experience skill and item bonuses then apply.",
         [LuckGroup] = "Luck protects a unit in two ways. When a hit would defeat it and its Luck is at least the amount needed, the hit is cancelled and the unit loses Luck. After a fight, a unit hit for more damage than it had HP left faces a roll based on the excess; with 1 or more Luck it is spared and loses Luck instead. A level up that raises nothing else adds Luck. The game needs 5, takes 5 and 1, and adds 1. The highest Luck is set by the Luck limit.",
-        [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the colour and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
+        [DurabilityGroup] = "Items with a durability grade lose durability as they are used. Each use costs the amount for the item's grade; the game uses 1 for S up to 7 for F, and shields cost 4 times that. Before each use the unit has a chance to save it: 20 with Armsthrift (Skills page), plus item bonuses, plus 20 for Reese from a point in the story. Wear never takes an item below 0. After each use the item breaks at the break chance of its durability band; the game uses 0% at 61 or more, 1% at 41 to 60, 2% at 21 to 40, 4% at 1 to 20 and 100% at 0. The bands also set the color and text of an item's condition, and that text keeps the game's numbers, so keep the lowest values in order from the top band down. Items that count uses instead lose exactly 1 per use, and unbreakable items lose nothing. A weapon is used when it hits, when its strike fails, and when it parries; bows and their arrows are also used on a miss. A shield, or an axe with Axe Guard, is used when its block takes something off a hit and the unit survives.",
         [RankFailureGroup] = "When an item's rank is above the unit's level, each strike with it can fail: the chance is the rank minus the unit's level, times the amount per level, kept between 0 and 100, less item bonuses. The game uses 5% per level. A failed strike misses and still uses the weapon; the battle forecast does not show this chance. Personal weapons count as rank 1, and Expert and Limited (Skills page) change the rank that is compared.",
     };
 
@@ -416,7 +417,7 @@ public static partial class GameRules
     private static readonly uint[] BandSites = [0x0016EB48u, 0x0016EB60u, 0x0016EB78u, 0x0016EB90u];
     private static readonly int[] BandLowest = [61, 41, 21, 1];
     private static readonly string[] BandNames = ["61 or more", "41 to 60", "21 to 40", "1 to 20", "0"];
-    // The condition mark colours in the item lists (sprite sheet 8, read from the game screen).
+    // The condition mark colors in the item lists (sprite sheet 8, read from the game screen).
     public static readonly string[] BandColors = ["#2F4F8F", "#3E9E4E", "#D8C23A", "#E0902E", "#9C3A2C"];
     public static readonly string[] BandColorNames = ["blue", "green", "yellow", "orange", "red"];
     // Each band's percent is set in a branch delay slot; a changed setting becomes addiu v0, zero, n.
@@ -738,7 +739,7 @@ public static partial class GameRules
                 s => s switch { 0 => 0x10200019u, 1 => 0x14000019u, _ => 0x10000019u },
                 w => w switch { 0x10200019u => 0, 0x14000019u => 1, 0x10000019u => 2, _ => null })], confirmed: true),
         new GameRule(10, "shieldGuard", "Shield guard on a failed block",
-            "Part of the shield's Might always counts as Defense against physical attacks, rounded down, and a successful block takes off the rest, so a block still takes off the full Might in total. The at least 1 choices never give less than 1, so a small shield still helps. The battle forecast shows the guard in Def and the rest of the Might as the shield bonus: with a quarter of Might 5, Def 7 +5 becomes Def 8 +4. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. A sleeping unit has no shield bonus. Attacks that ignore Defense, including knives, also ignore this guard. With Full Might a block adds nothing more. Off is the game's own behaviour. The Live page applies the battle part; the forecast, status screen and equipment windows show the guard on an exported disc.",
+            "Part of the shield's Might always counts as Defense against physical attacks, rounded down, and a successful block takes off the rest, so a block still takes off the full Might in total. The at least 1 choices never give less than 1, so a small shield still helps. The battle forecast shows the guard in Def and the rest of the Might as the shield bonus: with a quarter of Might 5, Def 7 +5 becomes Def 8 +4. Guard's halving and Desperation's drop to 0 do not reduce this bonus, because it is added after them. A sleeping unit has no shield bonus. Attacks that ignore Defense, including knives, also ignore this guard. With Full Might a block adds nothing more. Off is the game's own behavior. The Live page applies the battle part; the forecast, status screen and equipment windows show the guard on an exported disc.",
             RuleKind.Choice, 0, 5, 0, ["Off", "Quarter of Might", "Half of Might", "Full Might", "Quarter of Might, at least 1", "Half of Might, at least 1"],
             GuardSites(), confirmed: true, decode: GuardDecode),
         Step(11, "shieldTraining", "Shield training speed",
@@ -760,7 +761,7 @@ public static partial class GameRules
             RuleKind.Choice, 0, 1, 0, ["Below level 20", "At every level"],
             [new RuleSite(0x00171760, s => s == 0 ? 0x28A10002u : 0x28A10006u, w => w switch { 0x28A10002u => 0, 0x28A10006u => 1, _ => null })], confirmed: true),
         new GameRule(15, "vantageTraining", "Shield training with Vantage",
-            "When a unit with Vantage strikes first, the enemy's attacks never reach its shield, so the shield gets no block rolls and no training. With this rule, a defender that strikes first through Vantage gets one shield training roll per battle, if it holds a shield it can use. Counts as a failed block trains only below level 20 unless Training from failed attempts is set to every level. Off is the game's own behaviour.",
+            "When a unit with Vantage strikes first, the enemy's attacks never reach its shield, so the shield gets no block rolls and no training. With this rule, a defender that strikes first through Vantage gets one shield training roll per battle, if it holds a shield it can use. Counts as a failed block trains only below level 20 unless Training from failed attempts is set to every level. Off is the game's own behavior.",
             RuleKind.Choice, 0, 2, 0, ["Off", "Counts as a failed block", "Counts as a successful block"], VantageSites(), confirmed: true),
         ..DurabilityRules(),
         ..LuckRules(),
@@ -1199,6 +1200,7 @@ public static partial class GameRules
         Limit(6, "luckLimit", "Luck limit", "The highest Luck a character can reach.", 31, 20, 0x00174C64, 0x00174734),
         Limit(7, "defenseLimit", "Defense bonus limit", "The most Defense a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C7C, 0x0017474C),
         Limit(8, "mindLimit", "Mind bonus limit", "The most Mind a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C94, 0x00174764),
+        .. PromotionQuestWindows.Rules,
     ]);
 
     public static GameRule ById(int id) => All.FirstOrDefault(r => r.Id == id) ?? throw new EditException("Unknown game rule.");

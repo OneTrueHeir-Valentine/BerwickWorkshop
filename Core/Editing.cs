@@ -28,6 +28,9 @@ public sealed record TableField(string Key, string Label, int Offset, int Bit, i
     /// <summary>A stored value with its own meaning, shown as text instead of a number (for example a terrain that cannot be entered).</summary>
     public int? SpecialValue { get; init; }
     public string SpecialText { get; init; } = "";
+    /// <summary>The stored value is twice the value the game uses, which halves it and rounds down
+    /// (personal Mind growth). The field is shown and entered as the value the game uses.</summary>
+    public bool StoredDoubled { get; init; }
     public bool IsFlag => Width == 1 && Min == 0 && Max == 1;
 }
 
@@ -74,6 +77,7 @@ public static class FieldCodec
         : field.IsFlag ? (value != 0 ? "Yes" : "No")
         : field.Choices is { } choices && field.ChoiceIndex(value) is var index && index >= 0 && index < choices.Count ? choices[index]
         : field.ChoiceValues is not null ? $"Other ({value})"
+        : field.StoredDoubled ? MindGrowth.Percent(value).ToString(CultureInfo.InvariantCulture)
         : field.Display == 1 ? value.ToString(CultureInfo.InvariantCulture)
         : (value * field.Display).ToString(field.Display < 1 ? "0.#" : "0", CultureInfo.InvariantCulture);
 
@@ -90,6 +94,14 @@ public static class FieldCodec
         }
         if (!decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal shown))
         { error = $"{field.Label} must be a number."; return false; }
+        if (field.StoredDoubled)
+        {
+            // The caller keeps an odd stored value when the shown value is unchanged (see MindGrowth.Stored).
+            if (shown != decimal.Truncate(shown)) { error = $"{field.Label} must be a whole number."; return false; }
+            if (shown < MindGrowth.Percent(field.Min) || shown > MindGrowth.Percent(field.Max)) { error = RangeError(field); return false; }
+            value = (int)shown * 2;
+            return true;
+        }
         decimal raw = shown / (decimal)field.Display;
         if (raw != decimal.Truncate(raw))
         {
@@ -190,6 +202,8 @@ public static class CharacterFields
     {
         new TableField($"item{slot + 1}", $"Slot {slot + 1}", 0xBC + slot * 8, 0, 16, 0, 0xFFFF) { Group = "Starting items", ItemReference = true },
         new TableField($"item{slot + 1}Uses", $"Slot {slot + 1} durability or uses", 0xBC + slot * 8 + 2, 4, 8, 0, 255) { Group = "Starting items" },
+        new TableField($"item{slot + 1}Lock", $"Slot {slot + 1} mercenary lock [experimental]", 0xBC + slot * 8 + 4, 2, 1, 0, 1) { Group = "Starting item flags (experimental)" },
+        new TableField($"item{slot + 1}Drop", $"Slot {slot + 1} drops on defeat [experimental]", 0xBC + slot * 8 + 3, 7, 1, 0, 1) { Group = "Starting item flags (experimental)" },
     });
 
     /// <summary>Fields in the starting unit record.</summary>
@@ -203,6 +217,10 @@ public static class CharacterFields
         new("agilityBonus", "Agility bonus", 24, 0, 5, -16, 15) { Signed = true },
         new("mindBonus", "Mind bonus", 25, 7, 5, -16, 15) { Signed = true },
         new("luck", "Luck", 24, 5, 5, 0, 31),
+        // Source records map the 4-bit slot selectors at +26 bit4 / +27 bit0; zero means unequipped.
+        // Source-observed only: actual equipped-slot behavior still requires original-ISO and PCSX2 validation.
+        new("mainhandSlot", "Mainhand starting slot (0 = none) [experimental]", 27, 0, 4, 0, ItemSlots) { Group = "Equipped slots (experimental)" },
+        new("offhandSlot", "Offhand starting slot (0 = none) [experimental]", 26, 4, 4, 0, ItemSlots) { Group = "Equipped slots (experimental)" },
     }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" }))
      .Concat(SkillFlags(56, "Personal skills")).Concat(ItemSlotFields()).ToArray());
 
@@ -213,9 +231,22 @@ public static class CharacterFields
         new("strengthGrowth", "Strength growth", 0, 7, 7, 0, 127),
         new("defenseGrowth", "Defense growth", 1, 6, 7, 0, 127),
         new("agilityGrowth", "Agility growth", 4, 2, 7, 0, 127),
-        new("mindGrowth", "Mind growth (stored value)", 5, 0, 7, 0, 127),
+        new(MindGrowth.Field, "Mind growth", 5, 0, 7, 0, 127) { StoredDoubled = true },
         new("bracket", "Growth bracket", 2, 5, 2, 1, 3) { Choices = ["None", "Loose", "Tight"] },
-    }.Concat(CharacterDecoder.GrowthWeapons.Select((w, i) => new TableField(Key(w, "Growth"), w, 8 + i / 2, 4 * (i % 2), 4, 0, 15) { Display = 10, Group = "Weapon growth" })).ToArray());
+    }.Concat(CharacterDecoder.GrowthWeapons.Select((w, i) => new TableField(Key(w, "Growth"), w, 8 + i / 2, 4 * (i % 2), 4, 0, 15) { Display = 10, Group = "Weapon growth" }))
+     // Six 8-bit skill ids at +26..+31, with six 8-bit acquisition levels at +20..+25.
+     // 255 means no learned skill; retain any otherwise unknown original ID rather than mislabel it as verified.
+     .Concat(Enumerable.Range(0, 6).SelectMany(i => new TableField[]
+     {
+         new($"learned{i + 1}Skill", $"Learned skill slot {i + 1} [experimental]", 26 + i, 0, 8, 0, 255)
+         {
+             Group = "Learned skills (experimental)",
+             Choices = [.. CharacterDecoder.LearnedSkillIds, "None (255)"],
+             ChoiceValues = [.. Enumerable.Range(0, CharacterDecoder.LearnedSkillIds.Length), 255],
+         },
+         new($"learned{i + 1}Level", $"Learning level slot {i + 1} [experimental]", 20 + i, 0, 8, 0, 255)
+         { Group = "Learned skills (experimental)" },
+     })).ToArray());
 }
 
 public static class ClassFields
@@ -237,6 +268,12 @@ public static class ClassFields
         new("move", "Move", 8, 0, 4, 0, 15),
         new("experience", "Experience value", 4, 0, 7, 0, 127),
         new("movementType", "Movement type", 6, 1, 8, 0, TerrainData.Types - 1) { Choices = TerrainData.TypeNames },
+        // Packed class growths, source-observed; runtime behavior not yet verified.
+        new("hpGrowth", "HP growth [experimental]", 24, 0, 7, 0, 127) { Group = "Class growths (experimental)" },
+        new("strengthGrowth", "Strength growth [experimental]", 24, 7, 7, 0, 127) { Group = "Class growths (experimental)" },
+        new("agilityGrowth", "Agility growth [experimental]", 25, 6, 7, 0, 127) { Group = "Class growths (experimental)" },
+        new("defenseGrowth", "Defense growth [experimental]", 26, 5, 7, 0, 127) { Group = "Class growths (experimental)" },
+        new("mindGrowth", "Mind growth [experimental]", 28, 0, 7, 0, 127) { Group = "Class growths (experimental)" },
     }.Concat(Caps.Select(c => new TableField(CharacterFields.Key(c.Name, "Cap"), c.Name, c.Offset, c.Bit, 6, 0, 63) { Group = "Weapon level caps" }))
      .Concat(new TableField[]
      {
@@ -292,8 +329,83 @@ public sealed class EditSession
     private readonly TextRecords textRecords;
     private readonly DeploymentRecords deploymentRecords, placementRecords;
     private readonly List<Step> steps = [];
+    // Project evidence is a durable annotation, not an override of patch/source validation.
+    // Entries loaded from older projects remain conservatively unverified.
+    private readonly Dictionary<(string Table, int Id, string Key), ChangeEvidence> storedEvidence = [];
+    // User research notes are untrusted text. They cannot change source evidence or export checks.
+    private readonly Dictionary<(string Table, int Id, string Key), string> researchNotes = [];
+    private const int MaxResearchNotes = 256;
+    private const int MaxResearchNoteLength = 4096;
+
+    public IReadOnlyList<ProjectResearchNote> ResearchNotes => researchNotes
+        .OrderBy(x => x.Key.Table, StringComparer.Ordinal)
+        .ThenBy(x => x.Key.Id)
+        .ThenBy(x => x.Key.Key, StringComparer.Ordinal)
+        .Select(x => new ProjectResearchNote(x.Key.Table, x.Key.Id, x.Key.Key, x.Value))
+        .ToList().AsReadOnly();
+
+    // Notes are independent of the undo stack, so undoing an edit cannot discard research text.
+    public void SetResearchNote(string table, int id, string key, string? text)
+    {
+        ValidateResearchNoteTarget(table, id, key);
+        var noteKey = (table, id, key);
+        if (text is null)
+        {
+            if (researchNotes.Remove(noteKey)) researchRevision++;
+            return;
+        }
+        ValidateResearchNoteText(text, $"{table} 0x{id:X}, field '{key}'");
+        if (!researchNotes.ContainsKey(noteKey) && researchNotes.Count >= MaxResearchNotes)
+            throw new EditException($"A project can contain at most {MaxResearchNotes} research notes.");
+        if (researchNotes.TryGetValue(noteKey, out var unchanged) && unchanged == text) return;
+        researchNotes[noteKey] = text;
+        researchRevision++;
+    }
+
+    private static void ValidateResearchNoteText(string text, string location)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > MaxResearchNoteLength
+            || text.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')))
+            throw new EditException($"Invalid research note for {location}: text is empty, too long or contains control characters.");
+    }
+
+    private void ValidateResearchNoteTarget(string table, int id, string key)
+    {
+        if (string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(key))
+            throw new EditException("Research notes need a table and field identifier.");
+        if (table == Scripts)
+        {
+            if (key != "script" || scriptRecords.Bytes(id) is null)
+                throw new EditException($"Invalid research note target: script event {id}, field '{key}'.");
+            return;
+        }
+        if (table == Texts)
+        {
+            if (key != "text" || id < 0 || id >= TextList.Count)
+                throw new EditException($"Invalid research note target: text {id}, field '{key}'.");
+            return;
+        }
+        _ = Record(table, id);
+        if (key == "name") return;
+        if (key == "copy" && table == Items) return;
+        if (table == Rules)
+        {
+            if (key == GameRules.ById(id).Field.Key) return;
+            throw new EditException($"Invalid research note target: {table} 0x{id:X}, field '{key}'.");
+        }
+        _ = Table(table).Field(key);
+    }
+
+    public ChangeEvidence EvidenceFor(ChangeEntry entry) =>
+        storedEvidence.TryGetValue((entry.Table, entry.Id, entry.Key), out var evidence)
+            ? evidence : ManualParityGuards.IsExperimentalField(entry.Table, entry.Key)
+                ? new ChangeEvidence(EvidenceLevel.SourceObserved, EvidenceBinding.ExperimentalBound,
+                    EvidenceAcceptance.Untested, "Experimental field: source bit binding observed; original-edition and gameplay acceptance outstanding.")
+                : ChangeEvidence.ForEdit(entry.Table, entry.Kind);
+
     private HashSet<int>? armyClasses, armyItems;
     private int position, savedPosition;
+    private int researchRevision, savedResearchRevision;
 
     public EditSession(InspectionResult disc)
     {
@@ -350,7 +462,7 @@ public sealed class EditSession
             [AnimationSets] = new(AnimationSets, "animation row", [AnimationTable.SetField], disc.AnimationSetBytes, values =>
                 values.TryGetValue(AnimationTable.SetField.Key, out int set) && !disc.AnimationSetsOnDisc.Contains(set)
                     ? $"There is no animation set {AnimationSet.FileName(set)} on this disc." : ""),
-            [AnimationPalettes] = new(AnimationPalettes, "colour row", [AnimationTable.PaletteField], disc.AnimationPaletteBytes),
+            [AnimationPalettes] = new(AnimationPalettes, "color row", [AnimationTable.PaletteField], disc.AnimationPaletteBytes),
             [MapSprites] = new(MapSprites, "map sprite", MapSpriteData.Fields, disc.MapSpriteBytes, MapSpriteData.Validate),
             [Bags] = new(Bags, "character", BagData.Fields, disc.BagBytes, values =>
             {
@@ -376,7 +488,7 @@ public sealed class EditSession
 
     public InspectionResult Disc => disc;
     public string? FilePath { get; private set; }
-    public bool IsDirty => position != savedPosition;
+    public bool IsDirty => position != savedPosition || researchRevision != savedResearchRevision;
     public bool CanUndo => position > 0;
     public bool CanRedo => position < steps.Count;
     public int ChangeCount => values.Count + copies.Count + names.Count + scripts.Count + texts.Count;
@@ -520,6 +632,16 @@ public sealed class EditSession
             }
             string problem = t.Validate(merged);
             if (problem.Length > 0) throw new EditException(problem);
+            // Field-level source checks apply only when the experimental fields (or their linked items)
+            // actually change. Unrelated edits must not reject unknown original data.
+            var changed = group.Where(e => e.Value != Value(group.Key.Table, group.Key.Id, e.Field))
+                .Select(e => e.Field).ToHashSet(StringComparer.Ordinal);
+            if (group.Key.Table == Characters) ManualParityGuards.ValidateEquipment(merged, changed);
+            if (group.Key.Table == Growths) ManualParityGuards.ValidateLearned(merged, changed);
+            if (group.Key.Table == Growths && changed.Contains(MindGrowth.Field)
+                && MindGrowth.HasUnsupportedEncoding(EditedBytes(Growths, group.Key.Id)))
+                throw new EditException(MindGrowth.UnsupportedEncodingMessage(
+                    originalCharacters.TryGetValue(group.Key.Id, out var character) ? character.Name : $"Character {group.Key.Id}"));
         }
         return Record(edits.Select(e => (e.Table, e.Id)), () => { foreach (var e in edits) Set(e.Table, e.Id, e.Field, e.Value); });
     }
@@ -569,17 +691,35 @@ public sealed class EditSession
     /// Keeps a whole new script for an event, as one undoable step. Numbers changed earlier in the event are part of the new
     /// script from then on. A script equal to the disc's removes the change.
     /// </summary>
-    public bool SetScript(int eventNumber, byte[] decoded)
+    public bool SetScript(int eventNumber, byte[] decoded) =>
+        SetScripts(new Dictionary<int, byte[]> { [eventNumber] = decoded });
+
+    /// <summary>
+    /// Writes a coordinated group of whole event scripts in one undoable step.
+    /// Validate every script and protected event before changing session state.
+    /// Existing numeric overlays for those events become part of their supplied scripts.
+    /// </summary>
+    public bool SetScripts(IReadOnlyDictionary<int, byte[]> updates)
     {
-        var original = scriptRecords.Bytes(eventNumber) ?? throw new EditException($"Event {eventNumber} is not on this disc.");
-        if (eventNumber is StablePriceEvent or FurniturePriceEvent)
-            throw new EditException("This event holds the shop's prices, which are changed on their own pages; its lines cannot be changed here.");
-        ScriptParser.Parse(decoded);
-        var numberKeys = values.Keys.Where(k => k.Table == ScriptValues && Core.ScriptValues.Split(k.Id).Event == eventNumber).Select(k => (k.Table, k.Id)).ToList();
-        return Record(numberKeys.Append((Scripts, eventNumber)), () =>
+        if (updates.Count == 0) return false;
+        var originals = new Dictionary<int, byte[]>();
+        foreach (var (number, decoded) in updates)
         {
-            foreach (var key in numberKeys) Restore(key.Table, key.Id, new RecordState(new Dictionary<string, int>(), null, null));
-            if (decoded.AsSpan().SequenceEqual(original)) scripts.Remove(eventNumber); else scripts[eventNumber] = decoded.ToArray();
+            var original = scriptRecords.Bytes(number) ?? throw new EditException($"Event {number} is not on this disc.");
+            if (number is StablePriceEvent or FurniturePriceEvent)
+                throw new EditException("This event holds shop prices and cannot be replaced as a script.");
+            ScriptParser.Parse(decoded);
+            originals[number] = original;
+        }
+        var numberKeys = values.Keys.Where(k => k.Table == ScriptValues
+            && updates.ContainsKey(Core.ScriptValues.Split(k.Id).Event)).Select(k => (k.Table, k.Id)).ToList();
+        return Record(numberKeys.Concat(updates.Keys.Select(n => (Scripts, n))), () =>
+        {
+            foreach (var key in numberKeys)
+                Restore(key.Table, key.Id, new RecordState(new Dictionary<string, int>(), null, null));
+            foreach (var (number, decoded) in updates)
+                if (decoded.AsSpan().SequenceEqual(originals[number])) scripts.Remove(number);
+                else scripts[number] = decoded.ToArray();
         });
     }
 
@@ -646,7 +786,7 @@ public sealed class EditSession
     // Project files
 
     private const string FormatName = "Berwick Workshop project";
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
     private const long MaxProjectSize = 4 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
@@ -655,9 +795,11 @@ public sealed class EditSession
     private sealed record ProjectName(string Table, int Id, string Name);
     private sealed record ProjectScript(int Event, string OriginalSha256, string Script);
     private sealed record ProjectText(string Name, string OriginalSha256, string Glyphs);
+    public sealed record ProjectResearchNote(string Table, int Id, string Key, string Text);
     private sealed record ProjectFile(string Format, int FormatVersion, string Edition, string EditionSha256, string? AppVersion,
         IReadOnlyList<ProjectChange> Changes, IReadOnlyList<ProjectCopy>? Copies = null, IReadOnlyList<ProjectName>? Names = null,
-        IReadOnlyList<ProjectScript>? Scripts = null, IReadOnlyList<ProjectText>? Texts = null);
+        IReadOnlyList<ProjectScript>? Scripts = null, IReadOnlyList<ProjectText>? Texts = null,
+        IReadOnlyList<ProjectEvidence>? Evidence = null, IReadOnlyList<ProjectResearchNote>? Notes = null);
 
     private static string Sha(byte[] data) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
 
@@ -686,21 +828,24 @@ public sealed class EditSession
     {
         var (palette, classId, row) = AnimationTable.SplitId(id);
         string cls = originalClasses.TryGetValue(classId, out var k) ? k.Name : GameNames.Class(classId) ?? $"Class {classId}";
-        return $"{cls}, {(palette ? "colour" : "animation")} row {row + 1}";
+        return $"{cls}, {(palette ? "color" : "animation")} row {row + 1}";
     }
 
     public string ToJson(string? appVersion = null)
     {
         bool extended = copies.Count > 0 || names.Count > 0;
         // Projects with changed scripts need this version; others stay readable by older ones.
-        int version = texts.Count > 0 ? FormatVersion : scripts.Count > 0 ? 3 : extended ? 2 : 1;
+        // Source-derived evidence is reconstructed when opened. Only user notes require format 5.
+        int version = researchNotes.Count > 0 ? FormatVersion
+            : texts.Count > 0 ? 4 : scripts.Count > 0 ? 3 : extended ? 2 : 1;
         return JsonSerializer.Serialize(new ProjectFile(FormatName, version, disc.Edition, disc.Sha256, appVersion,
-            values.OrderBy(v => Array.IndexOf(TableOrder, v.Key.Table)).ThenBy(v => v.Key.Id)
+            values.OrderBy(v => Array.IndexOf(TableOrder, v.Key.Table)).ThenBy(v => v.Key.Id).ThenBy(v => v.Key.Field, StringComparer.Ordinal)
                   .Select(v => new ProjectChange(v.Key.Table, v.Key.Id, RecordName(v.Key.Table, v.Key.Id), v.Key.Field, OriginalValue(v.Key.Table, v.Key.Id, v.Key.Field), v.Value)).ToList(),
             extended ? copies.OrderBy(c => c.Key.Id).Select(c => new ProjectCopy(c.Key.Table, c.Key.Id, c.Value)).ToList() : null,
             extended ? names.OrderBy(n => n.Key.Id).Select(n => new ProjectName(n.Key.Table, n.Key.Id, n.Value)).ToList() : null,
             scripts.Count > 0 ? scripts.OrderBy(s => s.Key).Select(s => new ProjectScript(s.Key, Sha(scriptRecords.Bytes(s.Key)!), Convert.ToBase64String(s.Value))).ToList() : null,
-            texts.Count > 0 ? texts.OrderBy(t => t.Key).Select(t => new ProjectText(TextName(t.Key), Sha(OriginalTextBytes(t.Key)), Convert.ToBase64String(t.Value))).ToList() : null), Json);
+            texts.Count > 0 ? texts.OrderBy(t => t.Key).Select(t => new ProjectText(TextName(t.Key), Sha(OriginalTextBytes(t.Key)), Convert.ToBase64String(t.Value))).ToList() : null,
+            null, researchNotes.Count > 0 ? ResearchNotes : null), Json);
     }
 
     public void Save(string path, string? appVersion = null)
@@ -731,6 +876,7 @@ public sealed class EditSession
         }
         FilePath = path;
         savedPosition = position;
+        savedResearchRevision = researchRevision;
     }
 
     public static EditSession Load(InspectionResult disc, string path)
@@ -810,6 +956,56 @@ public sealed class EditSession
                 || Enumerable.Range(0, glyphs.Length / 2).Any(i => BitConverter.ToUInt16(glyphs, i * 2) is var g && (g >= 0x8000 ? !codes : g >= font.Count)))
                 throw new EditException($"This project's text {text.Name} is damaged.");
             if (!session.texts.TryAdd(id, glyphs)) throw new EditException($"This project changes text {text.Name} twice.");
+        }
+        // Imported classifications cannot establish provenance or game acceptance.
+        // Verify each imported value against evidence derived from the current source.
+        var trustedEvidence = ChangeManifest.Build(session)
+            .GroupBy(c => (c.Table, c.Id, c.Key))
+            .ToDictionary(g => g.Key, g => session.EvidenceFor(g.First()));
+        foreach (var e in file.Evidence ?? [])
+        {
+            if (e is null)
+                throw new EditException("This project contains an empty evidence entry.");
+            if (string.IsNullOrWhiteSpace(e.Table) || string.IsNullOrWhiteSpace(e.Key))
+                throw new EditException("This project contains evidence without a table or field identifier.");
+            var key = (e.Table, e.Id, e.Key);
+            string location = $"{e.Table} 0x{e.Id:X}, field '{e.Key}'";
+            if (e.Status is null)
+                throw new EditException($"Invalid evidence for {location}: property 'status' is missing.");
+            if (!Enum.IsDefined(e.Status.Interpretation))
+                throw new EditException($"Invalid evidence for {location}: property 'interpretation' is not recognized.");
+            if (!Enum.IsDefined(e.Status.Binding))
+                throw new EditException($"Invalid evidence for {location}: property 'binding' is not recognized.");
+            if (!Enum.IsDefined(e.Status.Gameplay))
+                throw new EditException($"Invalid evidence for {location}: property 'gameplay' is not recognized.");
+            if (string.IsNullOrWhiteSpace(e.Status.Basis))
+                throw new EditException($"Invalid evidence for {location}: property 'basis' is empty.");
+            if (!trustedEvidence.TryGetValue(key, out var sourceEvidence))
+                throw new EditException($"This project has evidence for an unknown change: {location}.");
+            if (e.Status.Interpretation != sourceEvidence.Interpretation)
+                throw new EditException($"Unsupported evidence for {location}, property 'interpretation': verification cannot be established from imported project metadata.");
+            if (e.Status.Binding != sourceEvidence.Binding)
+                throw new EditException($"Unsupported evidence for {location}, property 'binding': verification cannot be established from imported project metadata.");
+            if (e.Status.Gameplay != sourceEvidence.Gameplay)
+                throw new EditException($"Unsupported evidence for {location}, property 'gameplay': verification cannot be established from imported project metadata.");
+            if (e.Status.Basis != sourceEvidence.Basis)
+                throw new EditException($"Unsupported evidence for {location}, property 'basis': explanatory text differs from current source evidence. Preserve user research notes separately; imported wording cannot establish verification.");
+            if (!session.storedEvidence.TryAdd(key, sourceEvidence))
+                throw new EditException($"This project lists evidence twice for {location}.");
+        }
+        if (file.FormatVersion < 5 && file.Notes is { Count: > 0 })
+            throw new EditException("This project uses research notes but declares a format older than version 5.");
+        if (file.Notes is { Count: > MaxResearchNotes })
+            throw new EditException($"This project has more than {MaxResearchNotes} research notes.");
+        foreach (var note in file.Notes ?? [])
+        {
+            if (note is null)
+                throw new EditException("This project contains an empty research note entry.");
+            string location = $"{note.Table} 0x{note.Id:X}, field '{note.Key}'";
+            session.ValidateResearchNoteTarget(note.Table, note.Id, note.Key);
+            ValidateResearchNoteText(note.Text, location);
+            if (!session.researchNotes.TryAdd((note.Table, note.Id, note.Key), note.Text))
+                throw new EditException($"This project contains duplicate research notes for {location}.");
         }
         foreach (var (tableName, id) in session.EditedRecords.Where(r => r.Table != Scripts && r.Table != Texts))
         {

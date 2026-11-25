@@ -5,4 +5,8 @@ obj/
 *.user
 # Release evidence and packaged local handoffs
 /release-handoff/
+
+# Local documentation and working notes are stored outside source control.
 /docs/
+/handoffs/
+/private-notes/

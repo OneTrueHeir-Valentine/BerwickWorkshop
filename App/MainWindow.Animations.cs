@@ -27,6 +27,8 @@ public partial class MainWindow
     private int animationFrame,animationTicksLeft,animationPalette;
     private (int X,int Y,int Width,int Height) animationBounds=(0,0,AnimationSet.Canvas,AnimationSet.Canvas);
     private bool animationPlaying=true;
+    private int animationPreviewVersion;
+    private bool updatingAnimationSelectors;
     private System.Windows.Threading.DispatcherTimer? animationTimerField;
     private System.Windows.Threading.DispatcherTimer animationTimer
     {
@@ -41,6 +43,7 @@ public partial class MainWindow
 
     private void CloseAnimations()
     {
+        animationPreviewVersion++;
         animationTimer.Stop();animationTable=null;animationsPath=null;animationSetsOnDisc=new Dictionary<int,int>();animationMotions=new Dictionary<int,IReadOnlySet<string>>();animationSets.Clear();
         shownAnimationSet=null;animationFrames=[];AnimationList.ItemsSource=null;AnimationSetBox.ItemsSource=null;AnimationMotionBox.ItemsSource=null;
         AnimationPaletteBox.ItemsSource=null;AnimationImage.Source=null;AnimationDetails.Children.Clear();AnimationCount.Text="";AnimationFrameText.Text="";
@@ -171,15 +174,15 @@ public partial class MainWindow
                 Row(text,AnimationEdited(false,value,r),()=>BeginAnimationEdit(false,value,at,text));
                 if(!sets.Any(s=>s.Value==number))sets.Add(new Choice(number,SetLabel(number)));
             }
-            Heading("Colours");
+            Heading("Colors");
             var palettes=table.Palettes(value);
-            if(palettes.Count==0)Line("The set's own colours for everyone.",true);
+            if(palettes.Count==0)Line("The set's own colors for everyone.",true);
             for(int r=0;r<palettes.Count;r++)
             {
                 var row=palettes[r];int number=AnimationValue(true,value,r,row.Value);int at=r;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 string when=row.Key==0?"":$" holding {AnimationTable.KeyText(row.Key)}";
-                string text=$"{who}{when}: {(number==0?"the set's own colours":$"palette {number}")}";
+                string text=$"{who}{when}: {(number==0?"the set's own colors":$"palette {number}")}";
                 Row(text,AnimationEdited(true,value,r),()=>BeginAnimationEdit(true,value,at,text));
             }
             if(primary?.MapSpriteBytes.ContainsKey(value)==true)
@@ -203,9 +206,23 @@ public partial class MainWindow
             }
             sets.Add(new Choice(-value,SetLabel(-value)));
         }
-        AnimationSetBox.ItemsSource=sets;
-        AnimationSetBox.SelectedIndex=keepSet is int k && sets.FindIndex(s=>s.Value==k) is int found && found>=0?found:sets.Count>0?0:-1;
-        if(AnimationSetBox.SelectedIndex>=0 && AnimationSetBox.SelectedValue is int same && same==keepSet)AnimationViewChanged(AnimationSetBox,null!);
+        // A class change can select the same motion name in a different set. Do not
+        // let binding notifications draw its frames using the previous crop bounds.
+        animationPreviewVersion++;
+        animationTimer.Stop();
+        shownAnimationSet=null;
+        animationFrames=[];
+        animationMotion="";
+        AnimationImage.Source=null;
+        AnimationFrameText.Text="";
+        updatingAnimationSelectors=true;
+        try
+        {
+            AnimationSetBox.ItemsSource=sets;
+            AnimationSetBox.SelectedIndex=keepSet is int k && sets.FindIndex(s=>s.Value==k) is int found && found>=0?found:sets.Count>0?0:-1;
+        }
+        finally { updatingAnimationSelectors=false; }
+        if(AnimationSetBox.SelectedValue is int)AnimationViewChanged(AnimationSetBox,null);
     }
 
     private int MapSpriteWord(int classId,int word)
@@ -285,8 +302,8 @@ public partial class MainWindow
                 if(await AnimationSetFor(AnimationValue(false,classId,r,table.Sets(classId)[r].Value)) is { } set)numbers.UnionWith(set.Palettes);
             if(animationTable!=table || session is null)return;
             numbers.Add(AnimationValue(true,classId,row,table.Palettes(classId)[row].Value));
-            field=AnimationTable.PaletteField with {Choices=numbers.Select(n=>n==0?"Set's own colours":$"Palette {n}").ToList(),ChoiceValues=numbers.ToList()};
-            warning="Every unit this row applies to wears the chosen colours in all of this class's sets. Palettes are listed from the sets this class uses; a set without the chosen palette shows its own colours or wrong ones.";
+            field=AnimationTable.PaletteField with {Choices=numbers.Select(n=>n==0?"Set's own colors":$"Palette {n}").ToList(),ChoiceValues=numbers.ToList()};
+            warning="Every unit this row applies to wears the chosen colors in all of this class's sets. Palettes are listed from the sets this class uses; a set without the chosen palette shows its own colors or wrong ones.";
         }
         else
         {
@@ -298,33 +315,49 @@ public partial class MainWindow
             field=AnimationTable.SetField with {Choices=numbers.Select(n=>n==original?$"{SetLabel(n)} (the disc's)":named.Contains(n)?SetLabel(n):$"{SetLabel(n)} (no class uses it)").ToList(),ChoiceValues=numbers};
             warning=$"Every unit this row applies to plays the chosen set. Only the {numbers.Count} sets that have every motion of {SetLabel(original)} are listed, because a battle stops when a class plays a motion its set does not have. Units keep their map sprites.";
         }
-        OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Colour row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
+        OpenEditor(new(View.Animations,AnimationTable.RowId(palette,classId,row),palette?"Color row":"Animation row",AnimationEditorPanel,AnimationDetails,AnimationEditButton,
             [new(text,palette?EditSession.AnimationPalettes:EditSession.AnimationSets,[field])],warning));
     }
 
     private async void AnimationViewChanged(object sender,SelectionChangedEventArgs? e)
     {
-        if(AnimationSetBox.SelectedValue is not int number)return;
+        if(updatingAnimationSelectors || AnimationSetBox.SelectedValue is not int number)return;
+        int version=++animationPreviewVersion;
+        animationTimer.Stop();
+        shownAnimationSet=null;
+        animationFrames=[];
+        animationMotion="";
+        AnimationImage.Source=null;
+        AnimationFrameText.Text="";
         var set=await AnimationSetFor(number);
-        if(AnimationSetBox.SelectedValue is not int now || now!=number)return;
+        if(version!=animationPreviewVersion || AnimationSetBox.SelectedValue is not int now || now!=number)return;
         shownAnimationSet=set;
+
         // Set details go under the class rows, replacing any shown for the previous set.
         while(AnimationDetails.Children.Count>0 && AnimationDetails.Children[^1] is FrameworkElement { Tag: "set" })AnimationDetails.Children.RemoveAt(AnimationDetails.Children.Count-1);
         var muted=(Brush)FindResource("Muted");
         void Add(string text,bool bold=false)=>AnimationDetails.Children.Add(new TextBlock{Text=text,Tag="set",TextWrapping=TextWrapping.Wrap,FontWeight=bold?FontWeights.SemiBold:FontWeights.Normal,Margin=new Thickness(0,bold?12:0,0,bold?4:3),Foreground=bold?Brushes.Black:muted});
         Add(AnimationSet.FileName(number),true);
-        int weapon=number/10%100,variant=number%10;
+
         if(set is null)
         {
             Add("This set could not be read from the disc.");
-            AnimationMotionBox.ItemsSource=null;AnimationPaletteBox.ItemsSource=null;AnimationImage.Source=null;AnimationFrameText.Text="";animationFrames=[];animationTimer.Stop();
+            updatingAnimationSelectors=true;
+            try
+            {
+                AnimationMotionBox.ItemsSource=null;
+                AnimationPaletteBox.ItemsSource=null;
+            }
+            finally { updatingAnimationSelectors=false; }
             return;
         }
+
+        int weapon=number/10%100,variant=number%10;
         Add($"Class art {number/1000}, weapon art {(SetWeapons.TryGetValue(weapon,out var w)?w:weapon.ToString())}, variant {variant}.");
         Add(set.HasFrames?$"{set.Motions.Count} motions: {string.Join(", ",set.Motions)}.":"This set has pictures but no frames, so it cannot be shown.");
         Add(set.Palettes.Count==0?"No numbered palettes.":$"Palettes: {string.Join(", ",set.Palettes)}.");
-        // Colour choices: the set's own, each class row that picks a palette, and any palette no row uses.
-        var colours=new List<Choice>{new(0,"Set's own colours")};
+
+        var colors=new List<Choice>{new(0,"Set's own colors")};
         if(animationTable is { } table && AnimationList.SelectedValue is int cls && cls>0)
             for(int r=0;r<table.Palettes(cls).Count;r++)
             {
@@ -332,15 +365,25 @@ public partial class MainWindow
                 if(palNumber<=0 || !set.Palettes.Contains(palNumber))continue;
                 string who=row.Unit>0?UnitName(row.Unit):AnimationTable.SideText(row.Unit);
                 if(row.Key!=0)who+=$" holding {AnimationTable.KeyText(row.Key)}";
-                colours.Add(new Choice(palNumber,$"{who} (palette {palNumber})"));
+                colors.Add(new Choice(palNumber,$"{who} (palette {palNumber})"));
             }
-        foreach(int pal in set.Palettes.Where(p=>!colours.Any(c=>c.Value==p)))colours.Add(new Choice(pal,$"Palette {pal}"));
+        foreach(int pal in set.Palettes.Where(p=>!colors.Any(c=>c.Value==p)))colors.Add(new Choice(pal,$"Palette {pal}"));
         var seen=new HashSet<string>();
-        AnimationPaletteBox.ItemsSource=colours.Where(c=>seen.Add(c.Text)).ToList();
-        AnimationPaletteBox.SelectedIndex=0;
-        AnimationMotionBox.ItemsSource=set.Motions;
-        AnimationMotionBox.SelectedIndex=set.Motions.Count>0?0:-1;
-        if(set.Motions.Count==0){AnimationImage.Source=null;animationFrames=[];animationTimer.Stop();AnimationFrameText.Text="";}
+
+        // Populate the controls together, then initialize frames and bounds explicitly.
+        // WPF need not raise SelectionChanged when the motion name stays the same.
+        updatingAnimationSelectors=true;
+        try
+        {
+            AnimationPaletteBox.ItemsSource=colors.Where(c=>seen.Add(c.Text)).ToList();
+            AnimationPaletteBox.SelectedIndex=0;
+            AnimationMotionBox.ItemsSource=set.Motions;
+            AnimationMotionBox.SelectedIndex=set.Motions.Count>0?0:-1;
+        }
+        finally { updatingAnimationSelectors=false; }
+
+        animationPalette=AnimationPaletteBox.SelectedValue is int palette?palette:0;
+        if(AnimationMotionBox.SelectedItem is string motion)ShowAnimationMotion(set,motion);
     }
 
     private void ExportAnimation(object sender,RoutedEventArgs e)
@@ -351,17 +394,36 @@ public partial class MainWindow
 
     private void AnimationMotionChanged(object sender,SelectionChangedEventArgs e)
     {
-        if(shownAnimationSet is not { } set || AnimationMotionBox.SelectedItem is not string motion)return;
-        animationMotion=motion;animationFrames=set.Frames(motion);animationFrame=0;
-        try { animationBounds=set.Bounds(motion); }
-        catch(EditException ex){animationFrames=[];animationTimer.Stop();AnimationImage.Source=null;AnimationFrameText.Text=ex.Message;return;}
+        if(updatingAnimationSelectors || shownAnimationSet is not { } set || AnimationMotionBox.SelectedItem is not string motion)return;
+        ShowAnimationMotion(set,motion);
+    }
+
+    private void ShowAnimationMotion(AnimationSet set,string motion)
+    {
+        animationTimer.Stop();
+        animationMotion=motion;
+        animationFrame=0;
+        animationFrames=[];
+        try
+        {
+            animationBounds=set.Bounds(motion);
+            animationFrames=set.Frames(motion);
+        }
+        catch(EditException ex)
+        {
+            AnimationImage.Source=null;
+            AnimationFrameText.Text=ex.Message;
+            return;
+        }
         animationTicksLeft=animationFrames.Count>0?animationFrames[0].Time:0;
+        AnimationFrameScroll.ScrollToHome();
         DrawAnimationFrame();
-        if(animationPlaying && animationFrames.Count>1 && view==View.Animations)animationTimer.Start();else animationTimer.Stop();
+        if(animationPlaying && animationFrames.Count>1 && view==View.Animations)animationTimer.Start();
     }
 
     private void AnimationPaletteChanged(object sender,SelectionChangedEventArgs e)
     {
+        if(updatingAnimationSelectors)return;
         animationPalette=AnimationPaletteBox.SelectedValue is int p?p:0;
         DrawAnimationFrame();
     }

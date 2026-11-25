@@ -14,12 +14,82 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
-ChangeReviewTests.Run(Test);
+if (args is ["--maps"])
+{
+    MapEditsTests.Run(Test);
+    MapPresentationTests.Run(Test);
+    MapDocumentTests.Run(Test);
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
+if (args.Length > 0 && args[0] == "--promotions")
+{
+    if (args.Length is not (1 or 3))
+    {
+        Console.Error.WriteLine("Usage: --promotions [Japanese ISO English ISO]");
+        return 1;
+    }
+    PromotionCatalogueTests.Run(Test);
+    NativePromotionRouteTests.Run(Test);
+    PromotionDestinationTests.Run(Test);
+    EventReferenceTests.Run(Test);
+    ScriptDependencyTests.Run(Test);
+    RandomizerR0Tests.Run(Test);
+    ManualParityPilotTests.Run(Test);
+    R0StatModesTests.Run(Test);
+    R0ProficiencyModesTests.Run(Test);
+    PromotionEditingTests.Run(Test);
+    PromotionPredicateTests.Run(Test);
+    PromotionQuestWindowTests.Run(Test);
+    LiveRuleReportingTests.Run(Test);
+    if (args.Length == 3)
+    {
+        foreach (string path in args.Skip(1))
+            Test("Promotion source and session regressions", () =>
+                {
+                    var disc = Inspector.Inspect(path);
+                    PromotionEditingTests.RunDiscs(Test, disc);
+                    PromotionDestinationTests.RunDiscs(Test, disc);
+                    ScriptDependencyTests.RunDiscs(Test, disc);
+                    RandomizerR0Tests.RunDiscs(Test, disc);
+                });
+    }
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
 AnimationExportTests.Run(Test);
 EffectTrackTests.Run(Test);
+AnimationCanvasTests.Run(Test);
+EffectExportTests.Run(Test);
+#if WINDOWS
+AnimationPngTests.Run(Test);
+AnimationExportWindowTests.Run(Test);
+#endif
+if (args is ["--animation-export"])
+{
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
+ChangeReviewTests.Run(Test);
+PromotionCatalogueTests.Run(Test);
+NativePromotionRouteTests.Run(Test);
+RandomizerR0Tests.Run(Test);
+ManualParityPilotTests.Run(Test);
+R0StatModesTests.Run(Test);
+R0ProficiencyModesTests.Run(Test);
+PromotionDestinationTests.Run(Test);
+EventReferenceTests.Run(Test);
+PromotionEditingTests.Run(Test);
+PromotionPredicateTests.Run(Test);
+PromotionQuestWindowTests.Run(Test);
+LiveRuleReportingTests.Run(Test);
 MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
+MapPresentationTests.Run(Test);
+MapDocumentTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
+MindGrowthTests.Run(Test);
+AccessKeyTests.Run(Test);
 
 Test("Every skill has an explanation in plain text",()=>{
     var names=CharacterDecoder.SkillBits.Where(n=>n.Length>0).ToList();
@@ -245,81 +315,7 @@ Test("Item encoder rejects out of range values",()=>{
     Throws<EditException>(()=>ItemEncoder.Field("nonsense"));
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
-Test("Export refuses a differing packed byte in a table copy",()=>{
-    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
-    try
-    {
-        byte[] data=[0x01,0x21];
-        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
-        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
-        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[2],[1]),new DiscPatch(1,[2],[1])]));
-        Equal(false,File.Exists(dst));Equal(1,Directory.GetFiles(dir).Length);
-        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
-        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[2],[])]));
-    }
-    finally{Directory.Delete(dir,true);}
-});
-Test("Export copies the source and applies patches across buffer edges",()=>{
-    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
-    try
-    {
-        var data=new byte[10*1024*1024+123];new Random(11).NextBytes(data);
-        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");File.WriteAllBytes(src,data);
-        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data)).ToLowerInvariant();
-        var patches=new[]{new DiscPatch(0,new byte[]{1,2,3}),new DiscPatch(4*1024*1024-10,Enumerable.Repeat((byte)0xAB,30).ToArray()),new DiscPatch(data.Length-5,new byte[]{9,9,9,9,9})};
-        patches=patches.Select(p=>p with {Expected=data.AsSpan((int)p.Offset,p.Bytes.Length).ToArray()}).ToArray();
-        var expected=(byte[])data.Clone();foreach(var p in patches)p.Bytes.CopyTo(expected,p.Offset);
-        int differing=expected.Zip(data).Count(z=>z.First!=z.Second);
-        var result=Exporter.Export(src,sha,dst,patches);
-        var written=File.ReadAllBytes(dst);
-        Equal(true,written.AsSpan().SequenceEqual(expected));Equal(differing,result.ChangedBytes);Equal(3,result.PatchCount);
-        Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expected)).ToLowerInvariant(),result.Sha256);
-        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
-        Equal(false,File.Exists(dst+".partial"));
-    }
-    finally{Directory.Delete(dir,true);}
-});
-Test("Export preserves an existing partial file",()=>{
-    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
-    try
-    {
-        byte[] data=[1,2,3,4], previous=[8,9,10];
-        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");
-        File.WriteAllBytes(src,data);File.WriteAllBytes(dst+".partial",previous);
-        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
-        Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]);
-        Equal(true,File.Exists(dst+".partial"));
-        Equal(true,File.ReadAllBytes(dst+".partial").AsSpan().SequenceEqual(previous));
-    }
-    finally{Directory.Delete(dir,true);}
-});
-Test("Export preserves a source named like a partial file",()=>{
-    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
-    try
-    {
-        byte[] data=[1,2,3,4];
-        string dst=Path.Combine(dir,"out.iso"),src=dst+".partial";
-        File.WriteAllBytes(src,data);
-        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
-        try{Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]);}catch(IOException){}
-        Equal(true,File.Exists(src));
-        Equal(true,File.ReadAllBytes(src).AsSpan().SequenceEqual(data));
-    }
-    finally{Directory.Delete(dir,true);}
-});
-Test("Export never replaces an existing destination",()=>{
-    string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
-    try
-    {
-        byte[] data=[1,2,3,4], previous=[8,9,10];
-        string src=Path.Combine(dir,"source.iso"),dst=Path.Combine(dir,"out.iso");
-        File.WriteAllBytes(src,data);File.WriteAllBytes(dst,previous);
-        string sha=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(data));
-        Throws<EditException>(()=>Exporter.Export(src,sha,dst,[new DiscPatch(0,[5])]));
-        Equal(true,File.ReadAllBytes(dst).AsSpan().SequenceEqual(previous));
-    }
-    finally{Directory.Delete(dir,true);}
-});
+ExportSafetyTests.Run(Test);
 Test("Export cancellation during verification leaves no output",()=>{
     string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
     try
@@ -467,7 +463,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,243,244,245,246,247,248,249,250,142,143,144,145,146,147,160,161,178,198,210,242,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,243,244,245,246,247,248,249,250,142,143,144,145,146,147,160,161,178,198,210,242,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed && r.Section != PromotionQuestWindows.Section).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -547,7 +543,7 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(220,GameRules.All.Count(r=>r.Group.Length>0));
+    Equal(220,GameRules.All.Count(r=>r.Group.Length>0 && r.Section != PromotionQuestWindows.Section));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
@@ -626,6 +622,9 @@ Test("Live game: units, record and item edits, rules and undo over a stand-in fo
     using(var game=LiveGame.Connect(port))
     {
         Equal("SLPS-25497",game.GameId());Equal(true,game.Running());
+        var windowRule = PromotionQuestWindows.RuleFor(88);
+        Equal(false, game.WriteRule(windowRule, GameRules.RangeSetting(0, 12)));
+        Equal(0, game.ChangedWords);
         Equal(true,game.MatchesProgram(program));
         var units=game.Units(new Dictionary<int,string>{[5]="Ward",[1025]="Muthay Gang"});
         Equal(2,units.Count);var ward=units[0];
@@ -718,6 +717,7 @@ if(args.Length>=2)
         Equal("False,True",$"{AnimationSet.Covers(motions[21051],motions[91051])},{AnimationSet.Covers(motions[21050],motions[91050])}");
         Equal(0,motions[25020].Count);
     });
+    if(jp is not null && en is not null) foreach(var mindDisc in new[]{jp,en}) MindGrowthTests.RunDiscs(Test,mindDisc);
     Test("Edition comparison preserves all distinct IDs",()=>{
         var changes=ItemComparison.Compare(jp!.Items,en!.Items);
         Console.WriteLine($"Compared 646 item IDs: {changes.Count} field differences");
@@ -1336,6 +1336,7 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal(true,original.StartsWith("{84:2}",StringComparison.Ordinal));
             string spoken=disc==en?"{84:2}Do you accept\nthis trade?\n{B8}{82}":original.Replace("\n","")+"\n";
             Equal(true,s.SetText(line,spoken));Equal(spoken,s.Text(line));
+            Equal(true,s.ToJson().Contains("\"formatVersion\": 4"));
             var back=EditSession.FromJson(disc,s.ToJson());Equal(renamed,back.Text(back.TextId("it001")));Equal(spoken,back.Text(back.TextId("msg/evm0050.ar:101")));
             s.Undo();Equal(original,s.Text(line));s.Redo();
             foreach(var (top,edit) in GameTexts.Edits(archives,s.ChangedTexts))

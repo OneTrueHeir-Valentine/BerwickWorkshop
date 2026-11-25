@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$tests = Join-Path $root 'Tests/bin/Release/net9.0/Berwick.Tests.dll'
+$tests = Join-Path $root 'Tests/bin/Release/net10.0/Berwick.Tests.dll'
 
 foreach ($disc in @($JapaneseIso, $EnglishIso)) {
     if (-not (Test-Path -LiteralPath $disc -PathType Leaf)) {

@@ -9,6 +9,11 @@ foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'))) 
     if (@($errors).Count -gt 0) { throw "PowerShell syntax error in $path." }
 }
 
+$gplNotice = [IO.File]::ReadAllText((Join-Path $root 'LICENSE'))
+$referenceNotice = [IO.File]::ReadAllText((Join-Path $root 'reference/MintX-LICENSE.txt'))
+$iconNotice = [IO.File]::ReadAllText((Join-Path $root 'App/Tabler-LICENSE.txt'))
+$completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice
+
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
 try {
@@ -20,7 +25,8 @@ try {
         foreach ($name in @('Berwick Workshop.exe', 'README.txt', 'Licenses.txt')) {
             $entry = $archive.CreateEntry($name)
             $writer = [IO.StreamWriter]::new($entry.Open())
-            try { $writer.Write('test fixture') } finally { $writer.Dispose() }
+            $entryText = if ($name -eq 'Licenses.txt') { $completeNotices } else { 'test fixture' }
+            try { $writer.Write($entryText) } finally { $writer.Dispose() }
         }
     }
     finally { $archive.Dispose() }
@@ -57,6 +63,29 @@ try {
     Write-Record
     & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
     if (-not $?) { throw 'Complete synthetic release evidence was rejected.' }
+
+    function Set-LicenseNotices([string] $text) {
+        $package = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $package.GetEntry('Licenses.txt').Delete()
+            $entry = $package.CreateEntry('Licenses.txt')
+            $writer = [IO.StreamWriter]::new($entry.Open())
+            try { $writer.Write($text) } finally { $writer.Dispose() }
+        }
+        finally { $package.Dispose() }
+        $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Record
+    }
+
+    Set-LicenseNotices $referenceNotice
+    Expect-Rejected
+    Set-LicenseNotices $gplNotice
+    Expect-Rejected
+    Set-LicenseNotices ($gplNotice + "`n`n" + $referenceNotice)
+    Expect-Rejected
+    Set-LicenseNotices $completeNotices
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The restored license notices were rejected.' }
 
     $sample.packageSha256 = '0' * 64
     Write-Record
