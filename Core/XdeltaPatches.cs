@@ -72,7 +72,7 @@ public static class XdeltaPatches
     /// The source must still match <paramref name="sourceSha256"/>.
     /// </summary>
     public static PatchManifest Create(XdeltaTool tool, string sourcePath, string sourceSha256, string targetPath, string patchPath,
-        XdeltaProfile profile = XdeltaProfile.Compatible, CancellationToken cancellation = default)
+        XdeltaProfile profile = XdeltaProfile.Compatible, CancellationToken cancellation = default, IProgress<string>? phase = null)
     {
         string source = Path.GetFullPath(sourcePath), target = Path.GetFullPath(targetPath), patch = Path.GetFullPath(patchPath);
         string manifestPath = ManifestPathFor(patch);
@@ -82,12 +82,14 @@ public static class XdeltaPatches
         // Both inputs stay open for reading only until the patch is finished, so nothing can change them meanwhile.
         using var sourceLock = Lock(source);
         using var targetLock = Lock(target);
+        phase?.Report("Checking the original and changed disc images");
         if (!string.Equals(Hash(sourceLock, cancellation), sourceSha256, StringComparison.OrdinalIgnoreCase))
             throw new EditException("The source disc image has changed since it was checked.");
         string targetSha = Hash(targetLock, cancellation);
         long targetSize = targetLock.Length;
         RequireSpace(patch, targetSize / 2);
 
+        phase?.Report("Running xdelta3 to write the patch");
         string finished = RunToPartial(tool, patch, partial => ["-e", .. EncodeOptions(profile), "-s", source, target, partial], cancellation,
             "The patch could not be created");
         var manifest = new PatchManifest(ManifestFormat, 1, Path.GetFileName(patch), Hash(finished, cancellation), sourceSha256.ToLowerInvariant(),
@@ -110,7 +112,7 @@ public static class XdeltaPatches
 
     /// <summary>Exports a project's changes to a temporary disc image, then writes the patch from the original to it.</summary>
     public static PatchManifest CreateFromProject(XdeltaTool tool, string originalPath, string originalSha256, IReadOnlyList<DiscPatch> changes,
-        string patchPath, XdeltaProfile profile = XdeltaProfile.Compatible, CancellationToken cancellation = default)
+        string patchPath, XdeltaProfile profile = XdeltaProfile.Compatible, CancellationToken cancellation = default, IProgress<string>? phase = null)
     {
         string patch = Path.GetFullPath(patchPath);
         RefuseDestination(patch, Path.GetFullPath(originalPath));
@@ -118,8 +120,9 @@ public static class XdeltaPatches
         string exported = Path.Combine(folder, $".berwick-export-{Guid.NewGuid():N}.iso");
         try
         {
+            phase?.Report("Writing the project's changes to a temporary disc image");
             Exporter.Export(originalPath, originalSha256, exported, changes, cancellation: cancellation);
-            return Create(tool, originalPath, originalSha256, exported, patch, profile, cancellation);
+            return Create(tool, originalPath, originalSha256, exported, patch, profile, cancellation, phase);
         }
         finally
         {
@@ -132,7 +135,7 @@ public static class XdeltaPatches
     /// without one, the source must be a known edition and the output is reported as known or unrecognized.
     /// </summary>
     public static PatchResult Apply(XdeltaTool tool, string sourcePath, string patchPath, string outputPath, PatchManifest? manifest = null,
-        CancellationToken cancellation = default)
+        CancellationToken cancellation = default, IProgress<string>? phase = null)
     {
         string source = Path.GetFullPath(sourcePath), patch = Path.GetFullPath(patchPath), output = Path.GetFullPath(outputPath);
         RefuseDestination(output, source, patch);
@@ -140,6 +143,7 @@ public static class XdeltaPatches
         if (!File.Exists(patch)) throw new EditException("The patch file was not found.");
         using var sourceLock = Lock(source);
         using var patchLock = Lock(patch);
+        phase?.Report("Checking the disc image and the patch");
         string sourceSha = Hash(sourceLock, cancellation);
         if (manifest is not null)
         {
@@ -153,10 +157,12 @@ public static class XdeltaPatches
             throw new EditException("The disc image is not a known edition, and the patch has no manifest that names its source.");
         RequireSpace(output, manifest?.TargetSize ?? sourceLock.Length);
 
+        phase?.Report("Running xdelta3 to apply the patch");
         string finished = RunToPartial(tool, output, partial => ["-d", "-s", source, patch, partial], cancellation,
             "The patch could not be applied");
         try
         {
+            phase?.Report("Checking the new disc image");
             string sha = Hash(finished, cancellation);
             PatchedIdentity identity;
             if (manifest is not null)
@@ -182,7 +188,7 @@ public static class XdeltaPatches
     /// and only the final image is kept.
     /// </summary>
     public static PatchResult ApplyChain(XdeltaTool tool, string sourcePath, IReadOnlyList<(string Patch, PatchManifest Manifest)> steps,
-        string outputPath, CancellationToken cancellation = default)
+        string outputPath, CancellationToken cancellation = default, IProgress<string>? phase = null)
     {
         if (steps.Count == 0) throw new EditException("The patch chain is empty.");
         string output = Path.GetFullPath(outputPath);
@@ -200,7 +206,9 @@ public static class XdeltaPatches
                 bool last = i == steps.Count - 1;
                 string next = last ? output : Path.Combine(folder, $".berwick-chain-{Guid.NewGuid():N}-{i + 1}.iso");
                 if (!last) intermediates.Add(next);
-                Apply(tool, current, steps[i].Patch, next, steps[i].Manifest, cancellation);
+                int step = i + 1;
+                var stepPhase = phase is null ? null : new SyncProgress<string>(text => phase.Report($"Patch {step} of {steps.Count}: {text}"));
+                Apply(tool, current, steps[i].Patch, next, steps[i].Manifest, cancellation, stepPhase);
                 current = next;
             }
             var info = new FileInfo(output);
@@ -211,6 +219,12 @@ public static class XdeltaPatches
         {
             foreach (string file in intermediates) TryDelete(file);
         }
+    }
+
+    /// <summary>Passes reports straight through on the calling thread.</summary>
+    private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     /// <summary>Reads a manifest and checks every field. A manifest only describes files; nothing in it is run or followed.</summary>

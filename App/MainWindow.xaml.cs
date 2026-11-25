@@ -69,8 +69,8 @@ public partial class MainWindow : Window
         if(loading is not null)return;
         new IsoPatchesWindow(()=>
         {
-            if(primary?.IsVerifiedOriginal!=true || session is null || session.ChangeCount==0)return null;
-            try{return (primary.Path,primary.Sha256,Exporter.PatchesFor(session,primary));}
+            if(primary?.IsVerifiedOriginal!=true || session is null || session.ChangeCount==0 || editing is not null)return null;
+            try{return new PatchProject(primary.Path,primary.Sha256,Exporter.PatchesFor(session,primary),ProjectTitle,primary.Edition,session.ChangeCount);}
             catch(EditException){return null;}
         }){Owner=this}.ShowDialog();
     }

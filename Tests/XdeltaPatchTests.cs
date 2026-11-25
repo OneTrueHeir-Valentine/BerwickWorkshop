@@ -284,6 +284,26 @@ public static class XdeltaPatchTests
             Equal("a.iso,b.iso,r.xdelta,r.xdelta.json", string.Join(",", left));
         });
 
+        test("Each step reports what it is doing, and a chain names the patch it is on", () =>
+        {
+            using var dir = new Folder();
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed), c = dir.Write("c.iso", third);
+            var phases = new List<string>();
+            var report = new Recorder(phases);
+            var first = XdeltaPatches.Create(tool, a, Sha(data), b, dir.Path("1.xdelta"), XdeltaProfile.Compatible, default, report);
+            Equal("Checking the original and changed disc images|Running xdelta3 to write the patch", string.Join("|", phases));
+            var second = XdeltaPatches.Create(tool, b, Sha(changed), c, dir.Path("2.xdelta"));
+            phases.Clear();
+            XdeltaPatches.ApplyChain(tool, a, [(dir.Path("1.xdelta"), first), (dir.Path("2.xdelta"), second)], dir.Path("out.iso"), default, report);
+            Equal(6, phases.Count);
+            Equal("Patch 1 of 2: Checking the disc image and the patch", phases[0]);
+            Equal("Patch 2 of 2: Checking the new disc image", phases[^1]);
+            phases.Clear();
+            var changes = new[] { new DiscPatch(4096, [1, 2, 3, 4], data.AsSpan(4096, 4).ToArray()) };
+            XdeltaPatches.CreateFromProject(tool, a, Sha(data), changes, dir.Path("p.xdelta"), XdeltaProfile.Compatible, default, report);
+            Equal("Writing the project's changes to a temporary disc image", phases[0]);
+        });
+
         test("xdelta3 messages are explained in plain words", () =>
         {
             Equal(true, XdeltaPatches.Explain("xdelta3: unavailable secondary compressor: LZMA: XD3_INTERNAL", 1).Contains("compression method"));
@@ -345,6 +365,12 @@ public static class XdeltaPatchTests
             (message.Length > 0 ? $"echo {message} 1>&2\r\n" : "") + $"exit /b {exitCode}\r\n";
         string path = dir.Write("fake xdelta.cmd", Encoding.ASCII.GetBytes(script));
         return new XdeltaTool(path, Sha(File.ReadAllBytes(path)), "fake") { Timeout = timeout ?? TimeSpan.FromMinutes(1) };
+    }
+
+    /// <summary>Records reports on the calling thread, in order.</summary>
+    private sealed class Recorder(List<string> into) : IProgress<string>
+    {
+        public void Report(string value) => into.Add(value);
     }
 
     private sealed class Folder : IDisposable

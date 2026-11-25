@@ -11,9 +11,12 @@ namespace Berwick.Workshop;
 /// Makes and applies xdelta3 patches for whole disc images: from the open project or from two images, one patch, or
 /// several in order. xdelta3 is not included; the user points to the official 3.2.2 program, which is checked by hash.
 /// </summary>
+/// <summary>The open project as the patch window needs it: the original disc, the project's changes and how to describe them.</summary>
+internal sealed record PatchProject(string Path, string Sha256, IReadOnlyList<DiscPatch> Changes, string Title, string Edition, int ChangeCount);
+
 internal sealed class IsoPatchesWindow : Window
 {
-    private readonly Func<(string Path, string Sha256, IReadOnlyList<DiscPatch> Changes)?> project;
+    private readonly Func<PatchProject?> project;
     private XdeltaTool? tool;
     private CancellationTokenSource? running;
 
@@ -30,8 +33,8 @@ internal sealed class IsoPatchesWindow : Window
     private readonly PathRow makeOriginal = new("Original image", "Disc images (*.iso)|*.iso|All files|*.*");
     private readonly PathRow makeChanged = new("Changed image", "Disc images (*.iso)|*.iso|All files|*.*");
     private readonly PathRow makeOutput = new("New patch file", "xdelta patches (*.xdelta)|*.xdelta", save: true);
-    private readonly RadioButton compatible = new() { Content = "Compatible (recommended): no extra compression, opens in older xdelta3 programs tested so far", IsChecked = true, GroupName = "format" };
-    private readonly RadioButton compact = new() { Content = "Compact: smaller, but the program applying it must support LZMA compression", GroupName = "format", Margin = new(0, 4, 0, 0) };
+    private readonly RadioButton compatible = new() { Content = "Compatible (recommended): no extra compression. Older xdelta3 3.0.11 applied this format correctly in testing.", IsChecked = true, GroupName = "format" };
+    private readonly RadioButton compact = new() { Content = "Compact: adds LZMA compression. The program that applies it must support LZMA, and the patch is not always smaller.", GroupName = "format", Margin = new(0, 4, 0, 0) };
     private readonly TextBlock makeEstimate = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
 
     // Apply a patch
@@ -44,7 +47,7 @@ internal sealed class IsoPatchesWindow : Window
     private readonly ListBox chainList = new() { Height = 110, Margin = new(0, 6, 0, 6) };
     private readonly PathRow chainOutput = new("Final disc image", "Disc images (*.iso)|*.iso", save: true);
 
-    public IsoPatchesWindow(Func<(string Path, string Sha256, IReadOnlyList<DiscPatch> Changes)?> project)
+    public IsoPatchesWindow(Func<PatchProject?> project)
     {
         this.project = project;
         Title = "ISO patches";
@@ -64,7 +67,7 @@ internal sealed class IsoPatchesWindow : Window
     {
         var panel = new StackPanel { Margin = new(24) };
         panel.Children.Add(new TextBlock { Text = "ISO patches", FontSize = 22 });
-        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Patches are made and applied with xdelta3, which is not included with Berwick Workshop. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
+        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Share the patch, and say which original disc it needs (for example English v2.3); never share disc images themselves. Patches are made and applied with xdelta3, which is not included with Berwick Workshop. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
         var toolButton = Action("Choose xdelta3...", ChooseTool);
         toolButton.IsEnabled = true;
         panel.Children.Add(toolText);
@@ -86,7 +89,7 @@ internal sealed class IsoPatchesWindow : Window
         tabs.Items.Add(new TabItem { Header = "Make a patch", Content = make });
 
         var apply = new StackPanel { Margin = new(12) };
-        apply.Children.Add(Wrap("If the patch has a manifest file next to it (the same name with .json added), the disc image must be the one it names and the result must match it. Without one, the disc image must be a known original edition, and the result is reported as a known edition or as unrecognized.", new(0, 0, 0, 8)));
+        apply.Children.Add(Wrap("If the patch has a manifest file next to it (the same name with .json added), the disc image must be the one it names and the result must match the hash it gives. A match shows the file is the one described, not who made it or whether it plays well. Without a manifest, the disc image must be a known original edition, and the result is reported as a known edition or as unrecognized. The drive needs room for one more disc image.", new(0, 0, 0, 8)));
         apply.Children.Add(applySource.Panel);
         apply.Children.Add(applyPatch.Panel);
         apply.Children.Add(applyOutput.Panel);
@@ -94,7 +97,7 @@ internal sealed class IsoPatchesWindow : Window
         tabs.Items.Add(new TabItem { Header = "Apply a patch", Content = apply });
 
         var chain = new StackPanel { Margin = new(12) };
-        chain.Children.Add(Wrap("Applies patches one after another. Every patch needs its manifest, and each one must start from the result of the one before it. Only the final image is kept.", new(0, 0, 0, 8)));
+        chain.Children.Add(Wrap("Applies patches one after another. Every patch needs its manifest, and each one must start from the result of the one before it; the order is checked before anything runs. A patch without a manifest can still be applied on its own on the Apply a patch tab. Only the final image is kept, but the drive needs room for about two disc images while this runs.", new(0, 0, 0, 8)));
         chain.Children.Add(chainSource.Panel);
         chain.Children.Add(new TextBlock { Text = "Patches, in order", FontWeight = FontWeights.SemiBold, Margin = new(0, 8, 0, 0) });
         AutomationProperties.SetName(chainList, "Patches, in order");
@@ -139,7 +142,7 @@ internal sealed class IsoPatchesWindow : Window
     private void UpdateTool()
     {
         toolText.Text = tool is null
-            ? "xdelta3: not chosen. Download the official xdelta3 3.2.2 for Windows x64 from the xdelta project's releases page, unzip it, and choose xdelta3.exe. Other builds are not accepted."
+            ? "xdelta3: not chosen. Download xdelta3-3.2.2-windows-x86_64.zip from the xdelta project's releases page (github.com/jmacd/xdelta), unzip it, and choose xdelta3.exe. Only that exact program is accepted; other versions and builds are refused without being run."
             : $"xdelta3 3.2.2 (verified): {tool.Path}";
         foreach (var b in actions) b.IsEnabled = tool is not null && running is null;
     }
@@ -154,7 +157,7 @@ internal sealed class IsoPatchesWindow : Window
         makeEstimate.Text = images
             ? "Making a patch reads both images in full. The patch itself is usually small."
             : open is { } p
-                ? $"The project's changes are first written to a temporary disc image next to the patch, about {new FileInfo(p.Path).Length / 1073741824.0:0.0} GB, which is deleted afterwards. The drive needs that much free space."
+                ? $"Project: {p.Title}, {p.ChangeCount} {(p.ChangeCount == 1 ? "change" : "changes")} to {p.Edition}. The patch will need the original {p.Edition} disc. The changes are first written to a temporary disc image next to the patch, about {new FileInfo(p.Path).Length / 1073741824.0:0.0} GB, which is deleted afterwards, so the drive needs that much free space."
                 : "Open a disc and make some changes first, or choose two disc images.";
     }
 
@@ -199,13 +202,13 @@ internal sealed class IsoPatchesWindow : Window
         if (fromImages.IsChecked == true)
         {
             if (makeOriginal.Path is not { } original || makeChanged.Path is not { } changed) { result.Text = "Choose both disc images."; return; }
-            Run("Making patch", t => XdeltaPatches.Create(tool!, original, XdeltaPatches.HashFile(original), changed, output, profile, t),
+            Run("Making patch", (t, ph) => XdeltaPatches.Create(tool!, original, XdeltaPatches.HashFile(original), changed, output, profile, t, ph),
                 m => $"Patch made: {Path.GetFileName(output)} and its manifest {Path.GetFileName(XdeltaPatches.ManifestPathFor(output))}.\nOriginal SHA-256 {m.SourceSha256}\nResult SHA-256 {m.TargetSha256}\nFormat: {m.Profile}.");
             return;
         }
         if (project() is not { } p) { result.Text = "Open a disc and make some changes first."; return; }
-        Run("Making patch from the project", t => XdeltaPatches.CreateFromProject(tool!, p.Path, p.Sha256, p.Changes, output, profile, t),
-            m => $"Patch made from this project: {Path.GetFileName(output)} and its manifest.\nIt turns the original disc ({m.SourceSha256[..12]}…) into the exported project ({m.TargetSha256[..12]}…). Format: {m.Profile}.");
+        Run("Making patch from the project", (t, ph) => XdeltaPatches.CreateFromProject(tool!, p.Path, p.Sha256, p.Changes, output, profile, t, ph),
+            m => $"Patch made from {p.Title}: {Path.GetFileName(output)} and its manifest.\nIt needs the original {p.Edition} disc ({m.SourceSha256[..12]}…) and gives the same disc image as exporting the project ({m.TargetSha256[..12]}…). Format: {m.Profile}. The project was not changed.");
     }
 
     private void Apply()
@@ -213,10 +216,10 @@ internal sealed class IsoPatchesWindow : Window
         if (applySource.Path is not { } source || applyPatch.Path is not { } patch || applyOutput.Path is not { } output)
         { result.Text = "Choose the disc image, the patch and a name for the new disc image."; return; }
         string sidecar = XdeltaPatches.ManifestPathFor(patch);
-        Run("Applying patch", t =>
+        Run("Applying patch", (t, ph) =>
         {
             var manifest = File.Exists(sidecar) ? XdeltaPatches.ReadManifest(sidecar) : null;
-            return XdeltaPatches.Apply(tool!, source, patch, output, manifest, t);
+            return XdeltaPatches.Apply(tool!, source, patch, output, manifest, t, ph);
         }, Describe);
     }
 
@@ -225,7 +228,7 @@ internal sealed class IsoPatchesWindow : Window
         if (chainSource.Path is not { } source || chainOutput.Path is not { } output || chainList.Items.Count == 0)
         { result.Text = "Choose the starting disc image, at least one patch and a name for the final disc image."; return; }
         var patches = chainList.Items.Cast<string>().ToList();
-        Run("Applying patches in order", t =>
+        Run("Applying patches in order", (t, ph) =>
         {
             var steps = patches.Select(p =>
             {
@@ -233,7 +236,7 @@ internal sealed class IsoPatchesWindow : Window
                 if (!File.Exists(sidecar)) throw new EditException($"{Path.GetFileName(p)} has no manifest, so its place in the order cannot be checked.");
                 return (p, XdeltaPatches.ReadManifest(sidecar));
             }).ToList();
-            return XdeltaPatches.ApplyChain(tool!, source, steps, output, t);
+            return XdeltaPatches.ApplyChain(tool!, source, steps, output, t, ph);
         }, Describe);
     }
 
@@ -245,7 +248,7 @@ internal sealed class IsoPatchesWindow : Window
         _ => $"Done, but the result is not a disc Berwick Workshop knows, and the patch had no manifest to check it against. Treat {Path.GetFileName(r.Path)} as unverified.\nSHA-256 {r.Sha256}",
     };
 
-    private async void Run<T>(string what, Func<CancellationToken, T> work, Func<T, string> done)
+    private async void Run<T>(string what, Func<CancellationToken, IProgress<string>, T> work, Func<T, string> done)
     {
         if (running is not null || tool is null) return;
         using var cancellation = new CancellationTokenSource();
@@ -255,13 +258,14 @@ internal sealed class IsoPatchesWindow : Window
         tabs.IsEnabled = false;
         UpdateTool();
         result.Text = $"{what}… This can take a few minutes for a whole disc.";
+        var phase = new Progress<string>(text => { if (running == cancellation) result.Text = $"{what}: {text}… xdelta3 does not report how far it has got, so the bar only shows that work is going on."; });
         try
         {
-            var value = await Task.Run(() => work(cancellation.Token));
+            var value = await Task.Run(() => work(cancellation.Token, phase));
             result.Text = done(value);
         }
         catch (OperationCanceledException) { result.Text = "Canceled. No new file was kept."; }
-        catch (EditException ex) { result.Text = ex.Message; }
+        catch (EditException ex) { result.Text = $"{ex.Message}\nNo new file was kept, and the chosen files were not changed."; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { result.Text = "A file could not be read or written. Check that the folders can be written to and the files are not open elsewhere."; }
         finally
