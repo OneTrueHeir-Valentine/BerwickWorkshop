@@ -34,9 +34,31 @@ public static class Randomizer
         _ => false,
     };
 
+    /// <summary>Regular mounted horses and map-pickup horse records are not ordinary starting items.</summary>
+    public static bool IsHorseRecord(int itemId) =>
+        itemId is (>= 0x205 and <= 0x214) or (>= 0x264 and <= 0x274);
+
     /// <summary>Items that can be handed out: real, sold in the game (price above 0), not tied to one person or class, and not a bag.</summary>
     public static IReadOnlyList<ItemRecord> Pool(EditSession session) =>
-        session.EditedItems().Where(i => !i.IsUnused && i.Price > 0 && !i.Name.Equals("Bag", StringComparison.OrdinalIgnoreCase) && !Restricted(session, i)).ToList();
+        session.EditedItems().Where(i => !i.IsUnused && i.Price > 0
+            && !IsHorseRecord(i.Id)
+            && !i.Name.Equals("Bag", StringComparison.OrdinalIgnoreCase)
+            && !Restricted(session, i)).ToList();
+
+    /// <summary>
+    /// Highlight original or replacement items mentioned in event scripts. This never
+    /// marks them progression-critical or changes randomizer choices on its own.
+    /// </summary>
+    public static IReadOnlyList<RandomizerItemReference> ScriptImpact(EditSession session,
+        IEnumerable<FieldEdit> edits, ScriptDependencyIndex index)
+    {
+        var replacements = edits.Where(e => (e.Table is EditSession.Characters or EditSession.Bags)
+                && e.Field.StartsWith("item", StringComparison.Ordinal)
+                && !e.Field.EndsWith("Uses", StringComparison.Ordinal)
+                && session.Value(e.Table, e.Id, e.Field) != e.Value)
+            .Select(e => (OldItem: session.Value(e.Table, e.Id, e.Field), NewItem: e.Value));
+        return RandomizerDependencyAudit.Inspect(index.ItemReferences, replacements);
+    }
 
     public static IReadOnlyList<FieldEdit> StartingItems(EditSession session, RandomizeOptions options)
     {

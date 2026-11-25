@@ -285,7 +285,7 @@ public partial class MainWindow
         {
             ("HP",k.Hp+c.HpBonus,c.HpGrowth,k.Hp,RuleSetting(3)),("Str",k.Strength+c.StrengthBonus,c.StrengthGrowth,k.Strength,RuleSetting(4)),
             ("Def",k.Defense+c.DefenseBonus,c.DefenseGrowth,k.Defense,RuleSetting(7)),("Agi",k.Agility+c.AgilityBonus,c.AgilityGrowth,k.Agility,RuleSetting(5)),
-            ("Mind",k.Mind+c.MindBonus,c.MindGrowth/2,k.Mind,RuleSetting(8)),
+            ("Mind",k.Mind+c.MindBonus,c.MindGrowthPercent,k.Mind,RuleSetting(8)),
         };
         var table=new Grid {Margin=new Thickness(0,4,0,4)};
         for(int col=0;col<=stats.Length;col++)table.ColumnDefinitions.Add(new ColumnDefinition{Width=col==0?new GridLength(1.4,GridUnitType.Star):new GridLength(1,GridUnitType.Star)});

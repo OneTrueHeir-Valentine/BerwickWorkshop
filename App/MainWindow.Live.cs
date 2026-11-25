@@ -198,16 +198,18 @@ public partial class MainWindow
     private void LiveTryRules(object sender,RoutedEventArgs e)
     {
         if(live is null || session is null)return;
-        int written=0,skipped=0;
+        int applied=0,partial=0,skipped=0,exportOnly=0;
         try
         {
             foreach(var id in session.Changes.Where(c=>c.Table==EditSession.Rules).Select(c=>c.Id).Distinct())
             {
                 var rule=GameRules.ById(id);
-                if(live.WriteRule(rule,session.Value(EditSession.Rules,id,rule.Key))) written++; else skipped++;
+                var support=LiveRuleReporting.Support(rule);
+                if(support==LiveRuleSupport.ExportOnly){exportOnly++;continue;}
+                if(!live.WriteRule(rule,session.Value(EditSession.Rules,id,rule.Key))){skipped++;continue;}
+                if(support==LiveRuleSupport.Partial)partial++;else applied++;
             }
-            SetLiveStatus(skipped==0?$"{written} rules from this project are now active in the running game. Undo all changes puts the game's own rules back."
-                :$"{written} rules are now active in the running game; {skipped} were left alone because the game has different code at that point.");
+            SetLiveStatus(LiveRuleReporting.Summary(applied,partial,exportOnly,skipped));
         }
         catch(IOException ex){SetLiveStatus(ex.Message);}
     }

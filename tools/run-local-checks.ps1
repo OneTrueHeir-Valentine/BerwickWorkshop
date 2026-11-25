@@ -87,20 +87,24 @@ try {
     Invoke-Check 'release-checker' $shell @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/test-release-check.ps1'
     )
+    Invoke-Check 'evidence-collector' $shell @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'tools/test-evidence-collector.ps1'
+    )
     Invoke-Check 'test-build' $dotnet @(
         'build', 'Tests', '-c', 'Release', '--nologo'
     )
     Invoke-Check 'offline-tests' $dotnet @(
-        'Tests/bin/Release/net9.0/Berwick.Tests.dll'
+        'Tests/bin/Release/net10.0/Berwick.Tests.dll'
+    )
+    Invoke-Check 'windows-animation-tests' $dotnet @(
+        'Tests/bin/Release/net10.0-windows/Berwick.Tests.dll', '--animation-export'
     )
 
     if ($PublishApp) {
         $output = "release-handoff/checks/$runId/app"
         Invoke-Check 'app-publish' $dotnet @(
             'publish', 'App', '-c', 'Release', '-r', 'win-x64',
-            '--self-contained', 'true', '-p:PublishSingleFile=true',
-            '-p:EnableCompressionInSingleFile=true',
-            '-p:IncludeNativeLibrariesForSelfExtract=true', '-o', $output
+            '--self-contained', 'false', '-p:PublishSingleFile=true', '-o', $output
         )
         if (-not (Test-Path -LiteralPath (Join-Path $directory 'app/Berwick Workshop.exe'))) {
             throw 'The Windows executable was not produced.'

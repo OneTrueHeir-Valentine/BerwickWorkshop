@@ -1,0 +1,243 @@
+namespace Berwick.Core;
+
+/// <summary>A requirement observed in an exact original image, not a current-game eligibility result.</summary>
+public sealed record PromotionCondition(string Scope, string Expression);
+
+/// <summary>
+/// Static promotion facts tied to one verified original edition.
+/// Entries do not describe edited project scripts or the live state of a running game.
+/// </summary>
+public sealed record PromotionPath(
+    int UnitId, string CharacterName, int DestinationClassId, int CallerEvent, int MinimumLevel,
+    int? QuestId, int? CheckEvent, int? ApplicationEvent, int? TownRoot,
+    IReadOnlyList<PromotionCondition> KnownConditions, IReadOnlyList<string> KnownConsequences,
+    IReadOnlyList<string> UnresolvedConditions, IReadOnlyList<int> ConfirmedDestinationUsers)
+{
+    public string UnitText => $"0x{UnitId:X3}";
+    public string DestinationText => $"Class 0x{DestinationClassId:X2}";
+    public string DestinationDisplay => GameNames.Class(DestinationClassId) is { Length: > 0 } name
+        ? $"{name} ({DestinationText})" : DestinationText;
+    public int? ProjectMinimumLevel { get; init; }
+    public int? ProjectDestinationClassId { get; init; }
+    // Verified = exact original quest, caller and application bindings. Game acceptance remains separate.
+    public EvidenceLevel Evidence => CheckEvent.HasValue && ApplicationEvent.HasValue
+        ? EvidenceLevel.Verified : EvidenceLevel.SourceObserved;
+    public string EvidenceLabel => Evidence == EvidenceLevel.Verified ? "Verified route" : "Source observed";
+    public string MinimumLevelText => $"Level {ProjectMinimumLevel ?? MinimumLevel}";
+    public string QuestText => QuestId is int id ? $"Quest {id}" : "Not traced";
+    public string RootText => TownRoot is int id ? $"Event {id}" : "Not traced";
+    public bool? LiveEligible => null;
+    public bool? LiveAvailable => null;
+    public bool WriteAllowed => false;
+    public bool CallerSetComplete => false;
+}
+
+/// <summary>Fail-closed, immutable results of a source-identified static catalogue lookup.</summary>
+public sealed record PromotionCoverageGap(string Category, string Description);
+
+/// <summary>Known non-promotion behavior recorded separately from promotion eligibility.</summary>
+public sealed record OtherClassChange(
+    string Character, string Mechanism, string Classification, string Evidence,
+    string RemainingResearch)
+{
+    public bool WriteAllowed => false;
+    public string EvidenceLabel => Mechanism == "Convert" ? "Inferred" : "Source observed";
+}
+
+public sealed record PromotionCatalogueResult(
+    bool OriginalSourceVerified, string SourceDescription, IReadOnlyList<PromotionPath> Paths,
+    IReadOnlyList<PromotionCoverageGap> CoverageGaps, IReadOnlyList<OtherClassChange> OtherClassChanges)
+{
+    public bool HasLiveSnapshot => false;
+    public bool WriteAllowed => false;
+}
+
+public static class PromotionCatalogue
+{
+    // Literal calls to the original eligibility helper; additional computed and inherited callers
+    // remain outside this finite index. Numeric IDs come from the verified original script catalogue,
+    // not from translated character names or from a live game snapshot.
+    private static readonly (int Unit, int Target, int Minimum, int Caller)[] Callers =
+    [
+        (132,121,1,364), (83,4,1,368), (85,160,10,369), (87,28,10,370),
+        (88,28,10,371), (89,226,15,372), (124,24,15,373), (97,164,15,374),
+        (134,37,10,375), (96,160,10,376), (131,114,10,377), (149,81,15,378),
+        (109,154,15,379), (90,227,15,380), (127,119,15,401), (113,118,15,402)
+    ];
+
+    internal static (int Target, int Minimum, int Event) Caller(int unitId)
+    {
+        var caller = Callers.SingleOrDefault(c => c.Unit == unitId);
+        if (caller.Unit == 0) throw new EditException("This unit has no verified promotion caller.");
+        return (caller.Target, caller.Minimum, caller.Caller);
+    }
+
+    /// <summary>Destination-wide test in original event 237; no validation of arbitrary target classes is implied.</summary>
+    private static string SharedRequirement(int destination) => destination switch
+    {
+        37 => "(Sword >= 20 AND Spear >= 20 AND Small Shield >= 20)",
+        28 => "(Spear >= 30 AND Small Shield >= 20)",
+        24 => "(Bow >= 20 AND Crossbow >= 20)",
+        164 => "(Axe >= 30 AND Small Shield >= 20 AND Medium Shield >= 10)",
+        160 => "IF current class 231 THEN (Sword >= 20 AND Small Shield >= 20 AND Medium Shield >= 10); ELSE (Sword >= 20 AND Spear >= 20 AND Small Shield >= 20), including current class 158",
+        121 => "Effective derived Mind >= 5",
+        226 or 227 => "Bow >= 30",
+        114 => "Holy >= 30",
+        81 => "Sword >= 30",
+        154 => "Axe >= 30",
+        118 or 119 => "(Fire >= 30 OR Thunder >= 30 OR Wind >= 30)",
+        4 or 85 => "No additional proficiency test in the examined event-237 branch",
+        _ => "Destination branch unverified; helper default success is not proof this class is a valid promotion"
+    };
+
+    // Confirmed gaps in the finite literal-caller index. They are not invented promotion
+    // paths or counted as verified eligible characters.
+    private static readonly IReadOnlyList<PromotionCoverageGap> KnownGaps =
+        Array.AsReadOnly(new[]
+        {
+            new PromotionCoverageGap("Inherited script routes",
+                "Wrapper event 187 and its inherited callers have not been resolved into a complete set of distinct promotion paths."),
+            new PromotionCoverageGap("Computed or native calls",
+                "Computed event references and native dispatch can reach promotion logic without a literal caller in this catalog."),
+            new PromotionCoverageGap("Scripted and historical cases",
+                "Story-only and historical class changes may bypass the ordinary eligibility helper; their complete pathways are not verified here.")
+        });
+
+    // This is a behavior-level reference, not a verified original script/offset binding.
+    // Do not mix Owen's class toggle with true promotion paths or infer a game writer.
+    private static readonly IReadOnlyList<OtherClassChange> DocumentedOtherChanges =
+        Array.AsReadOnly(new[]
+        {
+            new OtherClassChange("Owen", "Convert", "Class toggle, not promotion",
+                "Published gameplay reference; original native mechanism not yet traced",
+                "Activation, destination classes, duration, save persistence and script identity remain unverified"),
+            new OtherClassChange("Unknown", "UnitChangeClass (event 189)", "Source-observed class transition",
+                "Archived event 189 contains command 0x3C2 (UnitChangeClass). This is not established as a normal promotion.",
+                "Resolve battle-context arguments, caller conditions and save persistence before allowing a structured writer."),
+            new OtherClassChange("Unknown", "ChangeUnitClass (event 419)", "Source-observed alternate class conversion",
+                "Archived event 419 contains command 0x14A (ChangeUnitClass), separate from event 188.",
+                "Trace event 419 callers, parameter semantics and applicability to original editions before an editor binding is asserted.")
+        });
+
+    public static PromotionCatalogueResult Read(InspectionResult? disc)
+    {
+        if (disc is null) return Unavailable("Open a supported original disc to inspect promotions.");
+        return Read(disc.Profile, disc.Sha256, disc.ExecutableSha256, disc.IsModified);
+    }
+
+    /// <summary>
+    /// Only the two exact original image and executable identities are recognized.
+    /// Modified or unrecognized copies cannot silently inherit unverified promotion conditions.
+    /// </summary>
+    public static PromotionCatalogueResult Read(GameProfile? profile, string imageHash, string executableHash, bool modified)
+    {
+        var recognized = Profiles.Match(imageHash);
+        if (modified || profile is null || recognized is null
+            || !string.Equals(recognized.Sha256, profile.Sha256, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(executableHash, recognized.ExecutableSha256, StringComparison.OrdinalIgnoreCase))
+            return Unavailable("Original promotion conditions are not verified for this disc. Open an unmodified Japanese retail or English v2.3 image.");
+
+        var roster = CharacterDecoder.LoadRoster().ToDictionary(c => c.Id, c => c.Name);
+        var users = Callers.GroupBy(c => c.Target).ToDictionary(
+            g => g.Key, g => (IReadOnlyList<int>)Array.AsReadOnly(g.Select(c => c.Unit).Distinct().Order().ToArray()));
+        var paths = new List<PromotionPath>(Callers.Length);
+        foreach (var (unit, destination, minimum, caller) in Callers)
+        {
+            var facts = new List<PromotionCondition>
+            {
+                new("Caller, event 236", $"Level >= {minimum} AND member of primary team AND current class != destination class"),
+                new("Mercenary gate, event 236",
+                    "(Not from mercenaries) OR (original mercenary unit AND not currently mercenary AND mercenary-level-up) OR (unit is one of 149, 109, 90, 129, 113)"),
+                new("Source-class gate, event 236", "Original required-source-class literal is 0 (wildcard); any current class passes this clause"),
+                new("Shared destination, event 237", SharedRequirement(destination)),
+                new("Proficiency semantics", "Weapon and shield comparisons use effective capped whole points, not raw tenths")
+            };
+            var consequences = new List<string>();
+            var unknown = new List<string>
+            {
+                "The current unit level, class, flags, team and quest availability are not available from an ISO.",
+                "Other native or computed callers may exist; the destination user set is not complete.",
+                "Whether the restored QUEST list was refreshed at the current moment is unknown."
+            };
+            int? quest = PromotionQuestWindows.QuestFor(unit), check = null, application = null, root = null;
+            // Original outer caller logic from the verified 16-row event 236 source table.
+            // These are conditions outside helper 236; all helper gates still apply.
+            switch (caller)
+            {
+                case 369 or 370 or 371 or 372 or 374 or 375 or 376:
+                    facts.Add(new("Caller gate", "Event flag 214 must be set"));
+                    break;
+                case 373:
+                    facts.Add(new("Caller gate", "(Flag 214 is set AND mission 10 is completed)"));
+                    break;
+                case 377 or 401 or 402:
+                    facts.Add(new("Caller gate", "(Flag 214 is set AND quest 84 is not offered)"));
+                    break;
+                case 364:
+                    facts.Add(new("Caller gate", "Enid primary-team check AND Perceval in either team AND NOT flag 296 AND flag 297"));
+                    break;
+                case 368:
+                    facts.Add(new("Caller gate", "NOT quest 84 offered AND (ScoreGet >= 18 OR campaign counter >= 9)"));
+                    break;
+                case 378 or 379 or 380:
+                    facts.Add(new("Caller gate", "No additional outer predicate in the inspected caller; shared helper gates still apply"));
+                    break;
+                default:
+                    unknown.Add("Original outer caller predicate is not fully verified for this path.");
+                    break;
+            }
+            switch (unit)
+            {
+                case 87: // Adel: native quest 164 check/clear hashes resolved in both executables.
+                    (quest,check,application,root) = (164,370,167,1353);
+                    consequences.Add("Application event 167 changes unit 87 to class 28 through helper 188, then enters town setup 1353 and scene 1354.");
+                    consequences.Add("Scene 1354 requests an Iron Lance (item 106) for Adel via event 168 and shared delivery events 129 and 131.");
+                    unknown.Add("Full town scheduling and event dispatch timing remain unverified.");
+                    unknown.Add("Japanese scene content and in-game acceptance remain separate checks; only executable quest hashes were compared here.");
+                    break;
+                case 88: // Leon: native quest 165 application and English gameplay observed.
+                    (quest,check,application,root) = (165,371,169,1367);
+                    consequences.Add("Application event 169 changes unit 88 to class 28 through helper 188, then enters town setup 1367 and scene 1368.");
+                    consequences.Add("Scene 1368 requests an Iron Lance (item 106) for Leon via event 170 and shared delivery events 129 and 131.");
+                    unknown.Add("Japanese promotion-scene content and gameplay acceptance remain separate checks.");
+                    break;
+                case 134: // Ruby
+                    (quest,check,application,root) = (169,375,175,953);
+                    facts.Add(new("Quest", "Campaign counter T from 1 through 12; phase and quest-history filters also apply"));
+                    facts.Add(new("Offer order", "Other candidates can take priority before quest 169 is applied"));
+                    consequences.Add("Ruby's event clears flags 236 and 369 and records status key 207; Clifford-related quest 121 reads related state.");
+                    consequences.Add("An alternative town route can introduce Clifford's recruitment without being the same as Ruby's class-change operation.");
+                    unknown.Add("Complete live town scheduling, optional events and reload refresh timing have not been accepted.");
+                    break;
+                case 83: // Reese
+                    (quest,check,application,root) = (162,368,163,1083);
+                    facts.Add(new("Quest", "Normal executable quest window T from 1 through 9; phase and quest-history filters also apply"));
+                    consequences.Add("The class-change event adjusts team mercenary favor and branches into Larentia's recruitment sequence.");
+                    unknown.Add("Additional destination-class eligibility and the complete normal-entry sequence are not a live result.");
+                    break;
+                case 132: // Enid: event 876 is native QUEST INTRO, not a resolved clear/application hash.
+                    (quest,check,application,root) = (158,364,null,1129);
+                    consequences.Add("Quest 158 introduction event 876 requests unit 132 / class 121 conversion via helper 188, branches into scenes and contains an item-256 reference.");
+                    unknown.Add("Original quest 158 clear/application hash 0x7057955C has no indexed event ID; event 876 must not be described as the verified clear event.");
+                    facts.Add(new("Quest", "Campaign counter T from 7 through 12; internal phase filter 1 and quest history also apply"));
+                    facts.Add(new("Offer order", "Quest 140 can take priority before Enid's promotion offer"));
+                    consequences.Add("Original event includes a town battle, item 256 delivery and flag 297 changes, with downstream Derrick-related conditions.");
+                    unknown.Add("Town battle, item recipient, alternate dispatch and reload effects are not fully accepted.");
+                    break;
+                default:
+                    unknown.Add("Additional story, phase and quest availability outside this caller have not been fully traced.");
+                    unknown.Add("The complete original application event and town entry have not been confirmed for this caller.");
+                    break;
+            }
+            var name = roster.TryGetValue(unit, out var displayed) ? displayed : $"Unit 0x{unit:X3}";
+            paths.Add(new(unit, name, destination, caller, minimum, quest, check, application, root,
+                facts.AsReadOnly(), consequences.AsReadOnly(), unknown.AsReadOnly(), users[destination]));
+        }
+        return new(true,
+            $"Static conditions for verified {recognized.Name}. Live eligibility is unknown; project edits are not included.",
+            paths.OrderBy(p => p.CharacterName, StringComparer.OrdinalIgnoreCase).ToList().AsReadOnly(), KnownGaps, DocumentedOtherChanges);
+    }
+
+    private static PromotionCatalogueResult Unavailable(string reason) =>
+        new(false, reason, Array.Empty<PromotionPath>(), Array.Empty<PromotionCoverageGap>(), Array.Empty<OtherClassChange>());
+}

@@ -29,7 +29,7 @@
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel Margin="0,0,8,0">
        <Border x:Name="MapUnitBox" Visibility="Collapsed" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,12">
         <StackPanel>
-         <DockPanel Margin="0,0,0,6"><Button x:Name="EditMapUnitButton" DockPanel.Dock="Right" Content="_Edit" Style="{StaticResource SmallButton}" Click="OnEditUnitRequested" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="SELECTED UNIT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
+         <DockPanel Margin="0,0,0,6"><Button x:Name="EditMapUnitButton" DockPanel.Dock="Right" Content="Edit" Style="{StaticResource SmallButton}" Click="OnEditUnitRequested" ToolTip="Edit this unit (Ctrl+E)" Visibility="Collapsed"/><TextBlock Text="SELECTED UNIT" Style="{StaticResource Caption}" FontWeight="SemiBold" VerticalAlignment="Center"/></DockPanel>
          <TextBlock x:Name="MapUnitName" FontFamily="Georgia" FontSize="18" TextWrapping="Wrap"/>
          <StackPanel x:Name="MapUnitFields"/>
          <StackPanel x:Name="MapUnitEditorPanel" Visibility="Collapsed"/>

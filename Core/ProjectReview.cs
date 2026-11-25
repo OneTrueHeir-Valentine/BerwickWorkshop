@@ -10,8 +10,14 @@ public sealed record ProjectReview(IReadOnlyList<ChangeEntry> Changes, IReadOnly
 
     public static ProjectReview Build(EditSession session)
     {
-        var changes = ChangeManifest.Build(session);
+        var manifest = ChangeManifest.Inspect(session);
+        var changes = manifest.Changes;
         var issues = DependencyChecks.Analyze(session).ToList();
+        issues.AddRange(manifest.Warnings);
+        int untested = changes.Count(c => c.File != "Project only" && c.Evidence?.Experimental == true);
+        if (untested > 0)
+            issues.Add(new("Warning", "research-provenance",
+                $"{untested} change entries retain experimental or untested provenance. Review game effects separately; this does not prove English or Japanese gameplay acceptance."));
         IReadOnlyList<DiscPatch> patches = [];
         try
         {
