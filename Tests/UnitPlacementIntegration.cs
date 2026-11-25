@@ -55,7 +55,7 @@ internal static class UnitPlacementIntegration
         var candidate = StartingUnitPlacement.Candidates(map, refs, disc.Armies, session.EditedBytes(EditSession.Placements, 0), session.Table(EditSession.Placements).Records[0].Span, !disc.IsModified).Single(c => c.Unit.Key == 100);
         Check(candidate.CanPlace && candidate.Assignment.OpeningEvent == 12, "Removed starting record not eligible for restoration");
         VerifyAddAndUndo(session, library, map, sharedMap);
-        var loaded = VerifyProjectExport(folder, session, archives, image);
+        var loaded = VerifyProjectExport(folder, session, archives, image, library, map, sharedMap);
         VerifyCurrentScripts(loaded, library);
         VerifyRemoval(loaded, library, map, Path.Combine(folder, "placement.bwproj"), originalArmy, sharedMap);
         VerifyModifiedSource(disc, library, map, sharedMap);
@@ -74,7 +74,7 @@ internal static class UnitPlacementIntegration
             "A previously modified source was accepted as an original starting position");
 
         bool refused = false;
-        try { StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, sharedMap); }
+        try { StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 5, 4, sharedMap); }
         catch (EditException) { refused = true; }
         Check(refused && session.ChangeCount == 2, "Modified-source restoration bypassed revalidation");
         session.Undo();
@@ -89,7 +89,7 @@ internal static class UnitPlacementIntegration
             bool refused = false;
             try
             {
-                StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, false);
+                StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 5, 4, false);
             }
             catch (EditException)
             {
@@ -97,9 +97,13 @@ internal static class UnitPlacementIntegration
             }
             Check(refused && session.ChangeCount == 2, "Shared placement did not require acknowledgement");
         }
-        StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, sharedMap);
-        Check(session.ChangeCount == 2, "Placement changed more than two values");
-        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) == (4, 5), "Placement was not applied");
+        bool elsewhere = false;
+        try { StartingUnitPlacement.Apply(session, library, map, 100, 2, false, 4, 5, sharedMap); }
+        catch (EditException) { elsewhere = true; }
+        Check(elsewhere && session.ChangeCount == 2, "Restoration accepted a hex other than the original");
+        StartingUnitPlacement.Restore(session, library, map, 100, 2, sharedMap);
+        Check(session.ChangeCount == 0, "Restoring the original position left the placement changed");
+        Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) == (5, 4), "Placement was not restored to its original hex");
         CheckDisplayedUnits(session.Disc, session, library, map, true);
         session.Undo();
         Check(Placement.Slot(session.EditedBytes(EditSession.Placements, 0), 2, 1) is null && session.CanUndo, "Restoration is not one undo step after removal");
@@ -107,22 +111,29 @@ internal static class UnitPlacementIntegration
         session.Redo();
     }
 
-    private static EditSession VerifyProjectExport(string folder, EditSession session, GameArchives archives, byte[] image)
+    private static EditSession VerifyProjectExport(string folder, EditSession session, GameArchives archives, byte[] image,
+        EventLibrary library, BattleMap archivesMap, bool sharedMap)
     {
         var disc = session.Disc;
+        // Restoring alone leaves nothing to export, so remove the second unit to give the project a change.
+        StartingUnitPlacement.Apply(session, library, archivesMap, 101, 2, true, 0, 0, sharedMap);
         string project = Path.Combine(folder, "placement.bwproj");
         session.Save(project);
         var loaded = EditSession.Load(disc, project);
-        Check(Placement.Slot(loaded.EditedBytes(EditSession.Placements, 0), 2, 1) == (4, 5), "Project reload lost placement");
+        Check(Placement.Slot(loaded.EditedBytes(EditSession.Placements, 0), 2, 1) == (5, 4), "Project reload lost placement");
         string exported = Path.Combine(folder, "export.iso");
         Exporter.Export(disc.Path, disc.Sha256, exported, Exporter.PatchesFor(loaded, disc));
         using var exportedIso = new IsoImage(File.OpenRead(exported));
         var exportedArchives = new GameArchives(exportedIso);
         var exportedTop = exportedArchives.Top(0);
         var mapEntry = Tarc.Parse(exportedTop).Single(entry => entry.Name == "map");
-        Check(Placement.Slot(Placement.Read(Tarc.Extract(exportedTop, mapEntry))!, 2, 1) == (4, 5), "Export reopen lost placement");
+        Check(Placement.Slot(Placement.Read(Tarc.Extract(exportedTop, mapEntry))!, 2, 1) == (5, 4), "Export reopen lost placement");
         Check(exportedArchives.Top(1).SequenceEqual(archives.Top(1)), "Unrelated map archive changed");
+        Check(Placement.Slot(Placement.Read(Tarc.Extract(exportedTop, mapEntry))!, 2, 2) is null, "Export kept the removed second unit");
         Check(File.ReadAllBytes(disc.Path).SequenceEqual(image), "Synthetic source image changed");
+        StartingUnitPlacement.Restore(loaded, library, archivesMap, 101, 2, sharedMap);
+        Check(loaded.ChangeCount == 0 && Placement.Slot(loaded.EditedBytes(EditSession.Placements, 0), 2, 2) == (3, 4),
+            "The reloaded project did not restore the second unit to its original hex");
         return loaded;
     }
 
@@ -145,7 +156,7 @@ internal static class UnitPlacementIntegration
         CheckDisplayedUnits(loaded.Disc, loaded, library, map, false);
         Check(loaded.EditedBytes(EditSession.ArmyUnits, 100).SequenceEqual(originalArmy), "Removal changed the underlying army record");
         loaded.Undo();
-        Check(Placement.Slot(loaded.EditedBytes(EditSession.Placements, 0), 2, 1) == (4, 5), "Removal undo lost the unit");
+        Check(Placement.Slot(loaded.EditedBytes(EditSession.Placements, 0), 2, 1) == (5, 4), "Removal undo lost the unit");
         loaded.Redo();
         loaded.Save(project);
         Check(Placement.Slot(EditSession.Load(loaded.Disc, project).EditedBytes(EditSession.Placements, 0), 2, 1) is null, "Removal reload lost the empty slot");

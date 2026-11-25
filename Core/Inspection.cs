@@ -35,6 +35,8 @@ public sealed record InspectionResult(string Path, long Size, string Serial, str
 {
     public bool Supported => Profile is not null;
     public bool IsModified { get; init; }
+    /// <summary>True only when the whole image matches the SHA-256 of a supported original release.</summary>
+    public bool IsVerifiedOriginal => Profile is not null && !IsModified && string.Equals(Profile.Sha256, Sha256, StringComparison.OrdinalIgnoreCase);
     public string Edition => Profile is null ? "Unrecognized edition" : IsModified ? $"Modified {Profile.Name}" : Profile.Name;
     public IReadOnlyList<CharacterRecord> Characters { get; init; } = [];
     public bool CharacterCopiesMatch { get; init; } = true;

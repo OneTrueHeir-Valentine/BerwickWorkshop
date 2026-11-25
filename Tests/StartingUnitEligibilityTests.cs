@@ -84,6 +84,29 @@ internal static class StartingUnitEligibilityTests
             var candidate = StartingUnitPlacement.Candidates(Map(), references, [Army()], EmptyRecord(), SourceRecord(), verifiedOriginalDisc: true).Single();
             Check(!candidate.CanPlace && candidate.PlacementProblem is not null, "A supported consumer masked an unsupported shared-map launch");
         });
+        test("A removed starting position can only return to its original hex", () =>
+        {
+            var candidate = StartingUnitPlacement.Candidates(Map(), References(), [Army()], EmptyRecord(), SourceRecord(), verifiedOriginalDisc: true).Single();
+            Check(candidate.CanPlace && candidate.OriginalPosition == (1, 1), "The original hex was not identified");
+            bool refused = false;
+            try { StartingUnitPlacement.PlaceValues(Map(), candidate, EmptyRecord(), [], 4, 5, false); }
+            catch (EditException error) { refused = error.Message.Contains("original hex"); }
+            Check(refused, "Restoration accepted a hex other than the original");
+            var values = StartingUnitPlacement.PlaceValues(Map(), candidate, EmptyRecord(), [], 1, 1, false);
+            Check(values["g2x1"] == 1 && values["g2y1"] == 1, "Restoration did not use the original hex");
+            var unverified = StartingUnitPlacement.Candidates(Map(), References(), [Army()], EmptyRecord(), SourceRecord(), verifiedOriginalDisc: false).Single();
+            Check(unverified.OriginalPosition is null, "An unverified disc supplied an original hex");
+        });
+        test("Only an exact original image counts as a verified original disc", () =>
+        {
+            const string hash = "aa";
+            var profile = new GameProfile("Synthetic", hash, 0, 0);
+            var exact = new InspectionResult("x.iso", 1, "", "", "", hash, "", profile, [], [], 0);
+            Check(exact.IsVerifiedOriginal, "An exact original image was not accepted");
+            Check(!(exact with { IsModified = true }).IsVerifiedOriginal, "A modified image was accepted");
+            Check(!(exact with { Profile = null }).IsVerifiedOriginal, "An unrecognized image was accepted");
+            Check(!(exact with { Sha256 = "bb" }).IsVerifiedOriginal, "An image with a different hash was accepted");
+        });
     }
 
     private static Army Army() => new(5, "Army", [], 256, [new(5000, 5, 0, 375, "Deserter", 0, 180)]);

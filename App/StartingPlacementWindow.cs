@@ -7,21 +7,19 @@ namespace Berwick.Workshop;
 internal sealed class StartingPlacementWindow : Window
 {
     private readonly ComboBox units = new() { DisplayMemberPath = "Label", MinWidth = 440 };
-    private readonly CheckBox showAll = new() { Content = "Show placed and unsupported records", Margin = new(0, 8, 0, 0) };
+    private readonly CheckBox showAll = new() { Content = "Show units on the map and units that cannot be restored", Margin = new(0, 8, 0, 0) };
     private readonly IReadOnlyList<StartingUnitCandidate> candidates;
     private readonly TextBlock details = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 12, 0, 12) };
-    private readonly TextBox column = new() { Text = "1", Width = 60 };
-    private readonly TextBox row = new() { Text = "1", Width = 60 };
     private readonly CheckBox acknowledge = new() { Content = "I understand that the listed battles share these positions.", Margin = new(0, 10, 0, 10) };
     private readonly TextBlock error = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 8) };
-    private readonly Button place = new() { Content = "Restore placement", Margin = new(0, 0, 8, 0), MinWidth = 100 };
-    private readonly Button remove = new() { Content = "Remove starting placement", Margin = new(0, 0, 8, 0) };
+    private readonly Button place = new() { Content = "Restore original position", Margin = new(0, 0, 8, 0), MinWidth = 100 };
+    private readonly Button remove = new() { Content = "Remove starting position", Margin = new(0, 0, 8, 0) };
     private readonly Func<StartingUnitCandidate, bool, int, int, bool, bool> applyChange;
     private sealed record UnitChoice(StartingUnitCandidate Candidate)
     {
         public string Label => $"{Candidate.Unit.Name}, army {Candidate.Assignment.Army:000}, record {Candidate.Unit.Index}, group {Candidate.Assignment.Group}, slot {Candidate.Slot}" +
-            (Candidate.Problem is not null ? " (unsupported)" : Candidate.PlacementProblem is not null ? " (unverified)" :
-                Candidate.Occupied ? " (placed)" : " (removed starting placement)");
+            (Candidate.Problem is not null ? " (unavailable)" : Candidate.Occupied ? " (on the map)" :
+                Candidate.PlacementProblem is not null ? " (cannot be restored)" : " (removed; can be restored)");
     }
 
     public StartingPlacementWindow(int battle, IReadOnlyList<StartingUnitCandidate> candidates, int? selectedKey,
@@ -29,7 +27,7 @@ internal sealed class StartingPlacementWindow : Window
     {
         this.candidates = candidates;
         applyChange = apply;
-        Title = $"Battle {battle} starting unit placements";
+        Title = $"Battle {battle} starting positions";
         Width = 620;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
@@ -50,20 +48,16 @@ internal sealed class StartingPlacementWindow : Window
     private ScrollViewer BuildContent()
     {
         var panel = new StackPanel { Margin = new(24) };
-        panel.Children.Add(new TextBlock { Text = "Place an existing army unit", FontSize = 22 });
+        panel.Children.Add(new TextBlock { Text = "Restore original starting positions", FontSize = 22 });
         panel.Children.Add(new TextBlock
         {
-            Text = "Only units already in this battle's assigned armies are listed. Team and group come from the opening event. Removing a starting placement never deletes the army record.",
+            Text = "Put back a unit whose starting position was removed in this project, at the hex it has on the original disc. Only units the battle already loads are listed. This does not add new units. Removing a starting position never deletes the army record.",
             TextWrapping = TextWrapping.Wrap,
             Margin = new(0, 10, 0, 12)
         });
         panel.Children.Add(units);
         panel.Children.Add(showAll);
         panel.Children.Add(details);
-        var coordinates = new StackPanel { Orientation = Orientation.Horizontal };
-        AddCoordinate(coordinates, "Column", column);
-        AddCoordinate(coordinates, "Row", row);
-        panel.Children.Add(coordinates);
         panel.Children.Add(acknowledge);
         panel.Children.Add(error);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -93,10 +87,14 @@ internal sealed class StartingPlacementWindow : Window
             return;
         int x = 0;
         int y = 0;
-        if (!removing && (!int.TryParse(column.Text, out x) || !int.TryParse(row.Text, out y)))
+        if (!removing)
         {
-            error.Text = "Enter a column and a row.";
-            return;
+            if (choice.Candidate.OriginalPosition is not { } original)
+            {
+                error.Text = "This unit has no original starting position to restore.";
+                return;
+            }
+            (x, y) = original;
         }
         try
         {
@@ -121,7 +119,7 @@ internal sealed class StartingPlacementWindow : Window
         {
             details.Text = showAll.IsChecked == true
                 ? "No existing army records can be identified for this battle."
-                : "No eligible unused starting slots are available. Show placed and unsupported records to inspect existing placements and refusal reasons.";
+                : "No removed starting positions can be restored in this battle. Show the other units to see their positions and why they cannot be restored.";
             acknowledge.Visibility = Visibility.Collapsed;
             UpdateButtons();
             return;
@@ -132,10 +130,12 @@ internal sealed class StartingPlacementWindow : Window
             $"Opening event {source.OpeningEvent}, source event {source.Event} at 0x{source.Offset:X}. Team {source.Team}, group {source.Group}, slot {candidate.Slot}.\n" +
             $"Known army battles: {string.Join(", ", candidate.ArmyBattles)}. Known army event references: {string.Join(", ", candidate.Events)}.\n" +
             $"Battles sharing this map's positions: {string.Join(", ", candidate.MapBattles)}.\n" +
-            (candidate.Problem ?? (candidate.Occupied ? "This record has coordinates. Removal clears only this map slot." +
+            (candidate.Problem ?? (candidate.Occupied ? "This unit is on the map. Removal clears only this map slot." +
                 (candidate.PlacementProblem is null ? "" : "\n" + candidate.PlacementProblem) :
-                candidate.PlacementProblem ?? "This starting placement was removed from the source map. Enter the hex where it should start.")) +
-            "\nThe army record and later arrival commands remain unchanged. Placing a unit now does not cancel its later arrivals.";
+                candidate.PlacementProblem ?? (candidate.OriginalPosition is { } hex
+                    ? $"This starting position was removed in this project. It will be restored at column {hex.X}, row {hex.Y}, where the original disc places it."
+                    : "This unit has no original starting position to restore."))) +
+            "\nThe army record and later arrival commands remain unchanged. Restoring a unit does not cancel its later arrivals.";
         acknowledge.Visibility = candidate.MapBattles.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         UpdateButtons();
     }
@@ -144,17 +144,7 @@ internal sealed class StartingPlacementWindow : Window
     {
         var candidate = (units.SelectedItem as UnitChoice)?.Candidate;
         bool confirmed = candidate is not null && (candidate.MapBattles.Count == 1 || acknowledge.IsChecked == true);
-        place.IsEnabled = confirmed && candidate?.CanPlace == true;
+        place.IsEnabled = confirmed && candidate?.CanPlace == true && candidate.OriginalPosition is not null;
         remove.IsEnabled = confirmed && candidate?.CanRemove == true;
-        column.IsEnabled = candidate?.CanPlace == true;
-        row.IsEnabled = column.IsEnabled;
-    }
-
-    private static void AddCoordinate(Panel panel, string label, TextBox input)
-    {
-        panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new(0, 0, 6, 0) });
-        input.Margin = new(0, 0, 16, 0);
-        System.Windows.Automation.AutomationProperties.SetName(input, label);
-        panel.Children.Add(input);
     }
 }

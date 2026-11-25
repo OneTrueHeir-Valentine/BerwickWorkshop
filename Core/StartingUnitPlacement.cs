@@ -4,6 +4,8 @@ public sealed record StartingUnitCandidate(ArmyUnit Unit, StartingArmyReference 
     bool Occupied, string? Problem, IReadOnlyList<int> ArmyBattles, IReadOnlyList<int> MapBattles, IReadOnlyList<int> Events)
 {
     public string? PlacementProblem { get; init; }
+    /// <summary>The hex this record starts on in the verified original disc, when it has one.</summary>
+    public (int X, int Y)? OriginalPosition { get; init; }
     public bool CanPlace => Problem is null && PlacementProblem is null && !Occupied;
     public bool CanRemove => Problem is null && Occupied;
 }
@@ -48,16 +50,19 @@ public static class StartingUnitPlacement
                     .Where(other => mapBattles.Contains(other.Battle) && other.Group == assignment.Group)
                     .Select(other => other.PlacementProblem).FirstOrDefault(message => message is not null);
                 if (problem is null && placementProblem is null && !verifiedOriginalDisc)
-                    placementProblem = "The source disc has not been verified as an original edition. Restore this position from an original disc instead.";
+                    placementProblem = "The open disc is not a verified original disc, so its positions cannot show where this unit started. Open the original disc to restore it.";
+                (int X, int Y)? original = null;
                 if (problem is null && placementProblem is null)
                 {
                     var source = sourceRecord.Length == Placement.RecordLength ? Placement.Slot(sourceRecord, assignment.Group, slot) : null;
                     if (source is not { } hex || hex.X <= 0 || hex.Y <= 0 || hex.X >= map.Width - 1 || hex.Y >= map.Height - 1 ||
                         map.KindAt(hex.X, hex.Y) == BattleMaps.Border)
-                        placementProblem = "This source slot has no supported starting position. Empty coordinates do not establish that the game will spawn this record; it may be controlled by events. New placement is unavailable.";
+                        placementProblem = "This unit has no starting position on the original disc, so there is nothing to restore. Giving it one would add a new unit, which the game may not load.";
+                    else
+                        original = hex;
                 }
                 result.Add(new(unit, assignment, slot, occupied, problem, armyBattles, mapBattles,
-                    references.ArmyEvents.GetValueOrDefault(army.Id)?.Order().ToArray() ?? []) { PlacementProblem = placementProblem });
+                    references.ArmyEvents.GetValueOrDefault(army.Id)?.Order().ToArray() ?? []) { PlacementProblem = placementProblem, OriginalPosition = original });
             }
         }
         return result;
@@ -104,6 +109,10 @@ public static class StartingUnitPlacement
             for (int slot = 1; slot < Placement.Slots; slot++)
                 if (Placement.Slot(record, group, slot) == (x, y))
                     throw new EditException($"Group {group}, slot {slot} already uses that hex.");
+        if (candidate.OriginalPosition is not { } original || original != (x, y))
+            throw new EditException(candidate.OriginalPosition is { } hex
+                ? $"A removed starting position can only be restored to its original hex, column {hex.X}, row {hex.Y}. Move the unit afterwards if needed."
+                : "This unit has no original starting position to restore.");
         return values;
     }
 
@@ -115,7 +124,7 @@ public static class StartingUnitPlacement
         var references = BattlePlacementReferences.Read(library, session);
         var record = session.EditedBytes(EditSession.Placements, map.Top);
         var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
-        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, !session.Disc.IsModified)
+        var matches = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal)
             .Where(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group).ToList();
         if (matches.Count != 1)
             throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");
@@ -138,6 +147,20 @@ public static class StartingUnitPlacement
             values = PlaceValues(map, candidate, record, deployment, x, y, sharedMapAcknowledged);
         }
         return session.Apply(EditSession.Placements, map.Top, values);
+    }
+
+    /// <summary>Restores a removed starting position to the hex it has on the verified original disc.</summary>
+    public static bool Restore(EditSession session, EventLibrary library, BattleMap map, int unitKey, int group, bool sharedMapAcknowledged)
+    {
+        var references = BattlePlacementReferences.Read(library, session);
+        var record = session.EditedBytes(EditSession.Placements, map.Top);
+        var sourceRecord = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
+        var candidate = Candidates(map, references, session.Disc.Armies, record, sourceRecord.Span, session.Disc.IsVerifiedOriginal)
+            .SingleOrDefault(candidate => candidate.Unit.Key == unitKey && candidate.Assignment.Group == group)
+            ?? throw new EditException("The selected unit's army/group assignment is ambiguous or no longer available.");
+        if (candidate.OriginalPosition is not { } original)
+            throw new EditException(candidate.Problem ?? candidate.PlacementProblem ?? "This unit has no original starting position to restore.");
+        return Apply(session, library, map, unitKey, group, false, original.X, original.Y, sharedMapAcknowledged);
     }
 
     private static void RequireAcknowledgement(StartingUnitCandidate candidate, bool acknowledged)

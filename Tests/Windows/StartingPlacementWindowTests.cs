@@ -30,7 +30,7 @@ internal static class StartingPlacementWindowTests
                 Check(!buttons[0].IsEnabled && !buttons[1].IsEnabled, "An unverified unused record enabled an edit");
                 Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("source slot")), "Loading refusal was hidden");
                 string label = choices.SelectedItem.ToString()!;
-                Check(choices.DisplayMemberPath == "Label" && label.Contains("record 1") && label.Contains("slot 2") && label.Contains("unverified"),
+                Check(choices.DisplayMemberPath == "Label" && label.Contains("record 1") && label.Contains("slot 2") && label.Contains("cannot be restored"),
                     "Duplicate names lack a distinct record label");
             }
             finally { window.Close(); }
@@ -48,6 +48,27 @@ internal static class StartingPlacementWindowTests
                 Check(!buttons[0].IsEnabled && buttons[1].IsEnabled, "Unverified coordinates disabled removal or enabled placement");
                 Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("source slot") && text.Text.Contains("Removal clears only")),
                     "Writing coordinates concealed the loading limitation");
+            }
+            finally { window.Close(); }
+        }));
+        test("Restoring uses the original hex and offers no coordinate entry", () => OnSta(() =>
+        {
+            (int X, int Y)? applied = null;
+            var window = new StartingPlacementWindow(9, [Candidate(100, false)], null, (_, removing, x, y, _) =>
+            {
+                if (!removing) applied = (x, y);
+                return false;
+            });
+            try
+            {
+                var panel = (StackPanel)((ScrollViewer)window.Content).Content;
+                Check(!panel.Children.OfType<StackPanel>().SelectMany(row => row.Children.OfType<TextBox>()).Any(), "Coordinate entry is still offered");
+                var buttons = panel.Children.OfType<StackPanel>().Last().Children.OfType<Button>().ToArray();
+                Check(buttons[0].Content.ToString() == "Restore original position", "The restore button has the wrong name");
+                Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("column 3, row 4")), "The original hex is not shown");
+                panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("I understand")).IsChecked = true;
+                buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Check(applied == (3, 4), "Restoration did not use the original hex");
             }
             finally { window.Close(); }
         }));
@@ -88,7 +109,7 @@ internal static class StartingPlacementWindowTests
             {
                 var panel = (StackPanel)((ScrollViewer)window.Content).Content;
                 Check(panel.Children.OfType<ComboBox>().Single().Items.Count == 0, "Placed unit bypassed the default filter");
-                Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("No eligible unused")), "Empty filter has no explanation");
+                Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("No removed starting positions")), "Empty filter has no explanation");
                 panel.Children.OfType<CheckBox>().Single(box => box.Content.ToString()!.StartsWith("Show")).IsChecked = true;
                 Check(panel.Children.OfType<ComboBox>().Single().Items.Count == 1, "Removal record was hidden permanently");
                 Check(panel.Children.OfType<TextBlock>().Any(text => text.Text.Contains("Removal clears only")), "Removal explanation missing");
@@ -136,7 +157,7 @@ internal static class StartingPlacementWindowTests
     }
 
     private static StartingUnitCandidate Candidate(int key, bool occupied) => new(new(key, 5, 0, 1, "Unit", 0, 180),
-        new(9, 12, 12, 0, 5, 1, 2, false), 1, occupied, null, [9, 10], [9, 10], [12, 13]);
+        new(9, 12, 12, 0, 5, 1, 2, false), 1, occupied, null, [9, 10], [9, 10], [12, 13]) { OriginalPosition = (3, 4) };
     private static void OnSta(Action action)
     {
         ExceptionDispatchInfo? error = null;

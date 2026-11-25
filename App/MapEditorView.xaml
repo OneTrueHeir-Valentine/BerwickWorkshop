@@ -6,7 +6,7 @@
       <GridSplitter Grid.Column="3" Grid.Row="1" Width="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" ResizeDirection="Columns" Cursor="SizeWE" ToolTip="Drag to resize" Focusable="False"/>
      <Border Grid.ColumnSpan="5" Background="#EAF0E5" CornerRadius="5" Padding="14,12,14,12" Margin="0,0,0,14">
       <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20"
-                 Text="View each battle's map, terrain, starting units, later arrivals, deployment positions and event spots. Hover over a hex for details. Use Place existing unit to add or remove starting positions for units already in an assigned army."/>
+                 Text="View each battle's map, terrain, starting units, later arrivals, deployment positions and event spots. Hover over a hex for details. Use Restore original position to put back a starting unit removed in this project, or to remove one."/>
      </Border>
      <ListBox Grid.Row="1" x:Name="MapList" SelectionChanged="OnBattleSelected" BorderBrush="{StaticResource Line}" DisplayMemberPath="Text" SelectedValuePath="Value" AutomationProperties.Name="Battles"/>
      <Border Grid.Row="1" Grid.Column="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5">
@@ -36,7 +36,7 @@
          <StackPanel x:Name="MapUnitEditorPanel" Visibility="Collapsed"/>
         </StackPanel>
        </Border>
-       <Button x:Name="StartingPlacementsButton" Content="Place existing unit..." Style="{StaticResource SmallButton}" Click="OnStartingPlacementsRequested" IsEnabled="False" HorizontalAlignment="Left" Margin="0,0,0,10"/>
+       <Button x:Name="StartingPlacementsButton" Content="Restore original position..." Style="{StaticResource SmallButton}" Click="OnStartingPlacementsRequested" IsEnabled="False" HorizontalAlignment="Left" Margin="0,0,0,10"/>
        <StackPanel x:Name="MapDetails"/>
       </StackPanel></ScrollViewer>
      </Border>

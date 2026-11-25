@@ -219,17 +219,17 @@ public partial class MapEditorView : UserControl
             var candidates = current.StartingUnitCandidates(map);
             if (candidates.Count == 0)
             {
-                StatusChanged?.Invoke("No existing units have an identified starting army/group assignment in this battle.");
+                StatusChanged?.Invoke("No units in this battle have a starting position that can be checked.");
                 return;
             }
             var window = new StartingPlacementWindow(map.Battle, candidates, selection.UnitKey, (candidate, remove, x, y, acknowledged) =>
             {
                 if (document != current || shownMap != map || MapList.SelectedValue is not int activeBattle || activeBattle != map.Battle)
-                    throw new EditException("The selected battle changed. Open starting placements again.");
+                    throw new EditException("The selected battle changed. Open Restore original position again.");
                 if (!current.ApplyStartingPlacement(map, candidate, remove, x, y, acknowledged))
                     return false;
                 selection.Reset();
-                string message = remove ? "Starting placement removed. The army record was kept." : $"Unit placed at {x}, {y}.";
+                string message = remove ? "Starting position removed. The army record was kept." : $"Unit restored to its original position, column {x}, row {y}.";
                 Changed(message + " Save the project to keep this change.");
                 if (!remove)
                 {
@@ -246,7 +246,7 @@ public partial class MapEditorView : UserControl
         }
         catch (Exception exception) when (exception is EditException or IOException or InvalidDataException or InvalidOperationException)
         {
-            StatusChanged?.Invoke("Starting placements are unavailable: " + exception.Message);
+            StatusChanged?.Invoke("Starting positions cannot be restored: " + exception.Message);
         }
     }
     private void SetArrivalHex(BattleMap map, Reinforcement arrival, int x, int y)

@@ -80,8 +80,8 @@ internal static class UnitPlacementTests
             Check(candidate.ArmyBattles.SequenceEqual(new[] { 9, 10 }) && candidate.MapBattles.SequenceEqual(new[] { 9, 10 }), "Shared references missing");
             Check(candidate.Events.SequenceEqual(new[] { 12, 13 }), "Known army event references missing");
             Reject(() => StartingUnitPlacement.PlaceValues(Map(), candidate, EmptyRecord(), [], 4, 5, false));
-            var values = StartingUnitPlacement.PlaceValues(Map(), candidate, EmptyRecord(), [], 4, 5, true);
-            Check(values["g2x1"] == 4 && values.Count == 2, "Placement changes more than its coordinate pair");
+            var values = StartingUnitPlacement.PlaceValues(Map(), candidate, EmptyRecord(), [], 1, 1, true);
+            Check(values["g2x1"] == 1 && values["g2y1"] == 1 && values.Count == 2, "Placement changes more than its coordinate pair");
             candidate = Candidates(References(sharedMap: false)).Single();
             Check(candidate.ArmyBattles.Count == 2 && candidate.MapBattles.Count == 1, "Shared army was confused with shared coordinates");
         });
