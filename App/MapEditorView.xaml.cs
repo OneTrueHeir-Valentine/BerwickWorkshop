@@ -60,6 +60,7 @@ public partial class MapEditorView : UserControl
     private async void OnBattleSelected(object sender, SelectionChangedEventArgs e)
     {
         if (document is not { } current || MapList.SelectedValue is not int battle || !controller.TryGetBattle(battle, out var entry)) return;
+        StartingPlacementsButton.IsEnabled = false;
         int token = selection.BeginLoad();
         MapSelection loaded;
         try { loaded = await controller.ReadMapAsync(current.Library, entry); }
@@ -88,6 +89,7 @@ public partial class MapEditorView : UserControl
         MapUnitFields.Children.Clear(); MapUnitBox.Visibility = Visibility.Collapsed; MapCount.Text = "";
         MapUnitEditorPanel.Children.Clear(); MapUnitEditorPanel.Visibility = Visibility.Collapsed;
         MapUnitFields.Visibility = Visibility.Visible;
+        StartingPlacementsButton.IsEnabled = false;
         SelectionChanged?.Invoke();
     }
     internal void RefreshProject(EditSession? session, bool unitEditing)
@@ -110,6 +112,7 @@ public partial class MapEditorView : UserControl
     {
         if (document is null || renderer is null || shownTitle.Length == 0) return;
         bool editable = document.Session is not null && shownMap?.Battle > 0;
+        StartingPlacementsButton.IsEnabled = editable && MapList.SelectedValue is int selectedBattle && selectedBattle == shownMap?.Battle;
         bool move = MapMoveBox.IsChecked == true && editable;
         if (!move) selection.MovingUnit = null;
         MapMoveBox.IsEnabled = editable; MapDeployBox.IsEnabled = editable;
@@ -206,6 +209,46 @@ public partial class MapEditorView : UserControl
         UnitChangesRequested?.Invoke(MapUnitFields,key); MapUnitBox.Visibility = Visibility.Visible;
     }
     private void Changed(string message) { StatusChanged?.Invoke(message); ProjectChanged?.Invoke(); }
+    private void OnStartingPlacementsRequested(object sender, RoutedEventArgs e)
+    {
+        if (document is not { Session: not null } current || shownMap is not { Battle: > 0 } map || MapList.SelectedValue is not int selectedBattle || selectedBattle != map.Battle)
+            return;
+        SelectionChanging?.Invoke();
+        try
+        {
+            var candidates = current.StartingUnitCandidates(map);
+            if (candidates.Count == 0)
+            {
+                StatusChanged?.Invoke("No existing units have an identified starting army/group assignment in this battle.");
+                return;
+            }
+            var window = new StartingPlacementWindow(map.Battle, candidates, selection.UnitKey, (candidate, remove, x, y, acknowledged) =>
+            {
+                if (document != current || shownMap != map || MapList.SelectedValue is not int activeBattle || activeBattle != map.Battle)
+                    throw new EditException("The selected battle changed. Open starting placements again.");
+                if (!current.ApplyStartingPlacement(map, candidate, remove, x, y, acknowledged))
+                    return false;
+                selection.Reset();
+                string message = remove ? "Starting placement removed. The army record was kept." : $"Unit placed at {x}, {y}.";
+                Changed(message + " Save the project to keep this change.");
+                if (!remove)
+                {
+                    var placed = current.AllUnits(map).FirstOrDefault(unit => unit.Key == candidate.Unit.Key && unit.Arrival is null && unit.X == x && unit.Y == y);
+                    if (placed is not null)
+                        SelectUnit(placed, placed.Text);
+                }
+                RefreshSelectedUnit();
+                SelectionChanged?.Invoke();
+                Redraw();
+                return true;
+            }) { Owner = Window.GetWindow(this) };
+            window.ShowDialog();
+        }
+        catch (Exception exception) when (exception is EditException or IOException or InvalidDataException or InvalidOperationException)
+        {
+            StatusChanged?.Invoke("Starting placements are unavailable: " + exception.Message);
+        }
+    }
     private void SetArrivalHex(BattleMap map, Reinforcement arrival, int x, int y)
     {
         if (document is null) return;
