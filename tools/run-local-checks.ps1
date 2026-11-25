@@ -99,6 +99,20 @@ try {
     Invoke-Check 'windows-animation-tests' $dotnet @(
         'Tests/bin/Release/net10.0-windows/Berwick.Tests.dll', '--animation-export'
     )
+    Invoke-Check 'windows-map-tests' $dotnet @(
+        'Tests/bin/Release/net10.0-windows/Berwick.Tests.dll', '--maps'
+    )
+    # The placement integration test builds a synthetic disc and needs its own empty folder.
+    $placementFixtures = Join-Path ([System.IO.Path]::GetTempPath()) ('berwick-placement-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $placementFixtures | Out-Null
+    try {
+        Invoke-Check 'windows-placement-integration' $dotnet @(
+            'Tests/bin/Release/net10.0-windows/Berwick.Tests.dll', '--unit-placement-integration', $placementFixtures
+        )
+    }
+    finally {
+        Remove-Item -LiteralPath $placementFixtures -Recurse -Force -ErrorAction SilentlyContinue
+    }
 
     if ($PublishApp) {
         $output = "release-handoff/checks/$runId/app"
