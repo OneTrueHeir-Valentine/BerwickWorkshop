@@ -419,7 +419,7 @@ public sealed class EventLibrary
     /// <summary>The top-level archive that holds an event; a battle's events share one archive.</summary>
     public int TopOf(int number) => topOf.TryGetValue(number, out int top) ? top : throw new InvalidDataException($"Event {number} is not on this disc.");
 
-    // Commands, by the game's own names: LaunchBMap and LaunchBMap2 start a battle (battle number first), PreloadUnitList,
+    // LaunchBMap takes (battle, file); LaunchBMap2 takes (mode, battle, file). PreloadUnitList,
     // PreloadUnit, AppearUnitOld, AppearUnit and AppearUnitEx name a unit file ("ud371" or "ud371.ar"), AppearUnitOld as its second argument.
     private const int LaunchBMap = 0x2DE, LaunchBMap2 = 0x2DF, PreloadUnitList = 0x167, PreloadUnit = 0x328;
     private static readonly int[] UnitCommands = [PreloadUnitList, PreloadUnit, 0x32A, 0x32B, 0x32C];
@@ -446,7 +446,7 @@ public sealed class EventLibrary
             foreach (var n in Walk(nodes))
             {
                 if (n.Args.Count == 0) continue;
-                if (n.Command is LaunchBMap or LaunchBMap2 && n.Args[0] is [{ Value: int battle }] && battle > 0)
+                if (TryBattleMapLaunch(n, out int battle, out _))
                     (battles.TryGetValue(top, out var set) ? set : battles[top] = []).Add(battle);
                 else if (UnitCommands.Contains(n.Command)
                     && n.Args.Select(a => a is [{ Text: { } text }] ? UnitFile.Match(text) : null).FirstOrDefault(x => x is { Success: true }) is { } m)
@@ -474,55 +474,76 @@ public sealed class EventLibrary
     private IReadOnlyList<MapEventRecord>? mapEvents;
 
     /// <summary>
-    /// The map event file (evdata.dat): records of a byte count, then a word with the event number in its top 16 bits and the battle
-    /// number in the low 16 (0 for every battle), then the number of words that follow (the condition type and its arguments).
-    /// Type 1 is a spot: menu kind, unit (0 for any), x, y.
+    /// The battle projection of the complete evdata.dat/evtype.dat catalogue. Battle records name an event and battle,
+    /// followed by a condition and its arguments. Condition 1 is a spot: menu kind, unit (0 for any), x, y.
     /// </summary>
     public IReadOnlyList<MapEventRecord> MapEvents()
     {
-        if (mapEvents is not null) return mapEvents;
-        var result = new List<MapEventRecord>();
-        byte[] data = [];
-        if (mapEventTop >= 0)
-            try
-            {
-                var archive = archives.Top(mapEventTop);
-                data = Tarc.Extract(archive, Tarc.Parse(archive).Single(e => e.Name == MapEventFile));
-            }
-            catch (Exception e) when (e is InvalidDataException or InvalidOperationException) { data = []; }
-        for (int o = 0; o + 12 <= data.Length; o += 4)
+        if (mapEvents is not null)
+            return mapEvents;
+        try
         {
-            int size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o));
-            uint head = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(o + 4));
-            int count = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 8));
-            if (size < 12 || size % 4 != 0 || o + 4 + size > data.Length || count != size / 4 - 2) continue;
-            int number = (int)(head >> 16);
-            if (!topOf.ContainsKey(number)) continue;
-            var words = new int[count];
-            for (int i = 0; i < count; i++) words[i] = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 12 + i * 4));
-            result.Add(new(number, (int)(head & 0xFFFF), words[0], words[1..]));
+            return mapEvents = PlacementEvents();
         }
-        return mapEvents = result;
+        catch (Exception exception) when (exception is EditException or InvalidDataException or InvalidOperationException)
+        {
+            return mapEvents = [];
+        }
     }
 
     // Events of type 13 in the map event file run as a battle opens (their argument orders them). AppearUnitEx (0x32C) places a
     // whole army file: AppearUnitEx("udNNN", team, placement group, ...).
     private const int OpeningEvent = 13, AppearUnitEx = 0x32C;
 
+    /// <summary>Requires the complete typed catalogue before starting placements can be changed.</summary>
+    public IReadOnlyList<MapEventRecord> PlacementEvents() => PlacementCatalogue().BattleEvents;
+
+    public EventCatalogue PlacementCatalogue()
+    {
+        if (mapEventTop < 0)
+            throw new EditException("Starting placement references are unavailable: the battle event catalogue is missing.");
+        var archive = archives.Top(mapEventTop);
+        var entries = Tarc.Parse(archive);
+        var data = entries.Where(entry => entry.Name == MapEventFile).ToList();
+        var types = entries.Where(entry => entry.Name == "evtype.dat").ToList();
+        if (data.Count != 1 || types.Count != 1)
+            throw new EditException("The event catalogue or type table is missing or ambiguous.");
+        return EventCatalogue.Parse(Tarc.Extract(archive, data[0]), Tarc.Extract(archive, types[0]), topOf.Keys.ToHashSet());
+    }
+
     /// <summary>The army files a battle's opening events place, with the team and the map's placement group for each.</summary>
-    public IReadOnlyList<ArmyPlacement> StartingPlacements(int battle)
+    public IReadOnlyList<ArmyPlacement> StartingPlacements(int battle, Func<int, byte[]>? readEvent = null)
     {
         var result = new List<ArmyPlacement>();
+        var visiting = new HashSet<int>();
         foreach (int number in MapEvents().Where(r => r.Battle == battle && r.Type == OpeningEvent).Select(r => r.Event).Distinct().Order())
-        {
-            IReadOnlyList<ScriptNode> nodes;
-            try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
-            foreach (var n in WalkNodes(nodes))
-                if (n.Command == AppearUnitEx && n.Args.Count >= 3 && n.Args[0] is [{ Text: { } file }] && UnitFile.Match(file) is { Success: true } m
-                    && n.Args[1] is [{ Value: int team }] && n.Args[2] is [{ Value: int group }])
-                    result.Add(new ArmyPlacement(int.Parse(m.Groups[1].Value), team, group));
-        }
+            Visit(number, 0);
         return result;
+
+        void Visit(int number, int depth)
+        {
+            if (depth >= 32 || !visiting.Add(number))
+                return;
+            IReadOnlyList<ScriptNode> nodes;
+            try
+            {
+                nodes = ScriptParser.Parse(readEvent is null ? Bytes(number) : readEvent(number));
+            }
+            catch (InvalidDataException)
+            {
+                visiting.Remove(number);
+                return;
+            }
+            foreach (var node in WalkNodes(nodes))
+            {
+                if (node.Command == AppearUnitEx && node.Args.Count >= 3 && node.Args[0] is [{ Text: { } file }] &&
+                    UnitFile.Match(file) is { Success: true } match && node.Args[1] is [{ Value: int team }] && node.Args[2] is [{ Value: int group }])
+                    result.Add(new ArmyPlacement(int.Parse(match.Groups[1].Value), team, group));
+                if (readEvent is not null && node.Command == ScriptParser.RunEvent && node.Args.Count > 0 && node.Args[0] is [{ Value: int target }])
+                    Visit(target, depth + 1);
+            }
+            visiting.Remove(number);
+        }
     }
 
     // Later arrivals: AppearUnit(id, "udNNN", team, from x, from y, to x, to y, flag) brings the unit whose script number
@@ -701,11 +722,24 @@ public sealed class EventLibrary
             try { nodes = ScriptParser.Parse(Bytes(number)); } catch (InvalidDataException) { continue; }
             foreach (var n in Walk(nodes))
             {
-                int first = n.Command == LaunchBMap2 ? 1 : n.Command == LaunchBMap ? 0 : -1;
-                if (first >= 0 && n.Args.Count >= first + 2 && n.Args[first] is [{ Value: int battle }] && n.Args[first + 1] is [{ Text: { } file }] && battle > 0)
+                if (TryBattleMapLaunch(n, out int battle, out string file))
                     result.TryAdd(battle, file);
             }
         }
         return result;
+    }
+
+    internal static bool TryBattleMapLaunch(ScriptNode node, out int battle, out string file)
+    {
+        battle = 0;
+        file = "";
+        int battleIndex = node.Command == LaunchBMap2 ? 1 : node.Command == LaunchBMap ? 0 : -1;
+        if (battleIndex < 0 || node.Args.Count < battleIndex + 2 ||
+            node.Args[battleIndex] is not [{ Value: int number }] || number <= 0 ||
+            node.Args[battleIndex + 1] is not [{ Text: { } name }])
+            return false;
+        battle = number;
+        file = name;
+        return true;
     }
 }

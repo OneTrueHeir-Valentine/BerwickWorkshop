@@ -34,10 +34,44 @@ internal sealed class MapEditorDocument(
 
     private IEnumerable<MapUnit> UnitsOf(BattleMap map)
     {
-        if (Session?.IsEdited(EditSession.Placements, map.Top) != true) return map.Units;
+        if (Session is null)
+            return map.Units;
+        bool scriptEdited = Session.EditedRecords.Any(record => record.Table is EditSession.Scripts or EditSession.ScriptValues);
+        if (!Session.IsEdited(EditSession.Placements, map.Top) && !scriptEdited)
+            return map.Units;
         var record = Session.EditedBytes(EditSession.Placements, map.Top);
-        return map.Units.Select(u => Placement.Slot(record, u.Group, u.Index + 1) is { } at ? u with { X = at.X, Y = at.Y } : u)
-            .Where(u => u.X < map.Width && u.Y < map.Height);
+        IReadOnlyList<ArmyPlacement> assignments;
+        lock (Library)
+            assignments = Library.StartingPlacements(map.Battle, number => Session.EventScript(number) ?? Library.Bytes(number));
+        var units = new List<MapUnit>();
+        foreach (var assignment in assignments.Where(assignment => assignment.Group is > 0 and < 16))
+        {
+            for (int slot = 1; slot < Placement.Slots; slot++)
+            {
+                var position = Placement.Slot(record, assignment.Group, slot);
+                if (position is { } hex && hex.X < map.Width && hex.Y < map.Height)
+                    units.Add(new(assignment.Team, assignment.Army, slot - 1, hex.X, hex.Y) { Group = assignment.Group });
+            }
+        }
+        return units;
+    }
+
+    public IReadOnlyList<StartingUnitCandidate> StartingUnitCandidates(BattleMap map)
+    {
+        var session = Session ?? throw new EditException("Open an editable project before placing a unit.");
+        var references = BattlePlacementReferences.Read(Library, session);
+        if (references.Problems.Count > 0)
+            throw new EditException("Starting placements cannot be checked: " + references.Problems[0]);
+        var source = session.Table(EditSession.Placements).Records.GetValueOrDefault(map.Top);
+        var original = BattlePlacementReferences.ReadOriginal(Library, Disc);
+        return StartingUnitPlacement.Candidates(map, references, Disc.Armies, session.EditedBytes(EditSession.Placements, map.Top), source.Span,
+            Disc.IsVerifiedOriginal, original);
+    }
+
+    public bool ApplyStartingPlacement(BattleMap map, StartingUnitCandidate candidate, bool remove, int x, int y, bool acknowledged)
+    {
+        var session = Session ?? throw new EditException("This project is no longer available.");
+        return StartingUnitPlacement.Apply(session, Library, map, candidate.Unit.Key, candidate.Assignment.Group, remove, x, y, acknowledged);
     }
 
     private int EventNumberNow(int number, int index, int original)

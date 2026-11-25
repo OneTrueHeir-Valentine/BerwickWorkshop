@@ -3,6 +3,8 @@ using System.Buffers.Binary;
 using System.Text;
 
 int passed = 0, failed = 0;
+if (args is ["--unit-placement-integration", var fixtureFolder])
+    return UnitPlacementIntegration.Run(fixtureFolder);
 void Test(string name, Action test)
 {
     try { test(); passed++; Console.WriteLine($"PASS {name}"); }
@@ -14,11 +16,21 @@ void Throws<T>(Action action) where T:Exception
     try { action(); } catch (T) { return; }
     throw new Exception($"Expected {typeof(T).Name}");
 }
+if (args is ["--inspect-placement", string imagePath, string archiveIndex, string placementGroup, string placementSlot])
+    return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
+if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
+    return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
     MapPresentationTests.Run(Test);
     MapDocumentTests.Run(Test);
+    UnitPlacementTests.Run(Test);
+    EventCatalogueTests.Run(Test);
+    EventCallFactsTests.Run(Test);
+#if WINDOWS
+    StartingPlacementWindowTests.Run(Test);
+#endif
     Console.WriteLine($"{passed} passed, {failed} failed");
     return failed == 0 ? 0 : 1;
 }
@@ -87,6 +99,9 @@ MipsAssemblyTests.Run(Test);
 MapEditsTests.Run(Test);
 MapPresentationTests.Run(Test);
 MapDocumentTests.Run(Test);
+UnitPlacementTests.Run(Test);
+EventCatalogueTests.Run(Test);
+EventCallFactsTests.Run(Test);
 ShieldGuardAssemblyTests.Run(Test);
 MindGrowthTests.Run(Test);
 AccessKeyTests.Run(Test);
