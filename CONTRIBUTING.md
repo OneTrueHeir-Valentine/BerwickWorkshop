@@ -19,6 +19,8 @@ dotnet Tests\bin\Release\net10.0\Berwick.Tests.dll
 
 The repository also includes `tools/run-local-checks.ps1` for additional checks. If the change involves original game data, test each supported edition separately. A successful build or fixture test is not proof that an edited disc will work in PCSX2. State which checks you actually performed and what remains untested.
 
+Before opening a pull request, read your diff as a reviewer would. Names, comments and formatting should match the surrounding code. Remove unrelated edits, unused helpers and duplicated logic. If the change touches saved projects, game data or patched executable bytes, say how compatibility was checked.
+
 Open a pull request describing the problem, the code changed and the results of your checks. Keep private working notes, game images, extracted artwork, save files and local test evidence outside the public repository.
 
 ## Copyright and contributions
