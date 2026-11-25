@@ -20,6 +20,14 @@ if (args is ["--inspect-placement", string imagePath, string archiveIndex, strin
     return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
 if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
     return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
+if (args is ["--xdelta", var xdeltaPath])
+{
+    XdeltaPatchTests.Run(Test, xdeltaPath);
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
+if (args is ["--xdelta-real", var realTool, var realJapanese, var realEnglish, var realLegacy, var realFolder])
+    return XdeltaPatchTests.RunReal(realTool, realJapanese, realEnglish, realLegacy, realFolder);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
