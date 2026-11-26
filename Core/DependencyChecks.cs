@@ -33,6 +33,11 @@ public static class DependencyChecks
                         .Any(f => session.OriginalValue(u.Table, u.Id, f.Key) == value) : session.OriginalValue(u.Table, u.Id, "class") == value);
                 if (!known) issues.Add(new("Error", "missing-reference", $"{session.RecordName(table, id)}: {field.Label} refers to missing {(item ? "item" : "class")} {value}.", table, id));
             }
+            // A unit given a mounted class keeps the horse HP it had; on foot that is 0, and a horse with 0 HP is lost on the first hit.
+            if (table is EditSession.Characters or EditSession.ArmyUnits && session.Value(table, id, "class") != session.OriginalValue(table, id, "class") &&
+                session.Disc.Classes.FirstOrDefault(c => c.Id == session.Value(table, id, "class")) is { Mount: 1 } && session.Value(table, id, "horseMaxHp") == 0)
+                Review("mounted-without-horse-hp", $"{session.RecordName(table, id)} now has a mounted class, but its horse has no HP, so the horse is lost on the first hit. " +
+                    "Set Horse HP and Horse most HP (the game's horses have 30 to 150).", table, id);
             if (table == EditSession.Classes)
                 Shared("shared-class", units.Where(u => u.Class == id), "class", table, id);
             if (table == EditSession.Items)

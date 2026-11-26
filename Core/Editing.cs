@@ -221,6 +221,10 @@ public static class CharacterFields
         // Source-observed only: actual equipped-slot behavior still requires original-ISO and PCSX2 validation.
         new("mainhandSlot", "Mainhand starting slot (0 = none) [experimental]", 27, 0, 4, 0, ItemSlots) { Group = "Equipped slots (experimental)" },
         new("offhandSlot", "Offhand starting slot (0 = none) [experimental]", 26, 4, 4, 0, ItemSlots) { Group = "Equipped slots (experimental)" },
+        // The horse's HP, in the same layout as the running game's unit (see LiveHorse): current in 10 bits at +0x1C and the most
+        // in the next 10 bits. Mounted units on the discs have both set to the horse's durability pool times 10; units on foot have 0.
+        new("horseHp", "Horse HP", 0x1C, 0, 10, 0, 1023) { Group = "Horse" },
+        new("horseMaxHp", "Horse most HP", 0x1D, 2, 10, 0, 1023) { Group = "Horse" },
     }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" }))
      .Concat(SkillFlags(56, "Personal skills")).Concat(ItemSlotFields()).ToArray());
 
@@ -301,6 +305,11 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
+    /// <summary>A horse can't have more HP than its most HP.</summary>
+    private static string HorseProblem(IReadOnlyDictionary<string, int> values) =>
+        values.TryGetValue("horseHp", out int hp) && values.TryGetValue("horseMaxHp", out int most) && hp > most
+            ? "Horse HP can't be more than the horse's most HP." : "";
+
     public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", Dishes = "dishes", Tastes = "tastes", Deployments = "deployments", Placements = "placements", Texts = "texts", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes", MapSprites = "mapSprites";
     private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, Dishes, Tastes, Deployments, Placements, AnimationSets, AnimationPalettes, MapSprites, ScriptValues, Scripts, Texts];
 
@@ -428,7 +437,7 @@ public sealed class EditSession
                         return $"{field.Label}: there is no item 0x{item:X3}.";
                 if (values.TryGetValue("class", out int classId) && !disc.ClassBytes.ContainsKey(classId))
                     return $"There is no class 0x{classId:X2}.";
-                return "";
+                return HorseProblem(values);
             }),
             [Growths] = new(Growths, "character", CharacterFields.Growth, disc.GrowthBytes),
             [Classes] = new(Classes, "class", ClassFields.Fields, disc.ClassBytes),
@@ -457,7 +466,7 @@ public sealed class EditSession
                         return $"{field.Label}: there is no item 0x{item:X3}.";
                 if (values.TryGetValue("class", out int classId) && !disc.ClassBytes.ContainsKey(classId) && !armyClasses.Contains(classId))
                     return $"There is no class 0x{classId:X2}.";
-                return "";
+                return HorseProblem(values);
             }),
             [AnimationSets] = new(AnimationSets, "animation row", [AnimationTable.SetField], disc.AnimationSetBytes, values =>
                 values.TryGetValue(AnimationTable.SetField.Key, out int set) && !disc.AnimationSetsOnDisc.Contains(set)
