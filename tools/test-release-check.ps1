@@ -16,17 +16,30 @@ $xdeltaNotices = @('xdelta3-LICENSE.txt', 'liblzma-COPYING.0BSD.txt', 'BLAKE3-LI
     ForEach-Object { [IO.File]::ReadAllText((Join-Path $root "third-party/xdelta3/$_")) }
 $completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice + "`n`n" + ($xdeltaNotices -join "`n`n")
 
-# The checker compares tools/xdelta3.exe with the pinned hash. The real program is not in the repository, so a stand-in file
-# and a matching temporary pin are used: copy the repository's checker next to a stand-in third-party folder.
+# The checker compares tools/xdelta3.exe with the pinned hash. The real program is not in the repository, so the test uses
+# a stand-in file. It runs a copy of the checker inside its own throwaway Git repository that holds the same notices and a
+# stand-in pin; the repository's own pin and files are only read, never changed.
 $standIn = [Text.Encoding]::UTF8.GetBytes('synthetic xdelta3 stand-in')
 $standInSha = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($standIn))).Replace('-', '').ToLowerInvariant()
 
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
-$pinFile = Join-Path $root 'third-party/xdelta3/xdelta3.exe.sha256'
-$realPin = [IO.File]::ReadAllBytes($pinFile)
-[IO.File]::WriteAllText($pinFile, $standInSha + "`n")
 try {
+    $fixture = Join-Path $folder 'repository'
+    foreach ($relative in @('tools/check-release.ps1', 'LICENSE', 'reference/MintX-LICENSE.txt', 'App/Tabler-LICENSE.txt',
+            'third-party/xdelta3/xdelta3-LICENSE.txt', 'third-party/xdelta3/liblzma-COPYING.0BSD.txt',
+            'third-party/xdelta3/BLAKE3-LICENSE_A2.txt')) {
+        $target = Join-Path $fixture $relative
+        New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root $relative) -Destination $target
+    }
+    [IO.File]::WriteAllText((Join-Path $fixture 'third-party/xdelta3/xdelta3.exe.sha256'), $standInSha + "`n")
+    & git -C $fixture init -q
+    & git -C $fixture add -A
+    & git -C $fixture -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -q -m fixture
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the checker fixture repository.' }
+    $checker = Join-Path $fixture 'tools/check-release.ps1'
+
     $zipPath = Join-Path $folder 'Berwick.Workshop.0.119.0.zip'
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -44,7 +57,7 @@ try {
     }
     finally { $archive.Dispose() }
 
-    $sha = (& git -C $root rev-parse HEAD).Trim()
+    $sha = (& git -C $fixture rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Missing Git revision for test.' }
     $now = [DateTimeOffset]::UtcNow.ToString('o')
     $sample = @{
@@ -125,6 +138,26 @@ try {
     & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
     if (-not $?) { throw 'The restored xdelta3 entry was rejected.' }
 
+    function Set-Extra([bool] $present) {
+        $package = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $old = $package.GetEntry('tools/vcruntime140.dll')
+            if ($null -ne $old) { $old.Delete() }
+            if ($present) {
+                $stream = $package.CreateEntry('tools/vcruntime140.dll').Open()
+                try { $stream.WriteByte(0) } finally { $stream.Dispose() }
+            }
+        }
+        finally { $package.Dispose() }
+        $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Record
+    }
+    Set-Extra $true
+    Expect-Rejected
+    Set-Extra $false
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The package without the extra file was rejected.' }
+
     $sample.packageSha256 = '0' * 64
     Write-Record
     Expect-Rejected
@@ -142,6 +175,5 @@ try {
     Write-Host 'Release evidence checker: synthetic acceptance and rejection tests passed.'
 }
 finally {
-    [IO.File]::WriteAllBytes($pinFile, $realPin)
     Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue
 }

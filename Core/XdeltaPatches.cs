@@ -272,9 +272,10 @@ public static class XdeltaPatches
     {
         string partial = destination + $".{Guid.NewGuid():N}.partial";
         // Keep xdelta3.exe open for reading only from the hash check until it exits, so it cannot be replaced, renamed or
-        // changed between being checked and being run.
+        // changed between being checked and being run. Start it by the path Windows gives for that open file, with every
+        // junction and link already followed, so a link on the way to it cannot be pointed somewhere else in between.
         using var toolLock = LockTool(tool);
-        var start = new ProcessStartInfo(tool.Path)
+        var start = new ProcessStartInfo(FinalPath(toolLock))
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true,
             WorkingDirectory = Path.GetDirectoryName(destination)!,
@@ -356,6 +357,11 @@ public static class XdeltaPatches
     /// <summary>Turns xdelta3's own messages into a reason the user can act on.</summary>
     internal static string Explain(string message, int exitCode)
     {
+        // Windows ends a program with 0xC0000135 when a DLL it needs is missing. The official xdelta3 build needs the
+        // Microsoft Visual C++ runtime (VCRUNTIME140.dll), which .NET does not provide under that name.
+        if (exitCode == unchecked((int)0xC0000135))
+            return "xdelta3 could not start because a Windows component it needs is missing: the Microsoft Visual C++ Redistributable " +
+                   "(x64). Install it from Microsoft (search for \"Visual C++ Redistributable latest supported downloads\") and try again.";
         if (message.Contains("unavailable secondary compressor", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("unknown secondary compressor", StringComparison.OrdinalIgnoreCase))
             return "The patch uses a compression method this xdelta3 does not support.";
@@ -387,6 +393,25 @@ public static class XdeltaPatches
         }
         return handle;
     }
+
+    /// <summary>
+    /// The real location of an open file, with junctions, symbolic links and mapped paths resolved. On NTFS no folder on this
+    /// path can be renamed while the file is open, so the path keeps naming the checked file until the handle is closed.
+    /// </summary>
+    internal static string FinalPath(FileStream handle)
+    {
+        if (!OperatingSystem.IsWindows()) return handle.Name;
+        var buffer = new char[32768];
+        uint length = GetFinalPathNameByHandle(handle.SafeFileHandle, buffer, (uint)buffer.Length, 0);
+        if (length == 0 || length >= buffer.Length)
+            throw new EditException("Could not confirm where the xdelta3 program is, so it was not run.");
+        string path = new(buffer, 0, (int)length);
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.Ordinal)) return @"\\" + path[8..];
+        return path.StartsWith(@"\\?\", StringComparison.Ordinal) && path.Length - 4 < 260 ? path[4..] : path;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetFinalPathNameByHandleW")]
+    private static extern uint GetFinalPathNameByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, [Out] char[] path, uint length, uint flags);
 
     private static void CheckTool(XdeltaTool tool)
     {

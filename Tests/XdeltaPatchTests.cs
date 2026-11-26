@@ -337,6 +337,28 @@ public static class XdeltaPatchTests
             Equal(false, File.Exists(dir.Path("q.xdelta")));
         });
 
+        test("xdelta3 reached through a junction is started from its real folder, so the junction cannot redirect it", () =>
+        {
+            using var dir = new Folder();
+            string real = dir.Path("real tools"), app = dir.Path("app");
+            Directory.CreateDirectory(real); Directory.CreateDirectory(app);
+            File.Copy(exe, System.IO.Path.Combine(real, "xdelta3.exe"));
+            string link = System.IO.Path.Combine(app, "tools");
+            var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe") { ArgumentList = { "/c", "mklink", "/J", link, real },
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
+            mklink.WaitForExit();
+            Equal(0, mklink.ExitCode);
+            string viaLink = System.IO.Path.Combine(link, "xdelta3.exe");
+            using (var handle = new FileStream(viaLink, FileMode.Open, FileAccess.Read, FileShare.Read))
+                Equal(System.IO.Path.GetFullPath(System.IO.Path.Combine(real, "xdelta3.exe")), XdeltaPatches.FinalPath(handle));
+            var found = XdeltaPatches.FindBundled(app);
+            Equal(BundledToolState.Verified, found.State);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed);
+            var manifest = XdeltaPatches.Create(found.Tool!, a, Sha(data), b, dir.Path("p.xdelta"));
+            Equal(Sha(changed), manifest.TargetSha256);
+            Directory.Delete(link);
+        });
+
         test("Each step reports what it is doing, and a chain names the patch it is on", () =>
         {
             using var dir = new Folder();
@@ -363,6 +385,7 @@ public static class XdeltaPatchTests
             Equal(true, XdeltaPatches.Explain("xdelta3: target window checksum mismatch: XD3_INVALID_INPUT", 1).Contains("does not fit"));
             Equal(true, XdeltaPatches.Explain("xdelta3: write failed: No space left on device", 1).Contains("ran out of space"));
             Equal("xdelta3 stopped with exit code 3.", XdeltaPatches.Explain("", 3));
+            Equal(true, XdeltaPatches.Explain("", unchecked((int)0xC0000135)).Contains("Visual C++ Redistributable"));
         });
     }
 
