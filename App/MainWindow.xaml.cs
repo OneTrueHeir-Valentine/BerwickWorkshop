@@ -1107,6 +1107,7 @@ public partial class MainWindow : Window
         OpenEditor(new(View.Armies,row.Unit.Key,"Unit",ArmyUnitEditorPanel,ArmyUnitFields,EditArmyUnitButton,
         [
             new("Unit record",EditSession.ArmyUnits,fields.Where(f=>f.Group.Length==0).ToList()),
+            new("Horse",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Horse").ToList()),
             new("Weapon levels",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Weapon levels").ToList()),
             new("Personal skills",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Personal skills").ToList()),
             new("Items",EditSession.ArmyUnits,fields.Where(f=>f.Group=="Items").ToList()),
@@ -1535,6 +1536,7 @@ public partial class MainWindow : Window
         OpenEditor(new(View.Characters,row.Character.Id,"Character",CharacterEditorPanel,CharacterFields,EditCharacterButton,
         [
             new("Starting record",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group.Length==0).ToList()),
+            new("Horse",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Horse").ToList()),
             new("Growth rates",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group.Length==0).ToList()),
             new("Weapon levels",EditSession.Characters,CoreCharacterFields.Record.Where(f=>f.Group=="Weapon levels").ToList()),
             new("Weapon growth",EditSession.Growths,CoreCharacterFields.Growth.Where(f=>f.Group=="Weapon growth").ToList()),

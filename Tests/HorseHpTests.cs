@@ -28,6 +28,18 @@ public static class HorseHpTests
             FieldCodec.Write(record, hp, 120); FieldCodec.Write(record, most, 120);
             Check(Convert.ToHexString(record, 0x1C, 3) == "78E001", "120/120 is not stored as the discs store it (78 E0 01).");
         });
+        test("The Characters and Armies editors show every field group of their records, including Horse", () =>
+        {
+            string code = File.ReadAllText(AccessKeyTests.SourceFile("App", "MainWindow.xaml.cs"));
+            string Section(string start, string end) { int i = code.IndexOf(start, StringComparison.Ordinal); return code[i..code.IndexOf(end, i, StringComparison.Ordinal)]; }
+            string characters = Section("private void BeginCharacterEdit", "],");
+            string armies = Section("OpenEditor(new(View.Armies", "],");
+            foreach (string group in CharacterFields.Record.Select(f => f.Group).Where(g => g.Length > 0).Distinct())
+                Check(characters.Contains($"f.Group==\"{group}\"", StringComparison.Ordinal), $"The Characters editor leaves out the {group} fields.");
+            // Army units have their own item and drop groups and no equipped slots or item flags.
+            foreach (string group in ArmyData.Fields.Select(f => f.Group).Where(g => g.Length > 0 && !g.Contains("(experimental)")).Distinct())
+                Check(armies.Contains($"f.Group==\"{group}\"", StringComparison.Ordinal), $"The Armies editor leaves out the {group} fields.");
+        });
     }
 
     /// <summary>
