@@ -22,7 +22,7 @@
      <TextBlock Text="SAFE EDITING" Foreground="#C6D3BD" FontSize="10" FontWeight="SemiBold"/>
      <TextBlock Text="Edits are saved to a project file. Your game files stay untouched." Foreground="#AFC1B0" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,18"/>
      <Button Content="Help" Style="{StaticResource NavButton}" Click="ShowHelp" ToolTip="Show help (F1)"/>
-     <TextBlock Text="Version 0.121.1" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
+     <TextBlock Text="Version 0.122.0" Foreground="#9BAE9B" FontSize="11" Margin="0,10,0,0"/>
     </StackPanel>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,-12,12" Focusable="False">
      <ScrollViewer.Resources>
@@ -62,6 +62,7 @@
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <DockPanel Margin="0,0,0,22">
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+     <Button x:Name="BulkEditButton" Content="Bulk edit" Click="OpenBulkEdit" Margin="0,0,10,0" ToolTip="Change many records at once (Ctrl+Shift+B)"/>
      <Button x:Name="PatchesButton" Content="ISO patches" Click="OpenIsoPatches" Margin="0,0,10,0" ToolTip="Make or apply xdelta patches (Ctrl+Shift+P)"/>
      <Button x:Name="CompareButton" Content="_Compare ISO" Click="OpenComparison" IsEnabled="False" Margin="0,0,10,0" ToolTip="Compare another disc (Ctrl+Shift+O)"/>
      <Button x:Name="OpenButton" Content="_Open ISO" Click="OpenPrimary" Style="{StaticResource PrimaryButton}" ToolTip="Open a game disc (Ctrl+O)"/>

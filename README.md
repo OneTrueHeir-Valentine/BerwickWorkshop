@@ -14,6 +14,10 @@ Movement costs can be changed for each terrain type, along with terrain avoid, r
 
 The Promotions page lists the 16 promotions read from the original events, with the quest, level and weapon level each one checks and the class the character becomes. Required levels and weapon levels can be changed, and so can the destination class for characters whose events have been checked for it. Promotion changes have not been tested through a full playthrough, so try them on a separate disc image and save.
 
+## Bulk edit
+
+Bulk edit (Ctrl+Shift+B) changes many records at once, such as the range of every bow or the growth rates of a group of characters. Records are chosen by name or number, item group or type, with exclusions; steps such as Set to, Add, Multiply by and Keep between run in order. The preview shows each record's original, current and new value and why anything is blocked or left out, and applying is a single step you can undo. Personal weapons and items whose range differs from the rest of a group are only changed when you name them or include them on purpose. Recipes and selections can be saved and reused on either edition.
+
 ## Randomizer
 
 The Randomizer page changes starting items, character stat bonuses and growth rates, or starting weapon levels and weapon growth. Each option has its own settings and a seed, so the same settings give the same result. A preview lists every change by character before anything is applied, and applying the changes is a single step you can undo. Horses are never handed out as ordinary items, and items that the game's events give to particular characters are left alone. Settings can be saved as a profile and loaded again later.
@@ -56,7 +60,7 @@ dotnet Tests\bin\Release\net10.0\Berwick.Tests.dll "<Japanese ISO>" "<English IS
 dotnet publish App -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o "..\Berwick Workshop"
 ```
 
-The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a Redux modified disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
+The ISO arguments are optional. Without them, the tests use their offline fixtures. A third path can check a modified English v2.3 disc. Game image tests make temporary exports and remove them afterward, so allow at least 9 GB of free space. Original images are opened read only.
 
 No game files are needed to build the application. The `Core` project handles formats, editing and export; `App` contains the Windows interface; `Tests` holds the checks. The `reference` folder contains credited source data. Its licensing and attribution details are in [LICENSING.md](LICENSING.md).
 

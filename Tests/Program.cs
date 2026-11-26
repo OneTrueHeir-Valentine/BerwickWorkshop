@@ -20,6 +20,10 @@ if (args is ["--inspect-placement", string imagePath, string archiveIndex, strin
     return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
 if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
     return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
+if (args is ["--bulk-real", var bulkImage, var bulkFolder])
+    return BulkEditRealCheck.Run(bulkImage, bulkFolder);
+if (args is ["--item-survey", var surveyImage])
+    return ItemSurvey.Run(surveyImage);
 if (args is ["--xdelta", var xdeltaPath])
 {
     XdeltaPatchTests.Run(Test, xdeltaPath);
@@ -95,6 +99,10 @@ if (args is ["--animation-export"])
     return failed == 0 ? 0 : 1;
 }
 ChangeReviewTests.Run(Test);
+BulkEditTests.Run(Test);
+#if WINDOWS
+BulkEditWindowTests.Run(Test);
+#endif
 PromotionCatalogueTests.Run(Test);
 NativePromotionRouteTests.Run(Test);
 RandomizerR0Tests.Run(Test);
@@ -975,9 +983,9 @@ foreach(var exportDisc in new[]{jp!,en!})
     });
     if(args.Length>=3)
         Test("A modified disc built on English v2.3 is recognized",()=>{
-            var redux=Inspector.Inspect(args[2]);
-            Equal(true,redux.IsModified);Equal("Modified English v2.3",redux.Edition);
-            Console.WriteLine($"  {Path.GetFileName(args[2])}: {ItemComparison.Compare(en!.Items,redux.Items).Select(d=>d.Id).Distinct().Count()} items, {RecordComparison.Compare(en.Characters,redux.Characters).Select(d=>d.Id).Distinct().Count()} characters, {ClassComparison.Compare(en.Classes,redux.Classes).Select(d=>d.Id).Distinct().Count()} classes differ from English v2.3; item copies differing: {redux.DifferentTableRecords}");
+            var modified=Inspector.Inspect(args[2]);
+            Equal(true,modified.IsModified);Equal("Modified English v2.3",modified.Edition);
+            Console.WriteLine($"  {Path.GetFileName(args[2])}: {ItemComparison.Compare(en!.Items,modified.Items).Select(d=>d.Id).Distinct().Count()} items, {RecordComparison.Compare(en.Characters,modified.Characters).Select(d=>d.Id).Distinct().Count()} characters, {ClassComparison.Compare(en.Classes,modified.Classes).Select(d=>d.Id).Distinct().Count()} classes differ from English v2.3; item copies differing: {modified.DifferentTableRecords}");
         });
     Test("Character and class edits: undo spans tables, projects round trip, both editions",()=>{
         foreach(var disc in new[]{jp!,en!})
