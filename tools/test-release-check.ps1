@@ -12,11 +12,34 @@ foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'))) 
 $gplNotice = [IO.File]::ReadAllText((Join-Path $root 'LICENSE'))
 $referenceNotice = [IO.File]::ReadAllText((Join-Path $root 'reference/MintX-LICENSE.txt'))
 $iconNotice = [IO.File]::ReadAllText((Join-Path $root 'App/Tabler-LICENSE.txt'))
-$completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice
+$xdeltaNotices = @('xdelta3-LICENSE.txt', 'liblzma-COPYING.0BSD.txt', 'BLAKE3-LICENSE_A2.txt') |
+    ForEach-Object { [IO.File]::ReadAllText((Join-Path $root "third-party/xdelta3/$_")) }
+$completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice + "`n`n" + ($xdeltaNotices -join "`n`n")
+
+# The checker compares tools/xdelta3.exe with the pinned hash. The real program is not in the repository, so the test uses
+# a stand-in file. It runs a copy of the checker inside its own throwaway Git repository that holds the same notices and a
+# stand-in pin; the repository's own pin and files are only read, never changed.
+$standIn = [Text.Encoding]::UTF8.GetBytes('synthetic xdelta3 stand-in')
+$standInSha = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($standIn))).Replace('-', '').ToLowerInvariant()
 
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
 try {
+    $fixture = Join-Path $folder 'repository'
+    foreach ($relative in @('tools/check-release.ps1', 'LICENSE', 'reference/MintX-LICENSE.txt', 'App/Tabler-LICENSE.txt',
+            'third-party/xdelta3/xdelta3-LICENSE.txt', 'third-party/xdelta3/liblzma-COPYING.0BSD.txt',
+            'third-party/xdelta3/BLAKE3-LICENSE_A2.txt')) {
+        $target = Join-Path $fixture $relative
+        New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+        Copy-Item -LiteralPath (Join-Path $root $relative) -Destination $target
+    }
+    [IO.File]::WriteAllText((Join-Path $fixture 'third-party/xdelta3/xdelta3.exe.sha256'), $standInSha + "`n")
+    & git -C $fixture init -q
+    & git -C $fixture add -A
+    & git -C $fixture -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -q -m fixture
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the checker fixture repository.' }
+    $checker = Join-Path $fixture 'tools/check-release.ps1'
+
     $zipPath = Join-Path $folder 'Berwick.Workshop.0.119.0.zip'
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -28,10 +51,13 @@ try {
             $entryText = if ($name -eq 'Licenses.txt') { $completeNotices } else { 'test fixture' }
             try { $writer.Write($entryText) } finally { $writer.Dispose() }
         }
+        $toolEntry = $archive.CreateEntry('tools/xdelta3.exe')
+        $toolWriter = $toolEntry.Open()
+        try { $toolWriter.Write($standIn, 0, $standIn.Length) } finally { $toolWriter.Dispose() }
     }
     finally { $archive.Dispose() }
 
-    $sha = (& git -C $root rev-parse HEAD).Trim()
+    $sha = (& git -C $fixture rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Missing Git revision for test.' }
     $now = [DateTimeOffset]::UtcNow.ToString('o')
     $sample = @{
@@ -83,9 +109,54 @@ try {
     Expect-Rejected
     Set-LicenseNotices ($gplNotice + "`n`n" + $referenceNotice)
     Expect-Rejected
+    Set-LicenseNotices ($gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice)
+    Expect-Rejected
     Set-LicenseNotices $completeNotices
     & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
     if (-not $?) { throw 'The restored license notices were rejected.' }
+
+    function Set-Tool([byte[]] $bytes) {
+        $package = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $old = $package.GetEntry('tools/xdelta3.exe')
+            if ($null -ne $old) { $old.Delete() }
+            if ($null -ne $bytes) {
+                $entry = $package.CreateEntry('tools/xdelta3.exe')
+                $stream = $entry.Open()
+                try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+            }
+        }
+        finally { $package.Dispose() }
+        $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Record
+    }
+    Set-Tool ([Text.Encoding]::UTF8.GetBytes('tampered xdelta3'))
+    Expect-Rejected
+    Set-Tool $null
+    Expect-Rejected
+    Set-Tool $standIn
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The restored xdelta3 entry was rejected.' }
+
+    function Set-Extra([bool] $present) {
+        $package = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $old = $package.GetEntry('tools/vcruntime140.dll')
+            if ($null -ne $old) { $old.Delete() }
+            if ($present) {
+                $stream = $package.CreateEntry('tools/vcruntime140.dll').Open()
+                try { $stream.WriteByte(0) } finally { $stream.Dispose() }
+            }
+        }
+        finally { $package.Dispose() }
+        $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Record
+    }
+    Set-Extra $true
+    Expect-Rejected
+    Set-Extra $false
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The package without the extra file was rejected.' }
 
     $sample.packageSha256 = '0' * 64
     Write-Record

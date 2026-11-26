@@ -62,6 +62,7 @@
    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
    <DockPanel Margin="0,0,0,22">
     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+     <Button x:Name="PatchesButton" Content="ISO patches" Click="OpenIsoPatches" Margin="0,0,10,0" ToolTip="Make or apply xdelta patches (Ctrl+Shift+P)"/>
      <Button x:Name="CompareButton" Content="_Compare ISO" Click="OpenComparison" IsEnabled="False" Margin="0,0,10,0" ToolTip="Compare another disc (Ctrl+Shift+O)"/>
      <Button x:Name="OpenButton" Content="_Open ISO" Click="OpenPrimary" Style="{StaticResource PrimaryButton}" ToolTip="Open a game disc (Ctrl+O)"/>
     </StackPanel>

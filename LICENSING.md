@@ -14,10 +14,12 @@ Game images, extracted art, script contents, translations and other material bel
 
 The application emblem adapts the [Tabler Icons hexagons icon](https://github.com/tabler/tabler-icons/blob/455d76e7c5e9cc75c389ac69447580c6353b3f59/icons/outline/hexagons.svg), copyright (c) 2020-2026 Paweł Kuna, under the MIT license. The [editable artwork](App/workshop.svg) and [license](App/Tabler-LICENSE.txt) are included in the source tree.
 
+The Windows package includes the official xdelta3 3.2.2 program (`tools\xdelta3.exe`), which Berwick Workshop runs as a separate program for ISO patches. xdelta3 is under the Apache License 2.0 and statically includes liblzma (0BSD) and BLAKE3 (used here under the Apache License 2.0). The exact program, its provenance, licence texts and source links are in `third-party/xdelta3/README.txt`.
+
 Microsoft .NET, Windows components and any other redistributed dependencies retain their own license terms.
 
 ## Distributing a build
 
-Each Windows package should include the complete GPL text, the retained MinN-11 MIT notice and any other notices required for bundled components. The release checker verifies the repository license texts in `Licenses.txt`, but an automated check cannot establish the origin and license of every bundled asset.
+Each Windows package should include the complete GPL text, the retained MinN-11 MIT notice and any other notices required for bundled components, including the three xdelta3 licence texts. The release checker verifies the repository license texts in `Licenses.txt` and that `tools/xdelta3.exe` is the pinned program, but an automated check cannot establish the origin and license of every bundled asset.
 
 The source code corresponding to a binary release must be available in the form required by the GPL, including the build files and other materials needed under its definition of Corresponding Source. Releases should identify the exact source revision used to build them. GitHub's generated source archives can assist, but do not replace a review of what the binary actually contains.

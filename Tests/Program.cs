@@ -20,6 +20,16 @@ if (args is ["--inspect-placement", string imagePath, string archiveIndex, strin
     return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
 if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
     return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
+if (args is ["--xdelta", var xdeltaPath])
+{
+    XdeltaPatchTests.Run(Test, xdeltaPath);
+    Console.WriteLine($"{passed} passed, {failed} failed");
+    return failed == 0 ? 0 : 1;
+}
+if (args is ["--xdelta-real", var realTool, var realJapanese, var realEnglish, var realLegacy, var realFolder])
+    return XdeltaPatchTests.RunReal(realTool, realJapanese, realEnglish, realLegacy, realFolder);
+if (args is ["--xdelta-projects", var projectTool, var projectImage, var projectFile, var projectFolder])
+    return XdeltaProjectCheck.Run(projectTool, projectImage, projectFile, projectFolder);
 if (args is ["--maps"])
 {
     MapEditsTests.Run(Test);
@@ -336,6 +346,7 @@ Test("Item encoder rejects out of range values",()=>{
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
 ExportSafetyTests.Run(Test);
+XdeltaPatchTests.RunOffline(Test);
 Test("Export cancellation during verification leaves no output",()=>{
     string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
     try

@@ -64,6 +64,16 @@ public partial class MainWindow : Window
         if(!ConfirmDiscard())return;
         if(PickIso("Open a Berwick Saga ISO") is { } path) await LoadDisc(path,false);
     }
+    private void OpenIsoPatches(object sender,RoutedEventArgs e)
+    {
+        if(loading is not null)return;
+        new IsoPatchesWindow(()=>
+        {
+            if(primary?.IsVerifiedOriginal!=true || session is null || session.ChangeCount==0 || editing is not null)return null;
+            try{return new PatchProject(primary.Path,primary.Sha256,Exporter.PatchesFor(session,primary),ProjectTitle,primary.Edition,session.ChangeCount);}
+            catch(EditException){return null;}
+        }){Owner=this}.ShowDialog();
+    }
     private async void OpenComparison(object sender,RoutedEventArgs e)
     {
         if(loading is not null || primary?.Supported!=true)return;
@@ -2070,6 +2080,7 @@ public partial class MainWindow : Window
             if(view==View.Items)BeginEdit(this,new());else if(view==View.Characters)BeginCharacterEdit(this,new());else if(view==View.Armies)BeginArmyUnitEdit(this,new());else if(view==View.Furniture)BeginFurnitureEdit(this,new());else if(view==View.Maps)MapsPage.BeginUnitEdit();else if(view==View.Dishes)BeginDishEdit(this,new());else if(view==View.Events)BeginScriptNumberEdit(this,new());else if(view==View.Classes)BeginClassEdit(this,new());else if(view==View.Movement)BeginMovementEdit(this,new());else if(view==View.Terrain)BeginTerrainEdit(this,new());
             return;
         }
+        if(e.Key==Key.P && shift){e.Handled=true;OpenIsoPatches(this,new());return;}
         if(e.Key==Key.O){e.Handled=true;if((Keyboard.Modifiers&ModifierKeys.Shift)!=0)OpenComparison(this,new());else OpenPrimary(this,new());}
         if(e.Key==Key.F && primary?.Supported==true)
         {

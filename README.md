@@ -2,7 +2,7 @@
 
 Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chapter 174* on PlayStation 2. It reads the Japanese retail game and the English v2.3 translation, using the verified data locations for each edition. Changes are kept in a project until you export a new disc image.
 
-[Download the latest Windows release](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest). Berwick Workshop needs the [Microsoft .NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). Install it first if you do not have it, then extract the archive and run `Berwick Workshop.exe`.
+[Download the latest Windows release](https://github.com/OneTrueHeir-Valentine/BerwickWorkshop/releases/latest). Berwick Workshop needs the [Microsoft .NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0). ISO patches also need the [Microsoft Visual C++ Redistributable (x64)](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist), which many PCs already have. Install them first if you do not have them, then extract the archive and run `Berwick Workshop.exe`.
 
 ## What you can edit
 
