@@ -263,6 +263,9 @@ public static class XdeltaPatches
     private static string RunToPartial(XdeltaTool tool, string destination, Func<string, string[]> arguments, CancellationToken cancellation, string failure)
     {
         string partial = destination + $".{Guid.NewGuid():N}.partial";
+        // Keep xdelta3.exe open for reading only from the hash check until it exits, so it cannot be replaced, renamed or
+        // changed between being checked and being run.
+        using var toolLock = LockTool(tool);
         var start = new ProcessStartInfo(tool.Path)
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true,
@@ -361,6 +364,20 @@ public static class XdeltaPatches
             message.Contains("disk full", StringComparison.OrdinalIgnoreCase))
             return "The destination drive ran out of space.";
         return exitCode == 0 ? "xdelta3 did not write a file." : $"xdelta3 stopped with exit code {exitCode}.";
+    }
+
+    /// <summary>Opens xdelta3.exe without allowing writes, renames or deletion, and checks its hash through that handle.</summary>
+    private static FileStream LockTool(XdeltaTool tool)
+    {
+        FileStream handle;
+        try { handle = new FileStream(tool.Path, FileMode.Open, FileAccess.Read, FileShare.Read); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new EditException("xdelta3 was not found or could not be opened."); }
+        if (!string.Equals(Hash(handle, default), tool.Sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            handle.Dispose();
+            throw new EditException("The xdelta3 program is not the verified version, so it was not run.");
+        }
+        return handle;
     }
 
     private static void CheckTool(XdeltaTool tool)

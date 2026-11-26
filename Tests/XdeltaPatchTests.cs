@@ -284,6 +284,23 @@ public static class XdeltaPatchTests
             Equal("a.iso,b.iso,r.xdelta,r.xdelta.json", string.Join(",", left));
         });
 
+        test("The checked xdelta3 cannot be changed, renamed or deleted until it has finished, and a missing one is refused", () =>
+        {
+            using var dir = new Folder(ascii: true);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed);
+            var slow = FakeTool(dir, "", 0, waitSeconds: 3);
+            var run = Task.Run(() => XdeltaPatches.Create(slow, a, Sha(data), b, dir.Path("p.xdelta")));
+            while (dir.Partials() == 0 && !run.IsCompleted) Thread.Sleep(20);
+            Throws<IOException>(() => { using var w = new FileStream(slow.Path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite); });
+            Throws<IOException>(() => File.Move(slow.Path, dir.Path("moved.cmd")));
+            Throws<IOException>(() => File.Delete(slow.Path));
+            run.Wait();
+            Equal(true, File.Exists(slow.Path) && File.Exists(dir.Path("p.xdelta")));
+            var missing = tool with { Path = dir.Path("no xdelta3 here.exe") };
+            Equal(true, Catch(() => XdeltaPatches.Create(missing, a, Sha(data), b, dir.Path("q.xdelta"))).Message.Contains("not found"));
+            Equal(0, dir.Partials());
+        });
+
         test("Each step reports what it is doing, and a chain names the patch it is on", () =>
         {
             using var dir = new Folder();
