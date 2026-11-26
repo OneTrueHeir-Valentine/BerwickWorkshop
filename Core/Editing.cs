@@ -224,7 +224,7 @@ public static class CharacterFields
         // The horse's HP, in the same layout as the running game's unit (see LiveHorse): current in 10 bits at +0x1C and the most
         // in the next 10 bits. Mounted units on the discs have both set to the horse's durability pool times 10; units on foot have 0.
         new("horseHp", "Horse HP", 0x1C, 0, 10, 0, 1023) { Group = "Horse" },
-        new("horseMaxHp", "Horse most HP", 0x1D, 2, 10, 0, 1023) { Group = "Horse" },
+        new("horseMaxHp", "Horse max HP", 0x1D, 2, 10, 0, 1023) { Group = "Horse" },
     }.Concat(Levels.Select(l => new TableField(Key(l.Name, "Level"), l.Name, l.Offset, l.Bit, 10, 0, 1023) { Display = 0.1, Group = "Weapon levels" }))
      .Concat(SkillFlags(56, "Personal skills")).Concat(ItemSlotFields()).ToArray());
 
@@ -305,10 +305,10 @@ public sealed record FieldEdit(string Table, int Id, string Field, int Value);
 
 public sealed class EditSession
 {
-    /// <summary>A horse can't have more HP than its most HP.</summary>
+    /// <summary>A horse can't have more HP than its max HP.</summary>
     private static string HorseProblem(IReadOnlyDictionary<string, int> values) =>
         values.TryGetValue("horseHp", out int hp) && values.TryGetValue("horseMaxHp", out int most) && hp > most
-            ? "Horse HP can't be more than the horse's most HP." : "";
+            ? "Horse HP can't be more than the horse's max HP." : "";
 
     public const string Items = "items", Characters = "characters", Growths = "growths", Classes = "classes", Terrain = "terrain", TerrainKinds = "terrainKinds", Rules = "rules", StablePrices = "stablePrices", Partners = "partners", Bags = "bags", Mercenaries = "mercenaries", ArmyUnits = "armyUnits", FurniturePrices = "furniturePrices", Recipes = "recipes", Dishes = "dishes", Tastes = "tastes", Deployments = "deployments", Placements = "placements", Texts = "texts", ScriptValues = "scriptValues", Scripts = "scripts", AnimationSets = "animationSets", AnimationPalettes = "animationPalettes", MapSprites = "mapSprites";
     private static readonly string[] TableOrder = [Items, Characters, Growths, Partners, Bags, Mercenaries, ArmyUnits, Classes, Terrain, TerrainKinds, Rules, StablePrices, FurniturePrices, Recipes, Dishes, Tastes, Deployments, Placements, AnimationSets, AnimationPalettes, MapSprites, ScriptValues, Scripts, Texts];

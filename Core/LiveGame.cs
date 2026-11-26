@@ -363,13 +363,13 @@ public sealed class LiveGame : IDisposable
 /// <summary>
 /// A unit's horse in the running game, in the record layout the Live page edits: the horse item (unit +0x48), its HP
 /// (unit +0x18, current in bits 0 to 9 and the most in bits 10 to 19) and the dismounted flag (unit +0x33 bit 5).
-/// Horses are items 0x205 to 0x214; a horse's most HP is its durability pool times 10.
+/// Horses are items 0x205 to 0x214; a horse's max HP is its durability pool times 10.
 /// </summary>
 public static class LiveHorse
 {
     public static readonly TableField Item = new("horse", "Horse", 0x4C, 0, 10, 0, 0x3FF);
     public static readonly TableField Hp = new("horseHp", "Horse HP", 0x1C, 0, 10, 0, 1023);
-    public static readonly TableField MaxHp = new("horseMaxHp", "Horse most HP", 0x1D, 2, 10, 0, 1023);
+    public static readonly TableField MaxHp = new("horseMaxHp", "Horse max HP", 0x1D, 2, 10, 0, 1023);
     public static readonly TableField Dismounted = new("dismounted", "Dismounted", 0x37, 5, 1, 0, 1);
 
     public static bool IsHorse(int item) => item is >= 0x205 and <= 0x214;
@@ -382,7 +382,7 @@ public static class LiveHorse
     {
         if (horse != 0 && !IsHorse(horse)) return "Choose one of the horses, or No horse.";
         if (horse == 0 && mounted) return "This unit is riding its horse. Choose Dismount in the game first, then remove the horse.";
-        if (horse != 0 && (maxHp is < 1 or > 1023 || hp is < 0 || hp > maxHp)) return "Horse HP must be from 0 to the most HP, and the most HP from 1 to 1023.";
+        if (horse != 0 && (maxHp is < 1 or > 1023 || hp is < 0 || hp > maxHp)) return "Horse HP must be from 0 to the max HP, and the max HP from 1 to 1023.";
         int old = FieldCodec.Read(record, Item);
         FieldCodec.Write(record, Item, horse);
         FieldCodec.Write(record, Hp, horse == 0 ? 0 : hp);
