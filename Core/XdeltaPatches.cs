@@ -361,7 +361,8 @@ public static class XdeltaPatches
         // Microsoft Visual C++ runtime (VCRUNTIME140.dll), which .NET does not provide under that name.
         if (exitCode == unchecked((int)0xC0000135))
             return "xdelta3 could not start because a Windows component it needs is missing: the Microsoft Visual C++ Redistributable " +
-                   "(x64). Install it from Microsoft (search for \"Visual C++ Redistributable latest supported downloads\") and try again.";
+                   "(x64). Install it from Microsoft's \"Latest supported Visual C++ Redistributable downloads\" page " +
+                   "(learn.microsoft.com/cpp/windows/latest-supported-vc-redist) and try again.";
         if (message.Contains("unavailable secondary compressor", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("unknown secondary compressor", StringComparison.OrdinalIgnoreCase))
             return "The patch uses a compression method this xdelta3 does not support.";

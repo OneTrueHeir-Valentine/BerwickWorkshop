@@ -20,7 +20,12 @@ Included:       liblzma from xz 5.8.3 (commit 4b73f2ec19a99ef465282fbce633e8deb3
                 and BLAKE3 1.8.5 (commit 93a431c78a52d7ccf0f366f106467f5070e6075e),
                 both linked statically
 
-Berwick Workshop accepts only a program with that SHA-256. It checks the hash when the
+The program needs the Microsoft Visual C++ Redistributable (x64), which provides
+VCRUNTIME140.dll; the .NET runtime does not provide that file. It is a stated
+prerequisite of the package and is not included. Without it Windows cannot start
+xdelta3, and Berwick Workshop says what is missing and where to get it.
+
+Berwick Workshop accepts only the program with the SHA-256 above. It checks the hash when the
 ISO patches window opens and again, through a locked handle, each time it runs the
 program. It never downloads anything.
 

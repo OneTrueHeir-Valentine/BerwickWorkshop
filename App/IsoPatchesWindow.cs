@@ -70,7 +70,7 @@ internal sealed class IsoPatchesWindow : Window
     {
         var panel = new StackPanel { Margin = new(24) };
         panel.Children.Add(new TextBlock { Text = "ISO patches", FontSize = 22 });
-        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Share the patch, and say which original disc it needs (for example English v2.3); never share disc images themselves. Patches are made and applied with xdelta3 3.2.2, which comes with Berwick Workshop in its tools folder and is checked before every use. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
+        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Share the patch, and say which original disc it needs (for example English v2.3); never share disc images themselves. Patches are made and applied with xdelta3 3.2.2, which comes with Berwick Workshop in its tools folder and is checked before every use. It needs the Microsoft Visual C++ Redistributable (x64), which many PCs already have. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
         var toolButton = Action("Choose xdelta3...", ChooseTool);
         toolButton.IsEnabled = true;
         panel.Children.Add(toolText);
