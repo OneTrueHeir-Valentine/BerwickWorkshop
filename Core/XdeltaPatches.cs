@@ -16,7 +16,15 @@ public sealed record XdeltaTool(string Path, string Sha256, string Version)
 
     /// <summary>Official xdelta3 3.2.2 release for Windows x64 (github.com/jmacd/xdelta, v3.2.2).</summary>
     public const string Release322WindowsX64Sha256 = "732980d52f9220dc81817ccdd0c295eadce8a0048a24c2a771a73f791ac824e9";
+
+    /// <summary>Where the release package keeps xdelta3, relative to the folder that holds Berwick Workshop.exe.</summary>
+    public const string BundledRelativePath = "tools\\xdelta3.exe";
 }
+
+/// <summary>What was found at the package's own copy of xdelta3.</summary>
+public enum BundledToolState { Verified, Missing, NotVerified }
+
+public sealed record BundledTool(BundledToolState State, string Path, XdeltaTool? Tool);
 
 /// <summary>
 /// How a patch is written. Every profile leaves out the application header, so no file names or folders
@@ -420,6 +428,23 @@ public static class XdeltaPatches
 
     /// <summary>The SHA-256 of a file, as lowercase hexadecimal.</summary>
     public static string HashFile(string path) => Hash(path, default);
+
+    /// <summary>
+    /// Looks for the copy of xdelta3 that ships in the release package (tools\xdelta3.exe next to the application) and accepts it
+    /// only when its SHA-256 is the official 3.2.2 build. Nothing is run here, and nothing is ever downloaded. The hash is checked
+    /// again, through a locked handle, each time the program runs.
+    /// </summary>
+    public static BundledTool FindBundled(string applicationFolder)
+    {
+        string path = System.IO.Path.Combine(applicationFolder, "tools", "xdelta3.exe");
+        if (!File.Exists(path)) return new(BundledToolState.Missing, path, null);
+        string sha;
+        try { sha = HashFile(path); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return new(BundledToolState.NotVerified, path, null); }
+        return string.Equals(sha, XdeltaTool.Release322WindowsX64Sha256, StringComparison.OrdinalIgnoreCase)
+            ? new(BundledToolState.Verified, path, new XdeltaTool(path, sha, "3.2.2"))
+            : new(BundledToolState.NotVerified, path, null);
+    }
 
     internal static string Hash(string path, CancellationToken cancellation)
     {

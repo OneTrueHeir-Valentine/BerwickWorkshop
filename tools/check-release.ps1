@@ -80,11 +80,23 @@ $archive = [System.IO.Compression.ZipFile]::OpenRead($packagePath)
 try {
     $entries = @($archive.Entries | Where-Object {
         -not [string]::IsNullOrWhiteSpace($_.Name)
-    } | ForEach-Object { $_.Name })
-    $allowed = @('Berwick Workshop.exe', 'README.txt', 'Licenses.txt')
-    if ($entries.Count -ne 3 -or
+    } | ForEach-Object { $_.FullName.Replace('\', '/') })
+    $allowed = @('Berwick Workshop.exe', 'README.txt', 'Licenses.txt', 'tools/xdelta3.exe')
+    if ($entries.Count -ne $allowed.Count -or
         @(Compare-Object ($entries | Sort-Object) ($allowed | Sort-Object)).Count -gt 0) {
-        throw 'The release archive must contain the executable, README and Licenses files only.'
+        throw 'The release archive must contain the executable, README, Licenses and tools/xdelta3.exe only.'
+    }
+    $pinned = [IO.File]::ReadAllText((Join-Path $repo 'third-party/xdelta3/xdelta3.exe.sha256')).Trim().ToLowerInvariant()
+    $toolEntry = @($archive.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq 'tools/xdelta3.exe' })[0]
+    $toolStream = $toolEntry.Open()
+    try {
+        $toolHasher = [Security.Cryptography.SHA256]::Create()
+        try { $toolSha = ([BitConverter]::ToString($toolHasher.ComputeHash($toolStream))).Replace('-', '').ToLowerInvariant() }
+        finally { $toolHasher.Dispose() }
+    }
+    finally { $toolStream.Dispose() }
+    if ($toolSha -ne $pinned) {
+        throw 'tools/xdelta3.exe is not the pinned xdelta3 program.'
     }
     foreach ($entry in $archive.Entries) {
         $path = $entry.FullName.Replace('\', '/')
@@ -103,7 +115,9 @@ try {
     finally {
         $reader.Dispose()
     }
-    foreach ($relative in @('LICENSE', 'reference/MintX-LICENSE.txt', 'App/Tabler-LICENSE.txt')) {
+    foreach ($relative in @('LICENSE', 'reference/MintX-LICENSE.txt', 'App/Tabler-LICENSE.txt',
+            'third-party/xdelta3/xdelta3-LICENSE.txt', 'third-party/xdelta3/liblzma-COPYING.0BSD.txt',
+            'third-party/xdelta3/BLAKE3-LICENSE_A2.txt')) {
         $requiredPath = Join-Path $repo $relative
         $required = [IO.File]::ReadAllText($requiredPath).Replace("`r`n", "`n").Trim()
         if (-not $noticeText.Contains($required)) {

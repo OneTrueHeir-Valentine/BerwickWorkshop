@@ -9,6 +9,20 @@ using System.Text;
 /// </summary>
 public static class XdeltaPatchTests
 {
+    /// <summary>Checks that need no xdelta3 program: the pinned hash and notices the release package depends on.</summary>
+    public static void RunOffline(Action<string, Action> test)
+    {
+        test("The release package pin for xdelta3 matches the program Workshop accepts, and its notices are present", () =>
+        {
+            string pin = File.ReadAllText(AccessKeyTests.SourceFile("third-party", "xdelta3", "xdelta3.exe.sha256")).Trim();
+            Equal(XdeltaTool.Release322WindowsX64Sha256, pin);
+            Equal(true, File.ReadAllText(AccessKeyTests.SourceFile("third-party", "xdelta3", "xdelta3-LICENSE.txt")).Contains("Apache License"));
+            Equal(true, File.ReadAllText(AccessKeyTests.SourceFile("third-party", "xdelta3", "liblzma-COPYING.0BSD.txt")).Contains("Permission to use, copy, modify"));
+            Equal(true, File.ReadAllText(AccessKeyTests.SourceFile("third-party", "xdelta3", "BLAKE3-LICENSE_A2.txt")).Contains("Apache License"));
+            Equal(@"tools\xdelta3.exe", XdeltaTool.BundledRelativePath);
+        });
+    }
+
     public static void Run(Action<string, Action> test, string exe)
     {
         var tool = new XdeltaTool(exe, XdeltaTool.Release322WindowsX64Sha256, "3.2.2");
@@ -299,6 +313,28 @@ public static class XdeltaPatchTests
             var missing = tool with { Path = dir.Path("no xdelta3 here.exe") };
             Equal(true, Catch(() => XdeltaPatches.Create(missing, a, Sha(data), b, dir.Path("q.xdelta"))).Message.Contains("not found"));
             Equal(0, dir.Partials());
+        });
+
+        test("The packaged xdelta3 next to the application is used only when it is the verified program", () =>
+        {
+            using var dir = new Folder();
+            Equal(BundledToolState.Missing, XdeltaPatches.FindBundled(dir.Root).State);
+            Equal(null, XdeltaPatches.FindBundled(dir.Root).Tool);
+            Directory.CreateDirectory(dir.Path("tools"));
+            string copy = System.IO.Path.Combine(dir.Root, XdeltaTool.BundledRelativePath);
+            File.Copy(exe, copy);
+            var found = XdeltaPatches.FindBundled(dir.Root);
+            Equal(BundledToolState.Verified, found.State);
+            Equal(copy, found.Tool!.Path);
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed);
+            var manifest = XdeltaPatches.Create(found.Tool, a, Sha(data), b, dir.Path("p.xdelta"));
+            Equal(Sha(changed), manifest.TargetSha256);
+            using (var append = new FileStream(copy, FileMode.Append, FileAccess.Write)) append.WriteByte(0);
+            var tampered = XdeltaPatches.FindBundled(dir.Root);
+            Equal(BundledToolState.NotVerified, tampered.State);
+            Equal(null, tampered.Tool);
+            Equal(true, Catch(() => XdeltaPatches.Create(found.Tool, a, Sha(data), b, dir.Path("q.xdelta"))).Message.Contains("not the verified version"));
+            Equal(false, File.Exists(dir.Path("q.xdelta")));
         });
 
         test("Each step reports what it is doing, and a chain names the patch it is on", () =>

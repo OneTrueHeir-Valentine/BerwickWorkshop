@@ -12,10 +12,20 @@ foreach ($path in @($checker, (Join-Path $PSScriptRoot 'publish-release.ps1'))) 
 $gplNotice = [IO.File]::ReadAllText((Join-Path $root 'LICENSE'))
 $referenceNotice = [IO.File]::ReadAllText((Join-Path $root 'reference/MintX-LICENSE.txt'))
 $iconNotice = [IO.File]::ReadAllText((Join-Path $root 'App/Tabler-LICENSE.txt'))
-$completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice
+$xdeltaNotices = @('xdelta3-LICENSE.txt', 'liblzma-COPYING.0BSD.txt', 'BLAKE3-LICENSE_A2.txt') |
+    ForEach-Object { [IO.File]::ReadAllText((Join-Path $root "third-party/xdelta3/$_")) }
+$completeNotices = $gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice + "`n`n" + ($xdeltaNotices -join "`n`n")
+
+# The checker compares tools/xdelta3.exe with the pinned hash. The real program is not in the repository, so a stand-in file
+# and a matching temporary pin are used: copy the repository's checker next to a stand-in third-party folder.
+$standIn = [Text.Encoding]::UTF8.GetBytes('synthetic xdelta3 stand-in')
+$standInSha = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($standIn))).Replace('-', '').ToLowerInvariant()
 
 $folder = Join-Path ([IO.Path]::GetTempPath()) ("berwick-release-check-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $folder | Out-Null
+$pinFile = Join-Path $root 'third-party/xdelta3/xdelta3.exe.sha256'
+$realPin = [IO.File]::ReadAllBytes($pinFile)
+[IO.File]::WriteAllText($pinFile, $standInSha + "`n")
 try {
     $zipPath = Join-Path $folder 'Berwick.Workshop.0.119.0.zip'
     Add-Type -AssemblyName System.IO.Compression
@@ -28,6 +38,9 @@ try {
             $entryText = if ($name -eq 'Licenses.txt') { $completeNotices } else { 'test fixture' }
             try { $writer.Write($entryText) } finally { $writer.Dispose() }
         }
+        $toolEntry = $archive.CreateEntry('tools/xdelta3.exe')
+        $toolWriter = $toolEntry.Open()
+        try { $toolWriter.Write($standIn, 0, $standIn.Length) } finally { $toolWriter.Dispose() }
     }
     finally { $archive.Dispose() }
 
@@ -83,9 +96,34 @@ try {
     Expect-Rejected
     Set-LicenseNotices ($gplNotice + "`n`n" + $referenceNotice)
     Expect-Rejected
+    Set-LicenseNotices ($gplNotice + "`n`n" + $referenceNotice + "`n`n" + $iconNotice)
+    Expect-Rejected
     Set-LicenseNotices $completeNotices
     & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
     if (-not $?) { throw 'The restored license notices were rejected.' }
+
+    function Set-Tool([byte[]] $bytes) {
+        $package = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+        try {
+            $old = $package.GetEntry('tools/xdelta3.exe')
+            if ($null -ne $old) { $old.Delete() }
+            if ($null -ne $bytes) {
+                $entry = $package.CreateEntry('tools/xdelta3.exe')
+                $stream = $entry.Open()
+                try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+            }
+        }
+        finally { $package.Dispose() }
+        $sample.packageSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Record
+    }
+    Set-Tool ([Text.Encoding]::UTF8.GetBytes('tampered xdelta3'))
+    Expect-Rejected
+    Set-Tool $null
+    Expect-Rejected
+    Set-Tool $standIn
+    & $checker -Version '0.119.0' -Package $zipPath -Evidence $recordPath | Out-Null
+    if (-not $?) { throw 'The restored xdelta3 entry was rejected.' }
 
     $sample.packageSha256 = '0' * 64
     Write-Record
@@ -104,5 +142,6 @@ try {
     Write-Host 'Release evidence checker: synthetic acceptance and rejection tests passed.'
 }
 finally {
+    [IO.File]::WriteAllBytes($pinFile, $realPin)
     Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue
 }

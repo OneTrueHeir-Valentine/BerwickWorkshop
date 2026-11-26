@@ -346,6 +346,7 @@ Test("Item encoder rejects out of range values",()=>{
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
 ExportSafetyTests.Run(Test);
+XdeltaPatchTests.RunOffline(Test);
 Test("Export cancellation during verification leaves no output",()=>{
     string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
     try

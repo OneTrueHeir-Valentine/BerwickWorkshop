@@ -18,6 +18,7 @@ internal sealed class IsoPatchesWindow : Window
 {
     private readonly Func<PatchProject?> project;
     private XdeltaTool? tool;
+    private BundledTool? bundled;
     private CancellationTokenSource? running;
 
     private readonly TextBlock toolText = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 0, 0, 6) };
@@ -57,6 +58,8 @@ internal sealed class IsoPatchesWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
         Content = Build();
+        bundled = XdeltaPatches.FindBundled(AppContext.BaseDirectory);
+        tool = bundled.Tool;
         UpdateTool();
         UpdateMake();
         cancel.Click += (_, _) => running?.Cancel();
@@ -67,7 +70,7 @@ internal sealed class IsoPatchesWindow : Window
     {
         var panel = new StackPanel { Margin = new(24) };
         panel.Children.Add(new TextBlock { Text = "ISO patches", FontSize = 22 });
-        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Share the patch, and say which original disc it needs (for example English v2.3); never share disc images themselves. Patches are made and applied with xdelta3, which is not included with Berwick Workshop. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
+        panel.Children.Add(Wrap("A patch holds only the differences between two disc images, so it is small enough to share. Applying it to the same original disc gives the changed image. Share the patch, and say which original disc it needs (for example English v2.3); never share disc images themselves. Patches are made and applied with xdelta3 3.2.2, which comes with Berwick Workshop in its tools folder and is checked before every use. Original disc images and existing files are never changed or replaced.", new(0, 8, 0, 12)));
         var toolButton = Action("Choose xdelta3...", ChooseTool);
         toolButton.IsEnabled = true;
         panel.Children.Add(toolText);
@@ -141,9 +144,12 @@ internal sealed class IsoPatchesWindow : Window
 
     private void UpdateTool()
     {
-        toolText.Text = tool is null
-            ? "xdelta3: not chosen. Download xdelta3-3.2.2-windows-x86_64.zip from the xdelta project's releases page (github.com/jmacd/xdelta), unzip it, and choose xdelta3.exe. Only that exact program is accepted; other versions and builds are refused without being run."
-            : $"xdelta3 3.2.2 (verified): {tool.Path}";
+        const string choose = " You can also choose a copy of the official xdelta3 3.2.2 for Windows x64 (xdelta3-3.2.2-windows-x86_64.zip from github.com/jmacd/xdelta); other versions and builds are refused without being run.";
+        toolText.Text = tool is not null
+            ? tool.Path == bundled?.Path ? "xdelta3 3.2.2, included with Berwick Workshop (verified)." : $"xdelta3 3.2.2 (verified): {tool.Path}"
+            : bundled?.State == BundledToolState.NotVerified
+                ? "The xdelta3 in Berwick Workshop's tools folder is not the verified 3.2.2 program, so it will not be run. Unzip the release download again into a new folder." + choose
+                : "xdelta3 was not found in Berwick Workshop's tools folder. Unzip the whole release download, keeping the tools folder next to Berwick Workshop.exe." + choose;
         foreach (var b in actions) b.IsEnabled = tool is not null && running is null;
     }
 
