@@ -275,10 +275,14 @@ public static class XdeltaPatches
         // changed between being checked and being run. Start it by the path Windows gives for that open file, with every
         // junction and link already followed, so a link on the way to it cannot be pointed somewhere else in between.
         using var toolLock = LockTool(tool);
-        var start = new ProcessStartInfo(FinalPath(toolLock))
+        string program = FinalPath(toolLock);
+        // Every path xdelta3 gets is absolute, so it runs in its own folder. Windows also looks for missing DLLs in the working
+        // directory (after the program's folder and the system folders), and the destination folder may hold files from anywhere,
+        // such as a downloads folder.
+        var start = new ProcessStartInfo(program)
         {
             UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true,
-            WorkingDirectory = Path.GetDirectoryName(destination)!,
+            WorkingDirectory = Path.GetDirectoryName(program)!,
         };
         foreach (string argument in arguments(partial)) start.ArgumentList.Add(argument);
         try

@@ -359,6 +359,21 @@ public static class XdeltaPatchTests
             Directory.Delete(link);
         });
 
+        test("xdelta3 runs in its own folder, not in the folder the new file goes to", () =>
+        {
+            using var dir = new Folder(ascii: true); // the batch stand-in writes its folder in the console code page
+            string tools = dir.Path("tools"), output = dir.Path("downloads");
+            Directory.CreateDirectory(tools); Directory.CreateDirectory(output);
+            // A stand-in that writes its working directory as the "patch".
+            string script = "@echo off\r\nset last=\r\nfor %%a in (%*) do set \"last=%%~a\"\r\n>\"%last%\" echo %CD%\r\nexit /b 0\r\n";
+            string path = System.IO.Path.Combine(tools, "fake xdelta.cmd");
+            File.WriteAllBytes(path, Encoding.ASCII.GetBytes(script));
+            var fake = new XdeltaTool(path, Sha(File.ReadAllBytes(path)), "fake");
+            string a = dir.Write("a.iso", data), b = dir.Write("b.iso", changed);
+            XdeltaPatches.Create(fake, a, Sha(data), b, System.IO.Path.Combine(output, "p.xdelta"));
+            Equal(System.IO.Path.GetFullPath(tools).TrimEnd('\\'), File.ReadAllText(System.IO.Path.Combine(output, "p.xdelta")).Trim().TrimEnd('\\'));
+        });
+
         test("Each step reports what it is doing, and a chain names the patch it is on", () =>
         {
             using var dir = new Folder();
