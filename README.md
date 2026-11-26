@@ -30,6 +30,14 @@ Battle Animations plays the sets and palettes assigned to classes and characters
 
 The Maps page already draws its background from the opened disc. Decoding the smaller unit sprites used on the map is separate work. The application does not ship with extracted game graphics.
 
+## ISO patches
+
+ISO patches (Ctrl+Shift+P) makes a small patch from two disc images or from the open project, and applies one patch or several in order, so changes can be shared without sharing a disc image. **Compatible**, the default, adds no extra compression. **Compact** adds LZMA compression; the program that applies it must support LZMA, and the patch is not always smaller.
+
+Each patch Workshop makes has a manifest next to it (`<patch>.json`) that records the original image, the patch and the expected result by SHA-256. A patch from elsewhere can be applied on its own without one, but applying several in order needs a manifest for each. A manifest shows that a file is the one described; it does not show who made a patch. Original images and existing files are never changed or replaced.
+
+Patches are made and applied by the official xdelta3 3.2.2, which comes in the package's `tools` folder and is checked before every use. It needs the Microsoft Visual C++ Redistributable (x64). The exact program, its source and its licences are listed in [third-party/xdelta3](third-party/xdelta3/README.txt).
+
 ## Projects and PCSX2
 
 A `.bwproj` file holds the edits, leaving the original ISO untouched. The change review shows what differs from the disc, including changes to scripts and text, and can export a JSON manifest. Export creates a new ISO that can be opened in PCSX2.
