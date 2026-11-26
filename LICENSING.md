@@ -14,7 +14,7 @@ Game images, extracted art, script contents, translations and other material bel
 
 The application emblem adapts the [Tabler Icons hexagons icon](https://github.com/tabler/tabler-icons/blob/455d76e7c5e9cc75c389ac69447580c6353b3f59/icons/outline/hexagons.svg), copyright (c) 2020-2026 Paweł Kuna, under the MIT license. The [editable artwork](App/workshop.svg) and [license](App/Tabler-LICENSE.txt) are included in the source tree.
 
-The Windows package includes the official xdelta3 3.2.2 program (`tools\xdelta3.exe`), which Berwick Workshop runs as a separate program for ISO patches. xdelta3 is under the Apache License 2.0 and statically includes liblzma (0BSD) and BLAKE3 (used here under the Apache License 2.0). The exact program, its provenance, licence texts and source links are in [third-party/xdelta3](third-party/xdelta3/README.md).
+The Windows package includes the official xdelta3 3.2.2 program (`tools\xdelta3.exe`), which Berwick Workshop runs as a separate program for ISO patches. xdelta3 is under the Apache License 2.0 and statically includes liblzma (0BSD) and BLAKE3 (used here under the Apache License 2.0). The exact program, its provenance, licence texts and source links are in `third-party/xdelta3/README.txt`.
 
 Microsoft .NET, Windows components and any other redistributed dependencies retain their own license terms.
 

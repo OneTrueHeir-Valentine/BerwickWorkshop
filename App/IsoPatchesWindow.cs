@@ -29,13 +29,13 @@ internal sealed class IsoPatchesWindow : Window
     private readonly List<Button> actions = [];
 
     // Make a patch
-    private readonly RadioButton fromProject = new() { Content = "From the open project (the original disc and this project's changes)", IsChecked = true, GroupName = "source" };
-    private readonly RadioButton fromImages = new() { Content = "From two disc images (an original and a changed copy)", GroupName = "source", Margin = new(0, 4, 0, 0) };
+    private readonly RadioButton fromProject = Option("From the open project (the original disc and this project's changes)", "source", true);
+    private readonly RadioButton fromImages = Option("From two disc images (an original and a changed copy)", "source", false);
     private readonly PathRow makeOriginal = new("Original image", "Disc images (*.iso)|*.iso|All files|*.*");
     private readonly PathRow makeChanged = new("Changed image", "Disc images (*.iso)|*.iso|All files|*.*");
     private readonly PathRow makeOutput = new("New patch file", "xdelta patches (*.xdelta)|*.xdelta", save: true);
-    private readonly RadioButton compatible = new() { Content = "Compatible (recommended): no extra compression. Older xdelta3 3.0.11 applied this format correctly in testing.", IsChecked = true, GroupName = "format" };
-    private readonly RadioButton compact = new() { Content = "Compact: adds LZMA compression. The program that applies it must support LZMA, and the patch is not always smaller.", GroupName = "format", Margin = new(0, 4, 0, 0) };
+    private readonly RadioButton compatible = Option("Compatible (recommended): no extra compression. Older xdelta3 3.0.11 applied this format correctly in testing.", "format", true);
+    private readonly RadioButton compact = Option("Compact: adds LZMA compression. The program that applies it must support LZMA, and the patch is not always smaller.", "format", false);
     private readonly TextBlock makeEstimate = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
 
     // Apply a patch
@@ -138,6 +138,15 @@ internal sealed class IsoPatchesWindow : Window
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (var item in items) row.Children.Add(item);
         return row;
+    }
+
+    /// <summary>A choice whose label wraps at the window edge instead of being cut off; screen readers still hear the whole label.</summary>
+    private static RadioButton Option(string text, string group, bool chosen)
+    {
+        var option = new RadioButton { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, GroupName = group, IsChecked = chosen,
+            Margin = chosen ? new(0) : new(0, 4, 0, 0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+        System.Windows.Automation.AutomationProperties.SetName(option, text);
+        return option;
     }
 
     private static TextBlock Wrap(string text, Thickness margin) => new() { Text = text, TextWrapping = TextWrapping.Wrap, Margin = margin };
