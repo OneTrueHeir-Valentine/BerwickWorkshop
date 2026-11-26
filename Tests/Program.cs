@@ -28,6 +28,8 @@ if (args is ["--xdelta", var xdeltaPath])
 }
 if (args is ["--xdelta-real", var realTool, var realJapanese, var realEnglish, var realLegacy, var realFolder])
     return XdeltaPatchTests.RunReal(realTool, realJapanese, realEnglish, realLegacy, realFolder);
+if (args is ["--horse-hp", var horseImage, var horseFolder])
+    return HorseHpTests.Real(horseImage, horseFolder);
 if (args is ["--xdelta-projects", var projectTool, var projectImage, var projectFile, var projectFolder])
     return XdeltaProjectCheck.Run(projectTool, projectImage, projectFile, projectFolder);
 if (args is ["--maps"])
@@ -346,6 +348,7 @@ Test("Item encoder rejects out of range values",()=>{
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
 ExportSafetyTests.Run(Test);
+HorseHpTests.Run(Test);
 XdeltaPatchTests.RunOffline(Test);
 Test("Export cancellation during verification leaves no output",()=>{
     string dir=Path.Combine(Path.GetTempPath(),$"bw-export-{Guid.NewGuid():N}");Directory.CreateDirectory(dir);
