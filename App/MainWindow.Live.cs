@@ -132,12 +132,12 @@ public partial class MainWindow
             System.Windows.Automation.AutomationProperties.SetName(box,label);
             Grid.SetColumn(box,1);grid.Children.Add(box);panel.Children.Add(grid);return box;
         }
-        var horseHp=HorseNumber("Horse HP",oldHorseHp);var horseMax=HorseNumber("Horse most HP",oldHorseMax);
+        var horseHp=HorseNumber("Horse HP",oldHorseHp);var horseMax=HorseNumber("Horse max HP",oldHorseMax);
         horseBox.SelectionChanged+=(_,_)=>
         {
             if(horseBox.SelectedValue is not int h || h==oldHorse) return;
-            int most=h==0?0:(horseItems.FirstOrDefault(i=>i.Id==h)?.Uses??0)*10;
-            horseMax.Text=most.ToString();horseHp.Text=most.ToString();
+            int max=h==0?0:(horseItems.FirstOrDefault(i=>i.Id==h)?.Uses??0)*10;
+            horseMax.Text=max.ToString();horseHp.Text=max.ToString();
         };
         bool mounted=(session?.EditedClasses().FirstOrDefault(c=>c.Id==currentClass)?.Mount??0)==1;
         panel.Children.Add(new TextBlock {Text=mounted?"Riding now. A different horse can be given; to take the horse away, choose Dismount in the game first.":"On foot. After a horse is given, the unit can choose Mount in the game.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=11,Margin=new Thickness(0,0,0,8)});
@@ -171,7 +171,7 @@ public partial class MainWindow
             }
             if(horseBox.SelectedValue is not int horse){error.Text="Choose a horse, or No horse.";return;}
             if(!int.TryParse(horseHp.Text.Trim(),out int hHp)){error.Text="Horse HP must be a whole number.";horseHp.Focus();return;}
-            if(!int.TryParse(horseMax.Text.Trim(),out int hMax)){error.Text="Horse most HP must be a whole number.";horseMax.Focus();return;}
+            if(!int.TryParse(horseMax.Text.Trim(),out int hMax)){error.Text="Horse max HP must be a whole number.";horseMax.Focus();return;}
             if(horse!=oldHorse || hHp!=oldHorseHp || hMax!=oldHorseMax)
             {
                 if(LiveHorse.Apply(edited,horse,hHp,hMax,mounted) is { } horseError){error.Text=horseError;return;}

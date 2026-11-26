@@ -12,7 +12,7 @@ public static class HorseHpTests
             var hp = CharacterFields.Record.Single(f => f.Key == "horseHp");
             var most = CharacterFields.Record.Single(f => f.Key == "horseMaxHp");
             Check((hp.Offset, hp.Bit, hp.Width) == (LiveHorse.Hp.Offset, LiveHorse.Hp.Bit, LiveHorse.Hp.Width), "Horse HP is not where the game keeps it.");
-            Check((most.Offset, most.Bit, most.Width) == (LiveHorse.MaxHp.Offset, LiveHorse.MaxHp.Bit, LiveHorse.MaxHp.Width), "Horse most HP is not where the game keeps it.");
+            Check((most.Offset, most.Bit, most.Width) == (LiveHorse.MaxHp.Offset, LiveHorse.MaxHp.Bit, LiveHorse.MaxHp.Width), "Horse max HP is not where the game keeps it.");
             Check(ArmyData.Fields.Any(f => f.Key == "horseHp") && ArmyData.Fields.Any(f => f.Key == "horseMaxHp"), "Army units do not offer horse HP.");
             // The fields must not share a bit with any other field of the record.
             var bits = new Dictionary<int, string>();
@@ -66,7 +66,7 @@ public static class HorseHpTests
         bool refused;
         try { refused = !session.Apply(EditSession.ArmyUnits, unit, new Dictionary<string, int> { ["horseHp"] = 90, ["horseMaxHp"] = 80 }); }
         catch (EditException) { refused = true; }
-        Expect(refused && session.Value(EditSession.ArmyUnits, unit, "horseMaxHp") == 0, "horse HP above the most HP is refused");
+        Expect(refused && session.Value(EditSession.ArmyUnits, unit, "horseMaxHp") == 0, "horse HP above the max HP is refused");
         session.Apply(EditSession.ArmyUnits, unit, new Dictionary<string, int> { ["horseHp"] = 80, ["horseMaxHp"] = 80 });
         Expect(!DependencyChecks.Analyze(session).Any(i => i.Code == "mounted-without-horse-hp"), "with horse HP set, the warning is gone");
         session.Apply(EditSession.Characters, reese, new Dictionary<string, int> { ["horseHp"] = 90, ["horseMaxHp"] = 150 });

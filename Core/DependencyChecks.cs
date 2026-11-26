@@ -37,7 +37,7 @@ public static class DependencyChecks
             if (table is EditSession.Characters or EditSession.ArmyUnits && session.Value(table, id, "class") != session.OriginalValue(table, id, "class") &&
                 session.Disc.Classes.FirstOrDefault(c => c.Id == session.Value(table, id, "class")) is { Mount: 1 } && session.Value(table, id, "horseMaxHp") == 0)
                 Review("mounted-without-horse-hp", $"{session.RecordName(table, id)} now has a mounted class, but its horse has no HP, so the horse is lost on the first hit. " +
-                    "Set Horse HP and Horse most HP (the game's horses have 30 to 150).", table, id);
+                    "Set Horse HP and Horse max HP (the game's horses have 30 to 150).", table, id);
             if (table == EditSession.Classes)
                 Shared("shared-class", units.Where(u => u.Class == id), "class", table, id);
             if (table == EditSession.Items)
