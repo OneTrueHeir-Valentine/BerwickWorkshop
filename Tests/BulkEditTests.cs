@@ -201,6 +201,73 @@ public static class BulkEditTests
             Throws<EditException>(() => BulkEdit.Preview(session, Recipe(EditSession.Items, [1], [], [], new BulkStep("might", BulkOperation.Clamp, 10, 5))));
         });
 
+        test("Class base stats are explicit, bounded and undoable", () =>
+        {
+            var session = new EditSession(Fixture());
+            var recipe = Recipe(EditSession.Classes, [1], [], [], new BulkStep("strength", BulkOperation.Set, 12));
+            var loaded = BulkEdit.Load(BulkEdit.Save(recipe));
+            var preview = BulkEdit.Preview(session, loaded);
+            Equal(true, preview.Warnings.Any(w => w.Contains("every unit")));
+            Equal("Soldier", preview.Rows.Single().Record);
+            Equal(true, BulkEdit.Apply(session, preview));
+            Equal(12, session.Value(EditSession.Classes, 1, "strength"));
+            session.Undo();
+            Equal(0, session.Value(EditSession.Classes, 1, "strength"));
+            Equal(1, BulkEdit.Preview(session, Recipe(EditSession.Classes, [1], [], [], new BulkStep("strength", BulkOperation.Set, 32))).BlockedRecords);
+        });
+
+        test("Army stat edits warn about record scope and unknown battle uses", () =>
+        {
+            var fixture = Fixture();
+            var unit = new ArmyUnit(1000, 1, 0, 0, "Test unit", 0, 0);
+            var session = new EditSession(fixture with
+            {
+                Armies = [new Army(1, "Test army", [], 0, [unit])],
+                ArmyUnitBytes = new Dictionary<int, ReadOnlyMemory<byte>> { [1000] = fixture.UnitBytes[1] },
+            });
+            var recipe = Recipe(EditSession.ArmyUnits, [1000], [], [], new BulkStep("hpBonus", BulkOperation.Set, 10));
+            var preview = BulkEdit.Preview(session, BulkEdit.Load(BulkEdit.Save(recipe)));
+            Equal(true, preview.Warnings.Any(w => w.Contains("not limited to one map")));
+            Equal(true, preview.Warnings.Any(w => w.Contains("unknown")));
+            Equal(true, preview.Rows.Single().Record.Contains("Test unit"));
+            Equal(true, BulkEdit.Apply(session, preview));
+            Equal(10, session.Value(EditSession.ArmyUnits, 1000, "hpBonus"));
+            session.Undo();
+            Equal(0, session.Value(EditSession.ArmyUnits, 1000, "hpBonus"));
+            Throws<EditException>(() => BulkEdit.Preview(session, Recipe(EditSession.ArmyUnits, [1000], [], [], new BulkStep("class", BulkOperation.Set, 2))));
+        });
+
+        test("Starting stat warnings use edited class bases and personal bonuses", () =>
+        {
+            var fixture = Fixture();
+            var unit = new ArmyUnit(1000, 1, 0, 0, "Test unit", 0, 0);
+            var session = new EditSession(fixture with
+            {
+                Armies = [new Army(1, "Test army", [], 0, [unit])],
+                ArmyUnitBytes = new Dictionary<int, ReadOnlyMemory<byte>> { [1000] = fixture.UnitBytes[1] },
+            });
+            session.Apply(EditSession.Classes, 1, new Dictionary<string, int> { ["strength"] = 4 });
+            session.Apply(EditSession.Characters, 1, new Dictionary<string, int> { ["strengthBonus"] = -3 });
+            session.Apply(EditSession.ArmyUnits, 1000, new Dictionary<string, int> { ["strengthBonus"] = -2 });
+            var classPreview = BulkEdit.Preview(session, Recipe(EditSession.Classes, [1], [], [], new BulkStep("strength", BulkOperation.Set, 1)));
+            Equal(true, classPreview.Warnings.Any(w => w.Contains("2 character records and 1 army unit records")));
+            Equal(true, classPreview.Warnings.Any(w => w.Contains("Archer") && w.Contains("1 to -2")));
+            Equal(true, classPreview.Warnings.Any(w => w.Contains("Test unit") && w.Contains("2 to -1")));
+            Equal(true, classPreview.CanApply);
+            var armyPreview = BulkEdit.Preview(session, Recipe(EditSession.ArmyUnits, [1000], [], [], new BulkStep("strengthBonus", BulkOperation.Set, -5)));
+            Equal(true, armyPreview.Warnings.Any(w => w.Contains("2 to -1")));
+        });
+
+        test("Army picker name flags never classify bosses or alter saved IDs", () =>
+        {
+            var unit = new ArmyUnit(1000, 1, 0, 0, "Test unit", 0, 0);
+            Equal(true, BulkEdit.MatchesArmyNameFilter(unit, 0));
+            Equal(false, BulkEdit.MatchesArmyNameFilter(unit, 1));
+            Equal(true, BulkEdit.MatchesArmyNameFilter(unit, 2));
+            Equal(true, BulkEdit.MatchesArmyNameFilter(unit with { Named = true }, 1));
+            Equal(false, BulkEdit.MatchesArmyNameFilter(unit with { Named = true }, 2));
+        });
+
         test("A durability grade is set by choice", () =>
         {
             var session = new EditSession(Fixture());

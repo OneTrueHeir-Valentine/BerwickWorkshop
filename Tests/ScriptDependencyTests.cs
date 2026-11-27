@@ -4,6 +4,44 @@ internal static class ScriptDependencyTests
 {
     public static void Run(Action<string, Action> test)
     {
+        test("Related records use typed IDs and shop item arguments, not coincidental numbers", () =>
+        {
+            static ScriptNode N(int n) => new() { Command = ScriptParser.Number, Value = n };
+            static ScriptNode Call(int code, params ScriptNode[] args) => new() { Command = code,
+                Args = args.Select(a => (IReadOnlyList<ScriptNode>)new[] { a }).ToList() };
+            static byte[] Event(params ScriptNode[] nodes) => ScriptWriter.Write([new ScriptNode
+                { Command = ScriptParser.Event, Locals = 0, Args = [nodes] }]);
+            var index = ScriptDependencyIndex.Build([1, 2, 3, 4, 5, 6], n => n switch
+            {
+                1 => Event(Call(0x20, N(87))),
+                2 => Event(Call(0x1E, N(87))),
+                3 => Event(Call(0x1F, N(87))),
+                4 => Event(Call(Shops.AddItemSpecial, N(87), N(1))),
+                5 => Event(Call(Shops.AddItemSpecial, N(1), N(87))),
+                _ => Event(Call(0x3AB, N(1), N(87)))
+            });
+            Check(RelatedEvents.Discover(RelatedRecord.Item, 87, index).Select(x => x.Event).SequenceEqual(new[] {1, 4}), "Item reference matched unrelated numeric argument.");
+            Check(RelatedEvents.Discover(RelatedRecord.Character, 87, index).Select(x => x.Event).SequenceEqual(new[] {2}), "Character reference confused record types.");
+            Check(RelatedEvents.Discover(RelatedRecord.Class, 87, index).Select(x => x.Event).SequenceEqual(new[] {3}), "Class reference confused record types.");
+        });
+        test("Native skill enumeration skips reserved word bits", () =>
+        {
+            var masks = Enumerable.Range(0, 90).Select(SkillGrantBindings.QueryMaskForEnumerationIndex).ToArray();
+            Check(masks.Distinct().Count() == 90, "Native enumeration aliases skills.");
+            Check(masks[29] == 0x20000000u && masks[30] == 0x80000001u && masks[60] == 0x40000001u, "Skill bank boundaries are wrong.");
+            Check(masks[89] == 0x60000000u, "Last enumerated skill is wrong.");
+        });
+        test("Furniture event links distinguish known events and literal flag candidates", () =>
+        {
+            static byte[] Event(int flag) => ScriptWriter.Write([new ScriptNode { Command = ScriptParser.Event,
+                Locals = 0, Args = [new ScriptNode[] { new() { Command = 0x79,
+                    Args = [new ScriptNode[] { new() { Command = ScriptParser.Number, Value = flag } }] } }] }]);
+            var index = ScriptDependencyIndex.Build([10, 11, 12, 13], n => Event(n switch
+                { 10 => 3700, 11 => 3701, 12 => 3750, _ => 106 }));
+            Check(FurnitureEvents.Known(3).Select(x => x.Event).SequenceEqual(new[] { 727, 1013, 136, 152 }), "Missing known favor events.");
+            Check(FurnitureEvents.Discover(1, index).Select(x => x.Event).SequenceEqual(new[] { 10, 12 }), "Unrelated flag included or related flag omitted.");
+            Check(FurnitureEvents.Discover(7, index).Select(x => x.Event).SequenceEqual(new[] { 12 }), "Unmapped piece must not invent a flag.");
+        });
         test("Scripted dependency discovery preserves literals and marks computed arguments", () =>
         {
             static ScriptNode Number(int n) => new() { Command = ScriptParser.Number, Value = n };

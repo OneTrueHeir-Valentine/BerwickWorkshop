@@ -111,7 +111,7 @@ public static class CharacterDecoder
             learned.Add(new(growth[20 + i], id < LearnedSkillIds.Length ? LearnedSkillIds[id] : $"Skill {id}"));
         }
         var items = new List<CarriedItem>();
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < CharacterFields.ItemSlots; i++)
         {
             int at = 0xBC + i * 8;
             int id = B(record, at, 0, 16);

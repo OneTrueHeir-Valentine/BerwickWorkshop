@@ -20,10 +20,24 @@ if (args is ["--inspect-placement", string imagePath, string archiveIndex, strin
     return PlacementExportInspection.Run(imagePath, archiveIndex, placementGroup, placementSlot);
 if (args is ["--inspect-army-starts", string armyImagePath, string mapArchiveIndex, string groupIndex, string armyNumber])
     return PlacementExportInspection.RunArmy(armyImagePath, mapArchiveIndex, groupIndex, armyNumber);
+if (args is ["--bulk-army-real", var armyBulkImage, var armyBulkFolder])
+    return BulkArmyRealCheck.Run(armyBulkImage, armyBulkFolder);
 if (args is ["--bulk-real", var bulkImage, var bulkFolder])
     return BulkEditRealCheck.Run(bulkImage, bulkFolder);
+if (args is ["--related-events-real", var relatedImage, var relatedFolder])
+    return RelatedEventsRealCheck.Run(relatedImage, relatedFolder);
+if (args is ["--workshop-catalogue-audit", var auditFolder])
+    return WorkshopCatalogueAudit.Run(auditFolder);
+if (args is ["--starting-slots-real", var slotsImage, var slotsFolder])
+    return StartingSlotsRealCheck.Run(slotsImage, slotsFolder);
+if (args is ["--workshop-effects-real", var effectsImage, var effectsFolder])
+    return WorkshopEffectsRealCheck.Run(effectsImage, effectsFolder);
 if (args is ["--item-survey", var surveyImage])
     return ItemSurvey.Run(surveyImage);
+if (args is ["--proficiency-versions", var versionImage])
+    return ProficiencyVersionCheck.Run(versionImage);
+if (args is ["--randomizer-plan", var planImage])
+    return RandomizerPlanCheck.Run(planImage);
 if (args is ["--xdelta", var xdeltaPath])
 {
     XdeltaPatchTests.Run(Test, xdeltaPath);
@@ -66,6 +80,7 @@ if (args.Length > 0 && args[0] == "--promotions")
     ManualParityPilotTests.Run(Test);
     R0StatModesTests.Run(Test);
     R0ProficiencyModesTests.Run(Test);
+    RandomizerPlanTests.Run(Test);
     PromotionEditingTests.Run(Test);
     PromotionPredicateTests.Run(Test);
     PromotionQuestWindowTests.Run(Test);
@@ -109,8 +124,10 @@ RandomizerR0Tests.Run(Test);
 ManualParityPilotTests.Run(Test);
 R0StatModesTests.Run(Test);
 R0ProficiencyModesTests.Run(Test);
+RandomizerPlanTests.Run(Test);
 PromotionDestinationTests.Run(Test);
 EventReferenceTests.Run(Test);
+ScriptDependencyTests.Run(Test);
 PromotionEditingTests.Run(Test);
 PromotionPredicateTests.Run(Test);
 PromotionQuestWindowTests.Run(Test);
@@ -191,6 +208,36 @@ Test("Comparison joins by ID instead of label or position",()=>{
     var b=a with{Id=506,Price=90};
     var changes=ItemComparison.Compare(new[]{a,b},new[]{b with{Price=95},a});
     Equal(1,changes.Count);Equal(506,changes[0].Id);Equal("Price",changes[0].Field);Equal("90",changes[0].First);Equal("95",changes[0].Second);
+});
+Test("Skill delivery bindings use source codes, not the personal skill numbering",()=>{
+    Equal(11,SkillGrantBindings.All.Count);
+    Equal(true,SkillGrantBindings.All.All(g=>SkillCatalog.Find(g.Skill) is not null));
+    Equal("Magicbane",SkillGrantBindings.Food(32)!.Skill);
+    Equal<SkillGrantBinding?>(null,SkillGrantBindings.Food(43));
+    Equal("Skill: Counter (effect 10)",DishData.EffectName(10));
+    Equal("Skill: Counter (effect 29)",DishData.EffectName(29));
+});
+Test("Extended starting items survive project reopen without changing bag bytes",()=>{
+    var disc=BulkEditTests.Fixture();var session=new EditSession(disc);
+    Equal(8,CharacterFields.ItemSlots);Equal(5,CharacterFields.VerifiedItemSlots);
+    var before=session.EditedBytes(EditSession.Characters,1);
+    var edits=new List<FieldEdit>();
+    for(int slot=6;slot<=8;slot++){
+        Equal(false,ManualParityGuards.IsExperimentalField(EditSession.Characters,$"item{slot}"));
+        Equal(false,ManualParityGuards.IsExperimentalField(EditSession.Characters,$"item{slot}Uses"));
+        edits.Add(new(EditSession.Characters,1,$"item{slot}",5));
+        edits.Add(new(EditSession.Characters,1,$"item{slot}Uses",slot+10));
+    }
+    edits.Add(new(EditSession.Characters,1,"mainhandSlot",8));session.Apply(edits);
+    var after=session.EditedBytes(EditSession.Characters,1);
+    Equal(true,before.AsSpan(0xFC).SequenceEqual(after.AsSpan(0xFC)));
+    Equal(true,before.AsSpan(0xBC,40).SequenceEqual(after.AsSpan(0xBC,40)));
+    var reopened=EditSession.FromJson(disc,session.ToJson());
+    Equal(true,after.AsSpan().SequenceEqual(reopened.EditedBytes(EditSession.Characters,1)));
+    session.Undo();Equal(true,before.AsSpan().SequenceEqual(session.EditedBytes(EditSession.Characters,1)));
+    session.Redo();Equal(true,after.AsSpan().SequenceEqual(session.EditedBytes(EditSession.Characters,1)));
+    Throws<EditException>(()=>session.Apply(EditSession.Characters,1,new Dictionary<string,int>{{"item8",0}}));
+    Equal(3,session.EditedCharacters().Single(c=>c.Id==1).Items.Count);
 });
 Test("Character record decodes signed bonuses, growths and inventory",()=>{
     var r=new byte[0x100];var g=new byte[32];
@@ -291,7 +338,47 @@ Test("Item encoder fields agree with decoded record properties",()=>{
         }
     var kind=ItemEncoder.Field("effectKind");Equal("None/Sword break/Other (125)/Other (50)",$"{FieldCodec.Format(kind,0)}/{FieldCodec.Format(kind,108)}/{FieldCodec.Format(kind,125)}/{FieldCodec.Format(kind,50)}");
     Equal(true,FieldCodec.TryParse(kind,"injury",out int injury,out _));Equal(131,injury);Equal(-1,kind.ChoiceIndex(125));Equal(0,kind.ChoiceIndex(0));Equal(108,kind.ChoiceValue(kind.ChoiceIndex(108)));
-    Equal(33,ItemEncoder.Fields.Count(f=>f.Group=="Effects"));Equal(ItemEncoder.Fields.Count,ItemEncoder.Fields.Select(f=>f.Key).Distinct().Count());
+    Equal(37,ItemEncoder.Fields.Count(f=>f.Group=="Effects"));Equal(ItemEncoder.Fields.Count,ItemEncoder.Fields.Select(f=>f.Key).Distinct().Count());
+});
+Test("Parry bonus is a named special effect without changing the packed layout",()=>{
+    var kind=ItemEncoder.Field("effectKind");var amount=ItemEncoder.Field("effectAmount");
+    Equal("Parry chance bonus (experimental)",FieldCodec.Format(kind,112));
+    Equal(true,FieldCodec.TryParse(kind,"Parry chance bonus (experimental)",out int selector,out _));Equal(112,selector);
+    var bytes=new byte[56];bytes[26]=0x80;ItemEncoder.Write(bytes,kind,selector);ItemEncoder.Write(bytes,amount,10);
+    Equal((byte)0x8A,bytes[26]);Equal((byte)0x70,bytes[27]);
+    Equal("Parry chance bonus (experimental): 10",ItemDecoder.Decode(12,"MainGauche",bytes).EffectDescription);
+    Equal(0,ItemEncoder.Read(bytes,ItemEncoder.Field("effect47")));
+});
+Test("Multiple item flags, a special effect and numerical combat fields coexist",()=>{
+    var bytes=new byte[56];
+    var fields=new Dictionary<string,int>{["effect47"]=1,["effect18"]=1,["effect24"]=1,["effect25"]=1,["effect83"]=1,["effectKind"]=112,["effectAmount"]=10,["chargeMight"]=3,["additionalStrikes"]=2};
+    foreach(var (key,value) in fields) ItemEncoder.Write(bytes,ItemEncoder.Field(key),value);
+    foreach(var (key,value) in fields) Equal(value,ItemEncoder.Read(bytes,ItemEncoder.Field(key)));
+    ItemEncoder.Write(bytes,ItemEncoder.Field("effectKind"),131);
+    foreach(var (key,value) in fields.Where(f=>f.Key!="effectKind")) Equal(value,ItemEncoder.Read(bytes,ItemEncoder.Field(key)));
+    Equal(131,ItemEncoder.Read(bytes,ItemEncoder.Field("effectKind")));
+});
+Test("Experimental furniture and skill controls retain separate evidence status",()=>{
+    foreach(int id in FurniturePrices.EffectRules.Values.Concat(new[]{235,236,237,142,143,144,145,146,147}))
+    {
+        var r=GameRules.ById(id);Equal(true,r.EditorVisible);Equal(true,r.ExperimentalEditor);Equal(false,r.Confirmed);
+    }
+    foreach(var m in Mechanics.All.Where(m=>m.Name is "Magic attack" or "Injury rate" or "Equipment failure" or "Stat growth" or "Empty level ups" or "Maim" or "Mug and Mug+"))
+        foreach(var l in m.Changes.Where(l=>l.RuleId.HasValue)) Equal(true,GameRules.ById(l.RuleId!.Value).EditorVisible);
+    Equal(false,GameRules.ById(188).EditorVisible);
+});
+Test("Mechanics cards link already available formula terms",()=>{
+    foreach (var (name, ids) in new (string, int[])[] { ("Physical defense", [97]), ("Magic defense", [98]),
+        ("Injury rate", [156,157]), ("Maim", [145,146,264]), ("Iaido and Knock Away", [40,41,147,148,203]),
+        ("Active skill bonuses", [168]) })
+    {
+        var card = Mechanics.All.Single(m=>m.Name==name);
+        foreach (int id in ids)
+        {
+            Equal(true, card.Changes.Any(l=>l.RuleId==id));
+            Equal(true, GameRules.ById(id).EditorVisible);
+        }
+    }
 });
 Test("Archive decompression and script parsing on built samples",()=>{
     // literal run: header (size 5, stored), control byte with five literal bits
@@ -356,6 +443,7 @@ Test("Item encoder rejects out of range values",()=>{
     Equal("Minimum range cannot be greater than maximum range.",ItemEncoder.Validate(new Dictionary<string,int>{["minRange"]=2,["maxRange"]=1}));
 });
 ExportSafetyTests.Run(Test);
+FormulaTests.Run(Test);
 HorseHpTests.Run(Test);
 XdeltaPatchTests.RunOffline(Test);
 Test("Export cancellation during verification leaves no output",()=>{
@@ -491,6 +579,54 @@ Test("Skill, starting item and bracket fields agree with the decoders",()=>{
     Equal("Yes",FieldCodec.Format(CharacterFields.Record.First(f=>f.IsFlag),1));
     Equal("S",FieldCodec.Format(ItemEncoder.Field("durability"),0));
 });
+Test("Native formula terms and furniture triggers retain exact original instructions",()=>{
+    Equal(0x02028021u,GameRules.ById(252).Original.Single());Equal(0u,GameRules.ById(252).Encode(1).Single());
+    var accuracy=GameRules.ById(253);
+    Equal("02028021,0200102D",string.Join(",",accuracy.Original.Select(w=>w.ToString("X8"))));
+    Equal("00000000,0200102D",string.Join(",",accuracy.Encode(1).Select(w=>w.ToString("X8"))));
+    Equal("00021043,02021021",string.Join(",",accuracy.Encode(2).Select(w=>w.ToString("X8"))));
+    Equal("00021083,02021021",string.Join(",",accuracy.Encode(3).Select(w=>w.ToString("X8"))));
+    Equal("00021040,02021021",string.Join(",",accuracy.Encode(4).Select(w=>w.ToString("X8"))));
+    Equal<int?>(null,accuracy.Decode([accuracy.Encode(2)[0],accuracy.Encode(0)[1]]));
+    foreach(int id in new[]{254,255}){
+        var rule=GameRules.ById(id);Equal("00001010,00021083,00431021",string.Join(",",rule.Original.Select(w=>w.ToString("X8"))));
+        Equal(0x00021043u,rule.Encode(1)[1]);
+        for(int mode=0;mode<=6;mode++) Equal<int?>(mode,rule.Decode(rule.Encode(mode)));
+        Equal<int?>(null,rule.Decode([rule.Encode(1)[0],rule.Encode(2)[1],rule.Encode(0)[2]]));
+    }
+    Equal(0x00021042u,GameRules.ById(254).Encode(3)[0]);Equal(0x00031042u,GameRules.ById(255).Encode(3)[0]);
+    Equal(0x24040E74u,GameRules.ById(256).Original.Single());Equal(0x24040E75u,GameRules.ById(257).Original.Single());
+    Equal(0x24040E79u,GameRules.ById(258).Original.Single());Equal(0x24040E74u,GameRules.ById(258).Encode(0).Single());
+});
+Test("Native skill query masks distinguish all three banks from food and equipment codes",()=>{
+    foreach(var (name,mask) in new (string,uint)[]{ ("Counter",0x20u), ("Vantage",0x200u), ("Arrowbane",0x10000u), ("Adept",0x100u), ("Magicbane",0x40000080u), ("Parry",0x80000800u) })
+        Equal(mask, SkillGrantBindings.QueryMaskForPersonalBit(Array.IndexOf(CharacterDecoder.SkillBits,name)));
+    var named = CharacterDecoder.SkillBits.Select((name,bit)=>(name,bit)).Where(x=>x.name.Length>0).ToArray();
+    Equal(named.Length,named.Select(x=>SkillGrantBindings.QueryMaskForPersonalBit(x.bit)).Distinct().Count());
+    foreach(int reserved in new[]{-1,30,31,62,63,94,95,96})
+        Throws<EditException>(()=>SkillGrantBindings.QueryMaskForPersonalBit(reserved));
+});
+Test("Expanded furniture assignments, Maim terms and default horse preserve original bindings",()=>{
+    Equal("1,5,11,2,4,8,10,13,9",string.Join(",",GameRules.FurnitureTriggerPieces));
+    Equal(9,GameRules.FurnitureTriggerRules.Count);
+    Equal(0x24040E78u, GameRules.ById(266).Original.Single());
+    var aura=GameRules.ById(261);
+    Equal("24040E7C,24040E7C",string.Join(",",aura.Original.Select(w=>w.ToString("X8"))));
+    Equal<int?>(null,aura.Decode([aura.Encode(1)[0],aura.Encode(2)[1]]));
+    foreach(var (piece,id) in GameRules.FurnitureTriggerRules){
+        var rule=GameRules.ById(id);Equal(piece,GameRules.FurnitureTriggerPieces[rule.Default]);
+        Equal(true,FurniturePrices.EffectRules.ContainsKey(piece));
+        for(int n=0;n<GameRules.FurnitureTriggerPieces.Length;n++)Equal<int?>(n,rule.Decode(rule.Encode(n)));
+    }
+    var maim=GameRules.ById(264);
+    Equal("04610003,00038043,24630001,00038043",string.Join(",",maim.Original.Select(w=>w.ToString("X8"))));
+    Equal("00621823,00031843,00028083,02038021",string.Join(",",maim.Encode(2).Select(w=>w.ToString("X8"))));
+    Equal(0x0000802Du,maim.Encode(5)[2]);
+    var horse=GameRules.ById(265);
+    Equal("24050205,24050205",string.Join(",",horse.Original.Select(w=>w.ToString("X8"))));
+    Equal("24050214,24050214",string.Join(",",horse.Encode(15).Select(w=>w.ToString("X8"))));
+    Equal<int?>(null,horse.Decode([horse.Encode(1)[0],horse.Encode(2)[1]]));
+});
 Test("Game rules encode and decode every setting, and reject unknown code",()=>{
     foreach(var rule in GameRules.All)
     {
@@ -505,7 +641,7 @@ Test("Game rules encode and decode every setting, and reject unknown code",()=>{
         Equal($"{rule.Key}={rule.Default}",$"{rule.Key}={rule.Decode(rule.Original)}");
     }
     var parry=GameRules.ById(1);Equal(0x1020000Cu,parry.Original[0]);Equal(0x14000000u,parry.Encode(1)[0]);Equal(0x1000000Cu,parry.Encode(2)[0]);
-    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,243,244,245,246,247,248,249,250,142,143,144,145,146,147,160,161,178,198,210,242,200,188",string.Join(",",GameRules.All.Where(r=>!r.Confirmed && r.Section != PromotionQuestWindows.Section).Select(r=>r.Id)));
+    Equal("Parry",parry.Name);Equal("220,230,232,233,234,235,236,237,243,244,245,246,247,248,249,250,142,143,144,145,146,147,160,161,178,198,210,242,200,188,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266",string.Join(",",GameRules.All.Where(r=>!r.Confirmed && r.Section != PromotionQuestWindows.Section).Select(r=>r.Id)));
     var block=GameRules.ById(9);Equal(0x10200019u,block.Original[0]);Equal(0x14000019u,block.Encode(1)[0]);Equal(0x10000019u,block.Encode(2)[0]);
     var training=GameRules.ById(11);Equal(0x001716A4u,training.Sites[0].Address);Equal(0x24090004u,training.Original[0]);Equal(0x24090032u,training.Encode(50)[0]);
     Equal(0x24090001u,GameRules.ById(12).Original[0]);Equal<int?>(null,training.Decode(new[]{0x24080004u}));
@@ -585,12 +721,12 @@ Test("Experience formula values encode as data and as instructions",()=>{
     Equal<int?>(null,highest.Decode(new[]{0x28410033u,0x24020064u}));
     Equal(0x26940006u,GameRules.ById(37).Original[0]);
     var random=GameRules.ById(38);Equal("24060003,28410004,24020003",string.Join(",",random.Original.Select(x=>x.ToString("X8"))));Equal("2406000A,2841000B,2402000A",string.Join(",",random.Encode(10).Select(x=>x.ToString("X8"))));
-    Equal(220,GameRules.All.Count(r=>r.Group.Length>0 && r.Section != PromotionQuestWindows.Section));
+    Equal(234,GameRules.All.Count(r=>r.Group.Length>0 && r.Section != PromotionQuestWindows.Section));
     var iaido=GameRules.ById(40);Equal(0x24700028u,iaido.Original[0]);Equal(0x24700064u,iaido.Encode(100)[0]);Equal(0x2475001Eu,GameRules.ById(41).Original[0]);
     var spearbane=GameRules.ById(42);Equal("2A010021,24100021",string.Join(",",spearbane.Original.Select(x=>x.ToString("X8"))));Equal("2A010032,24100032",string.Join(",",spearbane.Encode(50).Select(x=>x.ToString("X8"))));
     Equal<int?>(null,spearbane.Decode(new[]{0x2A010032u,0x24100021u}));
     Equal("0x2275F0,0x227694,0x227734,0x227550,0x2277D4",string.Join(",",new[]{42,43,44,45,46}.Select(i=>$"0x{GameRules.ById(i).Sites[0].Address:X}")));
-    Equal(154,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
+    Equal(157,GameRules.All.Count(r=>r.Section==GameRules.SkillsSection));Equal(0x246300FFu,GameRules.ById(94).Original[0]);Equal(0x24630000u,GameRules.ById(94).Encode(1)[0]);
     Equal(0x24040004u,GameRules.ById(90).Original[0]);Equal(0x24040001u,GameRules.ById(90).Encode(1)[0]);Throws<EditException>(()=>GameRules.ById(90).Encode(0));Equal<int?>(null,GameRules.ById(90).Decode(new[]{0x24040000u}));
     var swim=GameRules.ById(93);Equal(26,swim.Sites.Count);Equal(0x10400019u,swim.Original[0]);Equal(0x0C05F7ECu,swim.Encode(1)[2]);Equal<int?>(1,swim.Decode(swim.Encode(1)));Equal("On foot only",swim.Describe(1));
     var sunder=GameRules.ById(53);Equal("24420019,24420019,24620019",string.Join(",",sunder.Original.Select(x=>x.ToString("X8"))));Equal("24420046,24420046,24620046",string.Join(",",sunder.Encode(70).Select(x=>x.ToString("X8"))));
@@ -1044,6 +1180,12 @@ foreach(var exportDisc in new[]{jp!,en!})
             Equal("5/18/18/18/18/0/3/1",$"{V(340,"fireResist")}/{V(388,"fireResist")}/{V(388,"thunderResist")}/{V(388,"windResist")}/{V(388,"holyResist")}/{V(388,"darkResist")}/{V(349,"mindBonus")}/{V(432,"defenseBonus")}");
             Equal("108/33/131/12/0/0",$"{V(0x0D,"effectKind")}/{V(0x0D,"effectAmount")}/{V(0x7B,"effectKind")}/{V(0x7B,"effectAmount")}/{V(1,"effectKind")}/{V(1,"effectAmount")}");
             Equal("1/1/1/0/1/1/1",$"{V(335,"effect1")}/{V(5,"effect2")}/{V(5,"effect10")}/{V(1,"effect2")}/{V(0x2A,"effect12")}/{V(0xF1,"effect20")}/{V(0xF1,"effect21")}");
+            // Verify the observed original carriers in both editions. This checks storage, not combat activation.
+            foreach(int id in new[]{0x0D6,0x106,0x10B}) Equal(1,V(id,"effect18"));
+            Equal(1,V(0x0A3,"effect24")); Equal(1,V(0x068,"effect25")); Equal(1,V(0x132,"effect83"));
+            Equal(1,V(0x064,"chargeMight")); Equal(3,V(0x06A,"chargeMight"));
+            Equal(1,V(0x024,"additionalStrikes")); Equal(2,V(0x037,"additionalStrikes"));
+            Equal(0,V(0x064,"additionalStrikes")); Equal(0,V(0x024,"chargeMight"));
         }
     });
     Test("Event scripts: every event on both discs reads, parses, writes back and compiles from its text to the same bytes",()=>{

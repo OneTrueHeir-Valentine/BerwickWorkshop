@@ -292,6 +292,7 @@ public partial class MainWindow : Window
             Grid.SetColumn(text,1);grid.Children.Add(text);DetailFields.Children.Add(grid);
         }
         AddRecipeDetails(item.Id);
+        AddRecordEvents(DetailFields, View.Items, RelatedRecord.Item, item.Id);
         if(session?.IsEdited(item.Id)==true || session?.IsEdited(EditSession.StablePrices,item.Id)==true || session?.IsEdited(EditSession.Recipes,item.Id)==true)
         {
             var actions=new StackPanel {Orientation=Orientation.Horizontal,Margin=new Thickness(0,4,0,0)};
@@ -433,6 +434,9 @@ public partial class MainWindow : Window
         ShopItemList.ItemsSource=shownShopItems.Select((it,i)=>new Choice(i,$"{(catalog.TryGetValue(it.Item,out var item)?item.DisplayName:$"Item 0x{it.Item:X3}")}{it.Sale switch {ShopSale.Stock=>"  (stock)",ShopSale.Special=>"  (special)",_=>""}}")).ToList();
         if(keep is int k && k<shownShopItems.Count)ShopItemList.SelectedIndex=k;
         ShopNotes.Children.Clear();
+        AddRelatedEventButton(ShopNotes, shop.Event, "Shop stock and opening script");
+        foreach (var special in shownShopItems.Where(i => i.Sale == ShopSale.Special && i.Extra > 0).Select(i => i.Extra).Distinct().Order())
+            AddRelatedEventButton(ShopNotes, special, "Special purchase event");
         if(session?.HasScript(shop.Event)==true || ScriptChanges(shop.Event).Count>0)
         {
             AddText(ShopNotes,"This shop is changed in this project.");
@@ -485,6 +489,8 @@ public partial class MainWindow : Window
         if(keep is int k && k<stableHorses.Count)ShopItemList.SelectedIndex=k;
         ShopNotes.Children.Clear();
         AddText(ShopNotes,"These are all the horses the stable can sell. Select a horse to change what the stable charges. Its item price does not affect the stable.");
+        AddRelatedEventButton(ShopNotes, 602, "Stable shop script");
+        AddRelatedEventButton(ShopNotes, StableStock.Event, "Chapter horse stock");
         AddStableStock();
         UpdateShopButtons();StableHorseSelected();
     }
@@ -582,6 +588,7 @@ public partial class MainWindow : Window
         ShopName.Text="Kingfisher Pavilion";ShopWhere.Text="At the base · meals · event 659";
         ShopItemList.ItemsSource=null;
         ShopNotes.Children.Clear();
+        AddRelatedEventButton(ShopNotes, 659, "Pavilion meal script");
         AddText(ShopNotes,"The Pavilion serves meals while a mission is chosen. Units from your army sit at its eight seats, and talking to one lets it order from the menu. Each unit eats once a chapter, and the meal's effects last into the next battle. The seats stay the same until the game clears them.");
         if(events is not { } library){UpdateShopButtons();return;}
         if(library.CommandNames is not { } commandNames)
@@ -1198,6 +1205,7 @@ public partial class MainWindow : Window
             if(baseFee==0 && perLevel==0)Text("The game picks a random fee.");
             else Pair($"At level {c.Level}",MercenaryData.Fee(baseFee,perLevel,c.Level).ToString("N0"));
         }
+        AddRecordEvents(CharacterFields, View.Characters, RelatedRecord.Character, c.Id);
         AddChangeList(CharacterFields,ch=>ch.Id==c.Id && CharacterTables.Contains(ch.Table),()=>session!.Revert(CharacterTables.Where(t=>session.IsEdited(t,c.Id)).Select(t=>(t,c.Id)).ToArray()));
         CharacterComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This character's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
@@ -1237,6 +1245,7 @@ public partial class MainWindow : Window
         if(k.WeaponCaps.Count==0)AddText(ClassFields,"None");else foreach(var w in k.WeaponCaps)AddPair(ClassFields,w.Weapon,w.Value.ToString());
         AddSection(ClassFields,"Shield sizes");AddText(ClassFields,k.ShieldSizeText);
         AddSection(ClassFields,"Characters starting in this class");AddText(ClassFields,row.StartingCharacters.Count==0?"None":string.Join(", ",row.StartingCharacters));
+        AddRecordEvents(ClassFields, View.Classes, RelatedRecord.Class, k.Id);
         AddChangeList(ClassFields,ch=>ch.Id==k.Id && ch.Table==EditSession.Classes,()=>session!.Revert(EditSession.Classes,k.Id));
         ClassComparisonDetail.Text=!row.HasComparison?"":row.Differences.Count==0?"This class's compared fields match.":string.Join("\n",row.Differences.Select(d=>$"{d.Field}: {d.First} → {d.Second}"));
     }
@@ -1438,8 +1447,9 @@ public partial class MainWindow : Window
         var ammunition = Option("Arrows and bolts", true);
         var other = Option("Accessories and consumables", false);
         var bags = Option("Bag contents too", true);
+        var extended = Option("Include occupied starting slots 6–8 (empty slots stay empty)", false);
         var level = Option("Do not select an item with a higher level than its original", true);
-        foreach (var box in new[] { weapons, ammunition, other, bags, level }) panel.Children.Add(box);
+        foreach (var box in new[] { weapons, ammunition, other, bags, extended, level }) panel.Children.Add(box);
         panel.Children.Add(new TextBlock { Text = "Seed", Foreground = (Brush)FindResource("Muted"), FontSize = 13,
             Margin = new Thickness(0, 5, 0, 5) });
         var seed = new TextBox { Text = Random.Shared.Next(1, 1000000).ToString(), Margin = new Thickness(0, 0, 0, 12) };
@@ -1459,7 +1469,8 @@ public partial class MainWindow : Window
             { error.Text = "The seed must be a nonnegative whole number."; return; }
             var options = new RandomizeOptions(value) {
                 Weapons = weapons.IsChecked == true, Ammunition = ammunition.IsChecked == true,
-                Other = other.IsChecked == true, Bags = bags.IsChecked == true, LimitLevel = level.IsChecked == true
+                Other = other.IsChecked == true, Bags = bags.IsChecked == true, LimitLevel = level.IsChecked == true,
+                ExtendedInventory = extended.IsChecked == true
             };
             if (!options.Weapons && !options.Ammunition && !options.Other)
             { error.Text = "Choose at least one item category."; return; }
@@ -1532,10 +1543,11 @@ public partial class MainWindow : Window
             new("Bonuses while equipped",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Bonuses").ToList()),
             new("Resistances",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Resistances").ToList()),
             new("Special effect",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Special effect").ToList()),
+            new("Combat effects (experimental)",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Combat effects (experimental)").ToList()),
             new("Stable",EditSession.StablePrices,session?.Disc.StablePriceBytes.ContainsKey(row.Item.Id)==true?[StablePrices.Field]:[]),
             new("Atelier recipe",EditSession.Recipes,session?.Disc.RecipeBytes.ContainsKey(row.Item.Id)==true?RecipeData.Fields:[]),
             new("Effects",EditSession.Items,ItemEncoder.Fields.Where(f=>f.Group=="Effects").ToList()),
-        ],null));
+        ],"Effect flags can be combined. Special effect selects one effect with one amount; changing it replaces that selector. Experimental effects need separate gameplay tests. A Parry bonus is measured in percentage points, not a skill grant."));
     }
     private void BeginCharacterEdit(object sender,RoutedEventArgs e)
     {
@@ -1741,7 +1753,7 @@ public partial class MainWindow : Window
         MechanicsList.Children.Clear();
         MechanicsList.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
-                Text="How the game's systems work, as far as they are known. Each entry says how sure that knowledge is: published by players, found in the game program, or confirmed in a running game. Change it shows what you can edit today: a rule, or the item, character and class values the formula uses."}});
+                Text="The formulas below describe the original game, not a live calculation of the current project. How the game's systems work, as far as they are known. Each entry says how sure that knowledge is: published by players, found in the game program, or confirmed in a running game. Change it shows what you can edit today: a rule, or the item, character and class values the formula uses."}});
         foreach(var section in Mechanics.All.GroupBy(m=>m.Section))
         {
             MechanicsList.Children.Add(new TextBlock {Text=section.Key,FontSize=20,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,8,0,10)});
@@ -1774,7 +1786,10 @@ public partial class MainWindow : Window
                         b.Click+=(_,_)=>
                         {
                             if(primary?.Supported!=true){Notify("Open a supported disc first to edit these values.");return;}
-                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, "furniture"=>View.Furniture, "live"=>View.Live, _=>View.Rules };UpdatePage();
+                            if (editing is not null) { Status.Text = "Apply or cancel the current edit first."; return; }
+                            if (link.RuleId is int id) { OpenLinkedRule(id); return; }
+                            view=link.Page switch { "items"=>View.Items, "characters"=>View.Characters, "classes"=>View.Classes, "movement"=>View.Movement, "terrain"=>View.Terrain, "skills"=>View.Skills, "furniture"=>View.Furniture, "live"=>View.Live, _=>View.Rules };
+                            UpdatePage();
                         };
                         links.Children.Add(b);
                     }
@@ -1821,18 +1836,18 @@ public partial class MainWindow : Window
     }
     private void BuildRules()
     {
-        RulesList.Children.Clear();SkillsList.Children.Clear();
+        RulesList.Children.Clear();SkillsList.Children.Clear();ruleTargets.Clear();
         if(primary is null || !primary.Supported)return;
         SkillsList.Children.Add(new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
-                Text="Every skill in the game: what it does, how it works, and which starting characters and classes have it. Where the game's numbers can be changed, the card shows them with the game's value; chances and bonuses apply to every unit with the skill, enemies included, and After moving changes the command menu of your own units. Each changeable number was seen working in a running game before being offered. The line under each name says how its explanation is known. Which characters and classes have a skill is set on the Characters and Classes pages."}});
+                Text="Every skill in the game: what it does, how it works, and which starting characters and classes have it. Where the game's numbers can be changed, the card shows them with the game's value; chances and bonuses apply to every unit with the skill, enemies included, and After moving changes the command menu of your own units. Experimental settings are located in the game program but have not completed gameplay validation. The line under each name says how its explanation is known. Which characters and classes have a skill is set on the Characters and Classes pages."}});
         var search=new TextBox {Padding=new Thickness(8,6,8,6),Text=skillSearch,ToolTip="Show only skills whose name or description contains this text"};
         System.Windows.Automation.AutomationProperties.SetName(search,"Search skills");
         var hint=new TextBlock {Text="Search by name or description",IsHitTestVisible=false,Foreground=new SolidColorBrush(Color.FromRgb(0x89,0x92,0x86)),VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(11,0,0,0)};
         var searchBox=new Grid {Margin=new Thickness(0,0,0,14)};searchBox.Children.Add(search);searchBox.Children.Add(hint);
         SkillsList.Children.Add(searchBox);
         int firstCard=SkillsList.Children.Count;
-        var ruleGroups=GameRules.All.Where(r=>r.Confirmed && r.Section==GameRules.SkillsSection).Select(r=>r.Group).ToHashSet();
+        var ruleGroups=GameRules.All.Where(r=>r.EditorVisible && r.Section==GameRules.SkillsSection).Select(r=>r.Group).ToHashSet();
         var skillTexts=new List<string>();
         foreach(var name in SkillCatalog.All.Select(s=>s.Name).Concat(ruleGroups).Distinct().Order(StringComparer.OrdinalIgnoreCase))
         {
@@ -1849,15 +1864,21 @@ public partial class MainWindow : Window
         search.TextChanged+=(_,_)=>FilterSkills();FilterSkills();
         var intro=new Border {Background=new SolidColorBrush(Color.FromRgb(234,240,229)),CornerRadius=new CornerRadius(5),Padding=new Thickness(14,12,14,12),Margin=new Thickness(0,0,0,16),
             Child=new TextBlock {TextWrapping=TextWrapping.Wrap,FontSize=13,LineHeight=20,
-                Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Each rule here was checked in a running game before being offered."}};
+                Text="Rules change how the game itself plays, not a single item or character. They apply to the whole game, enemies included, and are written into the game program when you export. Settings marked experimental are located in the game program but still need gameplay validation. Test them on a separate exported image."}};
         RulesList.Children.Add(intro);
+        var formulas=new Button {Content="Formula calculator",HorizontalAlignment=HorizontalAlignment.Left,Padding=new Thickness(12,4,12,4),Margin=new Thickness(0,0,0,16),
+            ToolTip="Compare original and project calculations. Editable terms are linked to their rule controls."};
+        formulas.Click+=(_,_)=>{ if(session is not null) { var dialog=new FormulaWindow(session){Owner=this}; dialog.ShowDialog(); if(dialog.SelectedRule is int id) OpenLinkedRule(id); } };
+        RulesList.Children.Add(formulas);
         var shownGroups=new HashSet<string>();
-        foreach(var rule in GameRules.All.Where(r=>r.Confirmed && r.Section.Length==0))
+        foreach(var rule in GameRules.All.Where(r=>r.EditorVisible && r.Section.Length==0))
         {
             if(rule.Group.Length>0){if(shownGroups.Add(rule.Group))BuildRuleGroup(rule.Group,RulesList);continue;}
             var card=new StackPanel();
             var border=new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card};
             RulesList.Children.Add(border);
+            ruleTargets[rule.Id]=border;
+            if(rule.ExperimentalEditor) card.Children.Add(new TextBlock {Text="Experimental: native binding located; gameplay validation pending.",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DarkGoldenrod,FontSize=12});
             card.Children.Add(new TextBlock {Text=rule.Name,FontSize=17,FontWeight=FontWeights.SemiBold});
             card.Children.Add(new TextBlock {Text=rule.Description,TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
             if(session is null || !session.IsRuleAvailable(rule.Id))
@@ -1969,13 +1990,25 @@ public partial class MainWindow : Window
             }
         }
     }
-    private string skillSearch="";
-    private void BuildRuleGroup(string group,Panel target,SkillInfo? info=null)
+    private void OpenLinkedRule(int id)
     {
-        var rules=GameRules.All.Where(r=>r.Confirmed && r.Group==group).ToList();
+        if (editing is not null) { Status.Text = "Apply or cancel the current edit first."; return; }
+        if (!ruleTargets.ContainsKey(id)) { Status.Text = "This rule is not exposed on this disc."; return; }
+        view = GameRules.ById(id).Section == GameRules.SkillsSection ? View.Skills : View.Rules;
+        if (view == View.Skills && skillSearch.Length > 0) { skillSearch = ""; BuildRules(); }
+        UpdatePage();
+        if (ruleTargets.TryGetValue(id, out var destination)) { UpdateLayout(); destination.BringIntoView(); }
+    }
+    private string skillSearch="";
+    private readonly Dictionary<int,FrameworkElement> ruleTargets=new();
+    private void BuildRuleGroup(string group,Panel target,SkillInfo? info=null,int? onlyRule=null)
+    {
+        var rules=GameRules.All.Where(r=>r.EditorVisible && r.Group==group && (onlyRule is null || r.Id==onlyRule)).ToList();
         var card=new StackPanel();
-        target.Children.Add(new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card});
-        card.Children.Add(new TextBlock {Text=group,FontSize=17,FontWeight=FontWeights.SemiBold});
+        var border=new Border {Background=Brushes.White,BorderBrush=(Brush)FindResource("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,12),Child=card};
+        target.Children.Add(border);
+        if(target==RulesList || target==SkillsList) foreach(var r in rules) ruleTargets[r.Id]=border;
+        card.Children.Add(new TextBlock {Text=onlyRule is null?group:"Effect value",FontSize=17,FontWeight=FontWeights.SemiBold});
         if(info is not null)
         {
             card.Children.Add(new TextBlock {Text=$"{info.Kind} · {info.Source}",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=11,Margin=new Thickness(0,3,0,8)});
@@ -1985,10 +2018,17 @@ public partial class MainWindow : Window
             var kinds=(session?.EditedClasses()??primary?.Classes??[]).Where(k=>k.Skills.Contains(group)).Select(k=>k.Name).ToList();
             string who=(people.Count>0?$"Starting characters: {string.Join(", ",people)}. ":"")+(kinds.Count>0?$"Classes: {string.Join(", ",kinds.Take(12))}{(kinds.Count>12?$" and {kinds.Count-12} more":"")}.":"");
             if(who.Length>0) card.Children.Add(new TextBlock {Text=who,TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=(Brush)FindResource("Muted"),Margin=new Thickness(0,0,0,6)});
+            var grants = SkillGrantBindings.ForSkill(group);
+            if (grants.Count > 0)
+            {
+                AddText(card, "Known additional skill sources (native bindings, not a general grant editor):");
+                foreach (var grant in grants)
+                    AddText(card, $"{grant.Source}: {grant.Scope} (code {grant.Code})");
+            }
             if(rules.Count==0)return;
         }
-        card.Children.Add(new TextBlock {Text=GameRules.GroupDescriptions.TryGetValue(group,out var d)?d:"",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
-        if(session is null || rules.Any(r=>!session.IsRuleAvailable(r.Id)))
+        if(onlyRule is null) card.Children.Add(new TextBlock {Text=GameRules.GroupDescriptions.TryGetValue(group,out var d)?d:"",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)FindResource("Muted"),FontSize=13,LineHeight=20,Margin=new Thickness(0,6,0,12)});
+        if(session is null || rules.All(r=>!session.IsRuleAvailable(r.Id)))
         {
             card.Children.Add(new TextBlock {Text="Not available for this disc: its game program has different code at this point, so these values are left alone.",TextWrapping=TextWrapping.Wrap,FontSize=13,Foreground=Brushes.DarkGoldenrod});
             return;
@@ -1997,10 +2037,15 @@ public partial class MainWindow : Window
         var boxes=new List<(GameRule Rule,Control Box,int Current)>();
         foreach(var r in rules)
         {
+            if(!session.IsRuleAvailable(r.Id))
+            {
+                card.Children.Add(new TextBlock {Text=$"{r.Short}: unavailable for this disc (native code does not match).",TextWrapping=TextWrapping.Wrap,Foreground=Brushes.DarkGoldenrod,FontSize=12});
+                continue;
+            }
             int current=session.Value(EditSession.Rules,r.Id,r.Key);
             bool wide=r.Choices?.Any(c=>c.Length>10)==true;
             var cell=new StackPanel {Width=wide?168:118,Margin=new Thickness(0,0,10,12)};
-            var label=new TextBlock {Text=r.Short,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)};
+            var label=new TextBlock {Text=r.Short+(r.ExperimentalEditor?" (experimental)":""),FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,4)};
             if(r.Swatch.Length>0)
             {
                 var dot=new System.Windows.Shapes.Ellipse {Width=10,Height=10,Fill=new SolidColorBrush((Color)ColorConverter.ConvertFromString(r.Swatch)),Stroke=(Brush)FindResource("Line"),Margin=new Thickness(0,3,6,0),VerticalAlignment=VerticalAlignment.Top};
@@ -2023,7 +2068,7 @@ public partial class MainWindow : Window
             foreach(var (r,box,current) in boxes)
             {
                 int n;
-                if(box is ComboBox combo) n=combo.SelectedIndex+r.Min;
+                if(box is ComboBox combo) {if(combo.SelectedIndex<0){error.Text=$"{r.Short}: select a value.";return;} n=combo.SelectedIndex+r.Min;}
                 else if(!int.TryParse(((TextBox)box).Text.Trim(),out n) || n<r.Min || n>r.Max){error.Text=$"{r.Short}: enter a whole number from {r.Min} to {r.Max}.";box.Focus();return;}
                 if(n!=current) edits.Add(new(EditSession.Rules,r.Id,r.Key,n));
             }
@@ -2109,7 +2154,7 @@ public partial class MainWindow : Window
             ("Armies","Lists every unit in the game's armies: enemies, bosses, guests and the units of story scenes, 3,042 units in 275 armies. Named units only shows units with a name of their own, such as bosses and leaders. Where the game's events show which battle places an army, its name says so, for example Army 371 (Quest 6: Cruel Brothers), and searching for a mission or quest title lists its armies. Each unit has a class, level, stat bonuses, weapon levels, personal skills, horse HP, up to seven items, and which items it drops when defeated. A unit given a mounted class also needs Horse HP and Horse max HP above 0, or its horse is lost on the first hit; the change review warns when they are 0. An army is stored twice on the disc; both copies are changed together."),
             ("Text","The Text page lists the game's texts: names, skill explanations, quest titles and summaries, chapter and town texts, status words, mission and quest descriptions, event items, guide messages and dialogue. In longer texts a new line starts a new line in the game and codes in braces must stay where they are. Search or pick a kind, select a text and type the new wording. Characters the game's font does not have are named before anything changes. Apply keeps the change in the project; Restore original puts the disc's text back. Changed item and dish names show on the other pages too."),
             ("Shops","The Shops page lists what each shop sells: the 13 shops at the base, named by their goods, and the 11 shops on battle maps, named by their battle. Each item is always for sale, sold from a stock that refills over time, or a special purchase that sets off an event when bought. Choose a shop and an item, then Change item to sell another item in its place (a stocked item keeps the stock of the one it replaces), Add item to add an item that is always for sale, or Remove item. Restore this shop puts the disc's version back. The changes are made in the shop's script, so they are kept in the project and written into every copy when you export a disc. The Stable lists every horse it can sell with its price, and below it the horses offered each chapter: how many of each, when the Spry and Tough Horses come, the chances of the Strong Horse and of one rare horse, and how many horses in all. The Kingfisher Pavilion entry has Any unit can order, which lets the server take orders for any unit in your army."),
-            ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and their sizes are set on the Game rules page under Furniture in Reese's room. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices."),
+            ("Furniture","Lists the pieces the furniture shop sells with their prices, which can be changed from 1 to 99,999, and what each piece does while it is shown in Reese's room. The bonuses go to Reese only and supported effect values can be edited directly on this page or under Furniture in Reese's room on Game rules. Experimental effect values need gameplay tests. The shop's own script sets these prices; they are separate from item prices. The shop charges the price set here, and the export also writes it into the shop's list of pieces, which keeps the order of the original prices. Related events can be opened directly or investigated by searching literal furniture flag references."),
             ("Classes","Lists base stats, movement, movement type, shield sizes, experience value, class skills and weapon level caps for every class on the disc. Starting classes only limits the list to classes the recruitable characters begin in. Mounted and dismounted forms are separate classes. A character's base stats on the Characters page are the class base plus that character's own bonus."),
             ("Skills","The Skills page explains every skill in the game: what it does, how it works, whether it is a command, and which starting characters and classes have it. The line under each name says how the explanation is known: checked in a running game, read from the game program, or taken from the game's own description. Search filters the cards by name or description. Where the game's numbers can be changed, the card shows them: activation chances (Iaido, Knock Away, the bane skills, Parry), Pursuit's speed lead, the bonuses of Aim, Deadeye, Sunder, Desperation, Shieldfaire and Paragon, the highest level at which Paragon counts, how long each command waits before it can be used again, whether a command can be chosen after moving, Swimmer while mounted, the steal limit, Robbery's chance and range, Hurry's extra move, how much Miracle lowers a killing hit, which weapon type Pitchfork, Lance and Blade allow, what Debility divides stats by, the rounds of Deathmatch, whether Guard halves the guarding unit's own defense and avoid, whether Canto is offered after taking damage, Battle Cry's hit and attack for each use and its most uses, the base chance of Mug and Mug+, Evasion's avoid, the move change of Celerity and Slow Start, Camouflage's terrain avoid, Armsthrift's chance, Despoil's gold, Watchful's range, the range of each aura skill (Commander, Leader, Safe Zone, Charisma, Supporter, Resistor, Protector), whether an aura helps its holder and whether several holders add up, whether Supporter needs a partner, Blessing's range and healing, whether Celerity works while mounted, whether Vantage needs the faster speed, whether units without Counter keep countering after taking damage, whether Iaido's counter bonus also follows a hit for 0 damage or a parry, Provoke's range and how long it lasts, whether Flourish halves attack and its cripple bonus, the strikes of Astra, Triple-Shot and Double-Shot, whether Pulverize doubles attack and drops the unit's defenses, Adept's speed needed, chance bonus and strikes, Vengeful's chance and weapon, Axe Guard's block bonus, which weapons each attack command, Iaido and Huntsman can use (one weapon type or any weapon), how much Expert lowers item ranks, Limited's highest rank and level, whether Desperation drops the unit's defenses, and the hit bonuses of Focus Chant and Throw."),
             ("Maps","The Maps page shows each battle's map as the game paints it, with the river and other water drawn the way the battle starts, and the hex grid over it. Hover over a hex to see its position and terrain. Numbered markers show the spots that add a command to a unit's menu, such as gates, chests, villages to search and places to seize, and the side panel lists them with the battle's armies. Terrain colors shade each hex by its terrain; turn off Map art to see the colors alone. Size changes how large the map is drawn. Units shows where every unit stands when the battle opens: red squares for enemies, green for other armies, a gold edge for leaders and bosses, and blue hexes where you can place your own units. Arrivals shows where units come in later, read from the battle's scripts: a white square with the turn it arrives on, the first turn and a plus when it comes every turn for a while, or no number when an event in the battle brings it. Hover over it for the unit, where it comes from and when: on a turn, each turn over a range of turns, when a unit uses a spot such as Withdraw, when one unit talks to another, or under conditions the battle checks, such as an event flag. Maps that no battle in the game uses are listed at the end. Edit deployment lets you click hexes to add or remove places where your units can start; the details show the most units you can deploy, which can be changed for each battle. The game marks only as many start hexes as that limit, the first ones in the order they were added, so extra hexes are drawn dashed. Move units lets you click a unit and then the hex where it should start the battle. Restore original position removes a unit's starting position or puts back one removed in this project, on the hex the original disc gives it; units with no starting position on the original disc cannot be added this way. Clicking a unit on the map shows it under Selected unit, where Edit changes it as on the Armies page. Right-clicking a hex or using the Every unit list selects a unit in any mode. A selected reinforcement can be given a new arrival hex and first turn."),
@@ -2119,12 +2164,12 @@ public partial class MainWindow : Window
             ("Movement","Every class has a movement type, and each type has a cost for each of 64 kinds of terrain. A unit keeps moving while the costs it has paid stay within its Move. Edit a type on the Movement page to change its costs; tenths such as 1.5 work, and × means the terrain cannot be entered. Give a class another movement type on the Classes page to change where it can go. Terrain kinds are named after the published terrain they match, since the game does not store the names as text."),
             ("Live game","The Live game page changes the game while it runs in PCSX2, which is useful for trying a change without playing up to it. Turn on PINE in PCSX2 (Settings, Advanced, slot 28011), start the game from the same edition as the opened disc, and choose Connect. The page lists the units on the current map; select one to change its class, level, current HP, stat bonuses, weapon levels, personal skills and items, then choose Apply to the game. Try this project's rules writes every rule you changed into the running game, so you can test it before exporting. To test on a map you have not reached, choose a battle under Next sortie loads (listed by their titles, in English on both editions) and Send sorties there while the game is at the base, then start any mission or quest: the game loads the chosen battle with its own map, units and events. Use each sortie's own battle puts the missions back. Undo all changes puts back everything the page changed. Nothing on the disc or in your saves changes, and loading a save state also undoes it. Berwick Workshop connects only to PCSX2 on this computer, and only when you choose Connect."),
             ("Comparing discs","Open a second ISO with Compare ISO. Items are matched by ID, including entries that share a name. Comparison covers decoded item, character and class fields, not text, artwork, scripts, or the entire game. Unclassified effects are kept as numbers."),
-            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Armies: class, level, bonuses, weapon levels, skills, items and drops of any enemy, boss or guest unit. Furniture: the shop price of each piece. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, the first five starting items, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
+            ("Editing","Select an item, character or class and choose Edit. Items: might, accuracy, weight, range, critical, level, base price, durability grade, durability pool, bonuses while equipped, resistances, special effect and effects, and for horses the stable price. Armies: class, level, bonuses, weapon levels, skills, items and drops of any enemy, boss or guest unit. Furniture: the shop price and supported original effect values; nine existing effects can be reassigned experimentally between nine supported pieces. Characters: class, level, stat bonuses, growth rates, growth bracket, weapon levels, weapon growth, personal skills, eight starting item slots, bag contents, partners and, for mercenaries, the fee. Randomize items on the Characters page gives every character random starting items of the same type. Classes: base stats, move, movement type, experience value, weapon level caps, shield sizes and class skills. Apply updates the lists right away and marks the entry as edited. Undo and Redo step through your changes, and Restore original values puts an entry back the way the disc has it."),
             ("Editing classes","A class is shared by every unit in it, including enemies, so a class change affects all of them. The editor names the recruitable characters who start in the class. To change one character only, edit that character's bonuses or personal skills instead."),
             ("Randomizer","The Randomizer page changes starting items, character stats and growth rates, or weapon proficiency. Choose Set up next to one of them; its window explains each setting. Preview lists every proposed change by character, and nothing changes until you choose Apply to project, which adds them all as one step you can undo. The same seed and settings always give the same result. Horses are never handed out as ordinary items. Save new profile keeps the settings in a file for another time without changing the project, and profiles saved by earlier versions load as they were saved."),
             ("Promotions","The Promotions page lists the 16 promotions found in the original events, with the quest, the level and weapon levels each one checks, and the class it leads to. Required levels and weapon levels can be changed, and so can the destination class for characters whose events have been checked for it. Changes go into the events and can be undone. Promotion changes have not been tested through a full playthrough, so try them on a separate disc image and save."),
             ("Mechanics","The Mechanics page lists how the game's systems work: damage, hit and avoid, shields, critical hits, growth, experience and movement, with the formula, a short explanation, how well each is verified, and buttons to the values you can change today."),
-            ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Only rules confirmed in a running game are offered, and a rule is left alone if a disc's program has different code at that point."),
+            ("Game rules","The Rules page changes how the game plays: parry and shield block can be left normal, made to always succeed or never succeed, shield guard can let part of a shield's Might count when a block fails, shield and weapon training speed set how fast levels rise in battle, failed attempts can train at every level, the critical hit bonus can be set, experience after a fight can follow the game's formula or be a fixed amount, and the stat limits set how far each stat can grow above the class base. Rules apply to every unit, enemies included, and are written into the game program on export. Confirmed rules and clearly marked experimental bindings are offered. A rule is left alone if a disc's program has different code at that point."),
             ("New items","New item turns one of the disc's unused item slots into a new item. It starts as a full copy of an item you choose, including properties not shown in the editor, and can then be edited and given to characters as a starting item. Your name for it is saved in the project. To change the name shown in the game, edit the item name separately on the Text page. Remove new item frees the slot again."),
             ("Growth bracket","Stats grow toward start value plus growth rate times levels gained, and the bracket keeps the result close to that expectation. Loose keeps HP, Strength and Mind within 3 of it and Defense and Agility within 2; Tight keeps every stat within 1; None lets them drift (only Daoud and Lynette use None). A stat too far ahead cannot rise, and one too far behind always rises. The Rules page can change both bands."),
             ("Projects","Edits live in a project file, not in your disc image. Save project writes a small .bwproj file that lists only what you changed. A project only opens with the disc it was made for, and only if that disc still has the values the project expects."),

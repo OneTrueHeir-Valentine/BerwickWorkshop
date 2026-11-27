@@ -15,6 +15,8 @@ public sealed record ClassRecord(
     public int Mount { get; init; }
     /// <summary>Class record byte 0x1B bits 4 to 6: small, medium and large shields the class can use.</summary>
     public int ShieldSizes { get; init; }
+    /// <summary>Base type bits extracted by the original class permission routine at 0x0017C960, before skill grants.</summary>
+    public int? BaseWeaponTypes { get; init; }
     public string ShieldSizeText => ShieldSizes == 0 ? "None" : string.Join(", ", new[] { "Small", "Medium", "Large" }.Where((_, i) => (ShieldSizes >> i & 1) != 0));
     public string MovementTypeText => MovementType < TerrainData.TypeNames.Length ? TerrainData.TypeNames[MovementType] : $"Type {MovementType}";
     public string MountText => Mount switch { 0 => "On foot", 1 => "Mounted", 2 => "Flying", _ => $"Mount {Mount}" };
@@ -62,7 +64,7 @@ public static class ClassDecoder
         return new(id, name,
             Hp: B(record, 2, 5, 5), Strength: B(record, 0, 0, 5), Defense: B(record, 1, 2, 5), Agility: B(record, 0, 5, 5), Mind: B(record, 2, 0, 5),
             Move: B(record, 8, 0, 4), Experience: B(record, 4, 0, 7), Skills: skills.AsReadOnly(), WeaponCaps: caps.AsReadOnly())
-        { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2), ShieldSizes = B(record, 0x1B, 4, 3) };
+        { MovementType = B(record, 6, 1, 8), Mount = B(record, 3, 4, 2), ShieldSizes = B(record, 0x1B, 4, 3), BaseWeaponTypes = B(record, 8, 4, 18) };
     }
 
     public static string DisplayName(string raw, int id = -1)

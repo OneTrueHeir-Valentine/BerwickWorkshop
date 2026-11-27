@@ -1,7 +1,22 @@
+using System.Text.Json.Serialization;
+
 namespace Berwick.Core;
 
 public sealed record RandomizeOptions(int Seed)
 {
+    /// <summary>
+    /// The characters whose starting items may change; empty means every character. Each draw is keyed by character and slot, so
+    /// leaving characters out never changes anyone else's result. Not written when empty, so older files read and save as before.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int[]? UnitIds { get; init; }
+
+    public bool Equals(RandomizeOptions? other) => other is not null && Seed == other.Seed && Weapons == other.Weapons &&
+        Ammunition == other.Ammunition && Other == other.Other && Bags == other.Bags && LimitLevel == other.LimitLevel && ExtendedInventory == other.ExtendedInventory &&
+        (UnitIds ?? []).SequenceEqual(other.UnitIds ?? []);
+
+    public override int GetHashCode() => HashCode.Combine(Seed, Weapons, Ammunition, Other, Bags, LimitLevel, ExtendedInventory, (UnitIds ?? []).Length);
+
     /// <summary>Weapons, orbs, staves and shields.</summary>
     public bool Weapons { get; init; } = true;
     /// <summary>Arrows and bolts.</summary>
@@ -9,6 +24,9 @@ public sealed record RandomizeOptions(int Seed)
     /// <summary>Accessories and consumables.</summary>
     public bool Other { get; init; }
     public bool Bags { get; init; } = true;
+    /// <summary>Include already occupied starting slots 6–8. Empty slots are never filled.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ExtendedInventory { get; init; }
     /// <summary>Only pick items whose level is no higher than the item they replace.</summary>
     public bool LimitLevel { get; init; } = true;
 }
@@ -82,7 +100,7 @@ public static class Randomizer
 
         foreach (var character in session.Disc.Characters.OrderBy(c => c.Id))
         {
-            for (int slot = 0; slot < CharacterFields.ItemSlots; slot++)
+            for (int slot = 0; slot < CharacterFields.VerifiedItemSlots; slot++)
             {
                 string itemKey = $"item{slot + 1}", usesKey = $"item{slot + 1}Uses";
                 if (Pick(session.Value(EditSession.Characters, character.Id, itemKey), session.Value(EditSession.Characters, character.Id, usesKey)) is { } result)
@@ -102,6 +120,19 @@ public static class Randomizer
                 }
             }
         }
+        // Keep the old sequential random draws (including bags) intact. Additional slots
+        // are processed only after the legacy pass, so opting in cannot change its results.
+        if (options.ExtendedInventory)
+            foreach (var character in session.Disc.Characters.OrderBy(c => c.Id))
+                for (int slot = CharacterFields.VerifiedItemSlots; slot < CharacterFields.ItemSlots; slot++)
+                {
+                    string itemKey = $"item{slot + 1}", usesKey = $"item{slot + 1}Uses";
+                    if (Pick(session.Value(EditSession.Characters, character.Id, itemKey), session.Value(EditSession.Characters, character.Id, usesKey)) is { } result)
+                    {
+                        edits.Add(new(EditSession.Characters, character.Id, itemKey, result.Item));
+                        edits.Add(new(EditSession.Characters, character.Id, usesKey, result.Uses));
+                    }
+                }
         return edits;
     }
 }

@@ -4,6 +4,44 @@ public static class PromotionCatalogueTests
 {
     public static void Run(Action<string, Action> test)
     {
+        test("Promotion class comparison shows movement loss, cap changes and class skill differences", () =>
+        {
+            var source = new ClassRecord(1, "Source", 20, 5, 3, 6, 2, 5, 10, ["Vantage"], [new("Spear", 30)]);
+            var target = new ClassRecord(2, "Target", 22, 7, 4, 6, 2, 4, 10, ["Prepared"], [new("Sword", 40)]) { Mount = 1, ShieldSizes = 1 };
+            var rows = PromotionClassComparison.Compare(source, target).ToDictionary(r => r.Field);
+            if (rows["Movement"].Difference != "-1" || rows["Base HP"].Difference != "+2"
+                || rows["Spear cap"].Destination != "0" || rows["Sword cap"].Source != "0"
+                || rows["Class skill: Vantage"].Difference != "Removed" || rows["Class skill: Prepared"].Difference != "Added"
+                || rows["Mount"].Destination != "Mounted" || rows["Shield sizes"].Destination != "Small")
+                throw new Exception("Incorrect class-record comparison.");
+        });
+        test("Promotion permissions decode the native class mask separately from caps and use configured skill grants", () =>
+        {
+            var bytes = new byte[ClassDecoder.RecordLength];
+            bytes[8] = 0x2F; // movement 15; sword permission bit
+            bytes[10] = 0x20; // type 17 (dark healing)
+            var cls = ClassDecoder.Decode(1, "Source", bytes);
+            if (cls.BaseWeaponTypes != ((1 << 1) | (1 << 17)) || cls.Move != 15)
+                throw new Exception("Incorrect native class permission mask.");
+            var grants = new Dictionary<string, int?> { ["Lance"] = 8 };
+            var target = cls with { BaseWeaponTypes = 0, Skills = ["Lance"], ShieldSizes = 1 };
+            if (PromotionClassComparison.ClassAllows(cls, 1, grants) != true
+                || PromotionClassComparison.ClassAllows(target, 1, grants) != false
+                || PromotionClassComparison.ClassAllows(target, 8, grants) != true
+                || PromotionClassComparison.ClassAllows(target, 5, grants) != false
+                || PromotionClassComparison.ClassAllows(target, 18, grants) != true
+                || PromotionClassComparison.ClassAllows(target, 21, grants) is not null
+                || PromotionClassComparison.ClassAllows(target, 5, new Dictionary<string, int?>()) is not null)
+                throw new Exception("Permission comparison inferred an unsupported grant or confused it with caps.");
+        });
+        test("Promotion comparison reuses traced item requests without treating conditional horse changes as grants", () =>
+        {
+            if (NativePromotionRoutes.ForUnit(87)?.KnownItemRequest != (168, 106)
+                || NativePromotionRoutes.ForUnit(88)?.KnownItemRequest != (170, 106)
+                || NativePromotionRoutes.ForUnit(131)?.KnownItemRequest != (177, 303)
+                || NativePromotionRoutes.ForUnit(89)?.KnownItemRequest is not null)
+                throw new Exception("Original item request evidence was changed or overstated.");
+        });
         test("Original promotion catalogue is source-bound and has 16 literal paths per edition", () =>
         {
             foreach (var p in Profiles.All)

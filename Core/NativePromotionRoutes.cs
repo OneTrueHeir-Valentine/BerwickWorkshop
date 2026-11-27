@@ -12,6 +12,7 @@ public sealed record NativePromotionRoute(
     string SceneSetup, IReadOnlyList<int> SceneEvents, IReadOnlyList<int> RelatedItemEvents,
     string ResearchNote)
 {
+    public (int Event, int ItemId)? KnownItemRequest { get; init; }
     public bool ResolvedApplication => ApplicationEvent is not null;
     public string ApplicationText => ApplicationEvent is int e ? $"Event {e}" : "Unresolved native application hash";
 }
@@ -35,11 +36,11 @@ public static class NativePromotionRoutes
         new(87, 164, 370, 167, null,
             "0x381751CE", "0x280F19CA", 167,
             "1353", new[] { 1354 }, new[] { 168 },
-            "Application 167 calls helper 188 BEFORE 1353; ceremony 1354 explicitly calls item grant 168 for item 106."),
+            "Application 167 calls helper 188 BEFORE 1353; ceremony 1354 explicitly calls item grant 168 for item 106.") { KnownItemRequest = (168, 106) },
         new(88, 165, 371, 169, null,
             "0xFF3EA17F", "0xEF26E97B", 169,
             "1367", new[] { 1368 }, new[] { 170 },
-            "Application 169 calls helper 188 BEFORE 1367; ceremony 1368 explicitly calls item grant 170 for item 106."),
+            "Application 169 calls helper 188 BEFORE 1367; ceremony 1368 explicitly calls item grant 170 for item 106.") { KnownItemRequest = (170, 106) },
         new(89, 166, 372, 171, null,
             "0x036F6640", "0x13772E44", 171,
             "1387", new[] { 1388 }, new[] { 172 },
@@ -63,7 +64,7 @@ public static class NativePromotionRoutes
         new(131, 171, 377, 178, null,
             "0xB7FEE3AD", "0xA7E6ABA9", 178,
             "1349", new[] { 1350 }, new[] { 177 },
-            "Ceremony event1350 calls item request177, whose item2int(303) travels through delivery helper129."),
+            "Ceremony event1350 calls item request177, whose item2int(303) travels through delivery helper129.") { KnownItemRequest = (177, 303) },
         new(149, 172, 378, 181, null,
             "0x5EBE8CD7", "0x4EA6C4D3", 182,
             "1339", new[] { 1340 }, Array.Empty<int>(),

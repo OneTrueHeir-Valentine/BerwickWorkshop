@@ -49,6 +49,13 @@ public partial class MainWindow
             "Yes, if current class limits allow them (experimental)" }, SelectedIndex = 0 });
         panel.Children.Add(compatibility);
         panel.Children.Add(Note("By default, only proficiencies with a nonzero stored value are changed. Allowing new proficiencies is experimental: a class limit does not guarantee the character can equip that weapon. Shield improvement is shared across all shield sizes."));
+        panel.Children.Add(Header("Keep trained weapon levels"));
+        var keepTrained = Labeled(new CheckBox { Content = "Never lower a level the character already has to zero (recommended)",
+            IsChecked = true, Margin = new Thickness(0, 0, 0, 6) });
+        panel.Children.Add(keepTrained);
+        var minimumHeading = Header(""); panel.Children.Add(minimumHeading);
+        var trainedMinimum = Field("1"); panel.Children.Add(trainedMinimum);
+        var keepHelp = Note(""); panel.Children.Add(keepHelp);
         panel.Children.Add(Header("Proficiencies to change"));
         panel.Children.Add(Note("Tick the weapon or shield types you want to change. Unticked types stay as they are."));
         var options = new WrapPanel { Margin = new Thickness(0, 0, 0, 5) };
@@ -94,7 +101,16 @@ public partial class MainWindow
             limitHelp.Text = starting ? "With a limit of 5, a level of 20.3 may become 15.3 to 25.3, subject to class limits."
                 : "With a limit of 2, a 40% rate may become 20% to 60%, within the game's limits. One step equals 10 percentage points.";
             advanced.Visibility = budget ? Visibility.Visible : Visibility.Collapsed;
+            bool keep = keepTrained.IsChecked == true;
+            minimumHeading.Text = starting ? "Keep trained levels at least (1 to 15 levels)"
+                : "Keep trained improvement rates at least (1 to 15 steps of 10 percentage points)";
+            minimumHeading.Visibility = trainedMinimum.Visibility = keep ? Visibility.Visible : Visibility.Collapsed;
+            keepHelp.Text = keep
+                ? "This keeps existing training; it is not a minimum for every level. A level the character already has stays at this value or more, or at its own starting value if that is lower, and never goes above the class limit. Untrained types stay at zero."
+                : "Older profiles (version 1) work this way and give exactly the same preview as before, but a level can drop to zero. Such a preview can't be applied.";
         }
+        keepTrained.Checked += (_, _) => ExplainSettings();
+        keepTrained.Unchecked += (_, _) => ExplainSettings();
         algorithm.SelectionChanged += (_, _) => ExplainSettings();
         target.SelectionChanged += (_, _) => ExplainSettings();
         ExplainSettings();
@@ -112,6 +128,12 @@ public partial class MainWindow
                 compatibility.SelectedIndex == 0 ? R0ProficiencyCompatibility.PreserveTrainedChannels
                     : R0ProficiencyCompatibility.AllowClassPermittedChannels,
                 s, max, count, selection.GetIds(), chosen.Where(p => p.Value.IsChecked == true).Select(p => p.Key).ToArray());
+            if (keepTrained.IsChecked == true)
+            {
+                if (!int.TryParse(trainedMinimum.Text.Trim(), out int lowest))
+                    throw new EditException("The lowest trained level must be a whole number from 1 to 15.");
+                profile = profile with { SchemaVersion = R0ProficiencyProfile.KeepTrainedSchema, TrainedMinimum = lowest };
+            }
             profile.Validate(); return profile;
         }
         void Show(R0ProficiencyProfile p)
@@ -125,6 +147,9 @@ public partial class MainWindow
                 ? R0ProficiencyProfile.StartingKeys : R0ProficiencyProfile.GrowthKeys, p.Fields);
             seed.Text = p.Seed.ToString(); maximum.Text = p.MaximumChange.ToString();
             attempts.Text = p.TransferAttempts.ToString();
+            keepTrained.IsChecked = p.SchemaVersion == R0ProficiencyProfile.KeepTrainedSchema;
+            trainedMinimum.Text = Math.Max(1, p.TrainedMinimum).ToString();
+            ExplainSettings();
         }
         var profiles = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var load = new Button { Content = "Load profile", Margin = new Thickness(0, 0, 10, 8) };
@@ -170,7 +195,21 @@ public partial class MainWindow
                 var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
                 var export = new Button { Content = "Save detailed report (JSON)", Margin = new Thickness(0, 0, 10, 0) };
                 var stop = new Button { Content = "Cancel", Margin = new Thickness(0, 0, 10, 0), IsCancel = true };
-                var apply = new Button { Content = "Apply to project (one undo step)", IsEnabled = preview.Changes.Count > 0, Style = (Style)FindResource("PrimaryButton") };
+                var zeroed = R0ProficiencyRandomizer.ZeroedTrainedChannels(preview);
+                var apply = new Button { Content = "Apply to project (one undo step)", IsEnabled = preview.Changes.Count > 0 && zeroed.Count == 0, Style = (Style)FindResource("PrimaryButton") };
+                if (zeroed.Count > 0)
+                {
+                    var notice = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+                    notice.Children.Add(new TextBlock { Foreground = Brushes.DarkGoldenrod, TextWrapping = TextWrapping.Wrap,
+                        Text = $"This older profile lowers {zeroed.Count} trained {(zeroed.Count == 1 ? "level" : "levels")} to zero (" +
+                            string.Join(", ", zeroed.Take(6).Select(z => $"{z.UnitName} {RandomizerFieldName(z.Field)}")) + (zeroed.Count > 6 ? ", ..." : "") +
+                            "). Those characters can still attack, with very low accuracy. To avoid it, close this review, tick “Never lower a level the character already has to zero” and preview again." });
+                    var allowZero = new CheckBox { Content = "Let these trained levels become zero", Margin = new Thickness(0, 4, 0, 0) };
+                    allowZero.Checked += (_, _) => apply.IsEnabled = preview.Changes.Count > 0;
+                    allowZero.Unchecked += (_, _) => apply.IsEnabled = false;
+                    notice.Children.Add(allowZero);
+                    DockPanel.SetDock(notice, Dock.Top); layout.Children.Add(notice);
+                }
                 export.Click += (_, _) =>
                 {
                     var picker = new SaveFileDialog { Filter = "JSON (*.json)|*.json", FileName = "r0-proficiency-preview.json" };
@@ -202,7 +241,8 @@ public partial class MainWindow
                     RandomizerFieldName(c.Field) + (starting ? " level" : " improvement rate"), Value(c.BeforeRaw), Value(c.AfterRaw))), "Proficiency"));
                 dlg.Content = layout;
                 if (dlg.ShowDialog() != true) return;
-                bool didApply = R0ProficiencyRandomizer.Apply(session, preview);
+                // Apply is only enabled once any zero levels have been confirmed.
+                bool didApply = R0ProficiencyRandomizer.Apply(session, preview, allowZeroedTrainedLevels: true);
                 RefreshDocument();
                 Status.Text = didApply ? $"Applied {preview.Changes.Count} proficiency changes in one undo step."
                     : "The preview produced no proficiency changes.";

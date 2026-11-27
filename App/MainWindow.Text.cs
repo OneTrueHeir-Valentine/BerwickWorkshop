@@ -119,6 +119,8 @@ public partial class MainWindow
         AddPair(DishFields,"Liked by",Who(0) is {Length:>0} liked?liked:"No one");
         AddPair(DishFields,"Disliked by",Who(2) is {Length:>0} disliked?disliked:"No one");
         AddText(DishFields,"Characters not listed find it neutral. A unit with no taste row, such as most mercenaries and guests, gets no effects from any dish.");
+        AddSection(DishFields, "Related events");
+        AddRelatedEventButton(DishFields, 659, "Shared Pavilion meal script");
         AddChangeList(DishFields,ch=>ch.Table==EditSession.Dishes && ch.Id==row.Id,()=>session!.Revert(EditSession.Dishes,row.Id));
     }
     private int TasteValue(int character,int dish)=>session?.Value(EditSession.Tastes,character,TasteData.Key(dish))
@@ -132,7 +134,7 @@ public partial class MainWindow
             new("Liked",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Liked").ToList()),
             new("Neutral",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Neutral").ToList()),
             new("Disliked",EditSession.Dishes,DishData.Fields.Where(f=>f.Group=="Disliked").ToList()),
-        ],"Amounts apply in the next battle. An effect set to None is left out. The random menu takes dishes by menu tier and never offers kind 4, the drinks."));
+        ],"Amounts apply in the next battle. An effect set to None is left out. The random menu takes dishes by menu tier and never offers kind 4, the drinks. Only the original 46 effect codes are supported; arbitrary skill grants are not yet available."));
     }
     private void ApplyFurnitureList()
     {
@@ -156,6 +158,7 @@ public partial class MainWindow
         FurnitureName.Text=row.Name;FurnitureFields.Children.Clear();
         if(row.Edited) AddPair(FurnitureFields,"Price on the disc",row.Original.ToString("N0"));
         AddPair(FurnitureFields,"Price",row.PriceText);
+        AddFurnitureEvents(row.Id);
         if(FurniturePrices.Effects.TryGetValue(row.Id,out var effect))
         {
             if(FurniturePrices.EffectRules.TryGetValue(row.Id,out int ruleId))
@@ -163,7 +166,27 @@ public partial class MainWindow
                 int value=RuleSetting(ruleId);
                 effect=string.Format(effect,ruleId==250?(value==1?"Reese has Miracle: a hit that would defeat him is rolled again at 10 less hit.":"No effect (turned off on the Game rules page)."):value.ToString());
             }
-            AddPair(FurnitureFields,"While shown in Reese's room",effect);
+            bool assignable = GameRules.FurnitureTriggerRules.ContainsKey(row.Id);
+            AddPair(FurnitureFields,assignable ? "Original effect (before reassignment)" : "While shown in Reese's room",effect);
+            if(FurniturePrices.EffectRules.TryGetValue(row.Id,out int effectRule) && !assignable)
+                BuildRuleGroup(GameRules.FurnitureGroup,FurnitureFields,onlyRule:effectRule);
+            if(assignable)
+            {
+                foreach(var (sourcePiece, triggerRule) in GameRules.FurnitureTriggerRules)
+                {
+                    if(session is null || !session.IsRuleAvailable(triggerRule))
+                    {
+                        AddPair(FurnitureFields,"Assignment unavailable",GameRules.ById(triggerRule).Name+" (unrecognized game code)");
+                        continue;
+                    }
+                    int choice=RuleSetting(triggerRule);
+                    if(choice<0 || choice>=GameRules.FurnitureTriggerPieces.Length || GameRules.FurnitureTriggerPieces[choice]!=row.Id) continue;
+                    int valueRule=FurniturePrices.EffectRules[sourcePiece];
+                    AddPair(FurnitureFields,"Assigned effect",GameRules.ById(valueRule).Name+": "+GameRules.ById(valueRule).Describe(RuleSetting(valueRule)));
+                    BuildRuleGroup(GameRules.FurnitureGroup,FurnitureFields,onlyRule:valueRule);
+                }
+                BuildRuleGroup(GameRules.FurnitureAssignmentGroup,FurnitureFields);
+            }
         }
         AddChangeList(FurnitureFields,ch=>ch.Table==EditSession.FurniturePrices && ch.Id==row.Id,()=>session!.Revert(EditSession.FurniturePrices,row.Id));
     }

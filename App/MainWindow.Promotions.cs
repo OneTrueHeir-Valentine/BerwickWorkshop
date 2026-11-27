@@ -185,6 +185,7 @@ public partial class MainWindow
         AddText(PromotionDetails, $"{path.EvidenceLabel}. This describes the original source route, not gameplay acceptance.");
         if (path.Evidence != EvidenceLevel.Verified)
             AddText(PromotionDetails, "Some source and application details remain unverified. Exact, safely bound edits can be experimental; unresolved binary locations remain read-only.");
+        AddPromotionClassComparison(path);
         AddPromotionDestinationEditor(path);
         AddPromotionLevelEditor(path);
         AddPromotionThresholdEditors(path);
@@ -197,6 +198,7 @@ public partial class MainWindow
             AddText(PromotionDetails, condition.Expression);
         }
         AddSection(PromotionDetails, "Original event route");
+        foreach (var link in RelatedEvents.Promotion(path)) AddRelatedEventButton(PromotionDetails, link.Event, link.Reason);
         AddPair(PromotionDetails, "Caller", $"Event {path.CallerEvent}");
         AddPair(PromotionDetails, "Quest", path.QuestText);
         AddPair(PromotionDetails, "Check", path.CheckEvent is int check ? $"Event {check}" : "Not traced");

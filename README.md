@@ -6,13 +6,13 @@ Berwick Workshop is a Windows editor for *Berwick Saga: Lazberia Chronicle, Chap
 
 ## What you can edit
 
-The Items page covers weapon and equipment stats, durability, resistances, bonuses while equipped and known special effects. Shop inventories, the Stable, Atelier recipes and furniture prices have their own editors. New items can be made using the game's spare item records.
+The Items page covers weapon and equipment stats, durability, resistances, bonuses while equipped and known special effects. Shop inventories, the Stable, Atelier recipes and furniture prices have their own editors. Furniture also has experimental effect values and reassignment controls for nine known effects and destinations. The original recipient and story conditions remain in effect. New items can be made using the game's spare item records.
 
-Characters have editable levels, classes, stat bonuses, growths, weapon skills, horse HP and starting equipment. The page also covers bags, partners, bonds and mercenary fees, with expected stats shown for each level. The Armies page gives similar access to enemies, bosses, guests and story units, including their items, drops and horse HP. Class base stats, movement types, weapon caps, shield permissions and class skills are edited separately, so changes to a class can affect more than one unit.
+Characters have editable levels, classes, stat bonuses, growths, weapon skills, horse HP and eight starting item slots. The page also covers bags, partners, bonds and mercenary fees, with expected stats shown for each level. The Armies page gives similar access to enemies, bosses, guests and story units, including their items, drops and horse HP. Class base stats, movement types, weapon caps, shield permissions and class skills are edited separately, so changes to a class can affect more than one unit.
 
-Movement costs can be changed for each terrain type, along with terrain avoid, recovery and the places where flying units may stop. The Skills page documents the game's 90 skills and the parts of their behavior that can be edited. The Rules and Mechanics pages cover combat calculations and settings such as Parry, shields, durability, experience and stat limits. Settings that have not been verified sufficiently in the running game are not offered as editable rules.
+Movement costs can be changed for each terrain type, along with terrain avoid, recovery and the places where flying units may stop. The Skills page documents the game's 90 skills and the parts of their behavior that can be edited. The Rules and Mechanics pages cover combat calculations and settings such as Parry, shields, durability, experience and stat limits. Some located effects and rules are marked experimental. They can be edited, but their behavior in battle may not be fully verified. Keep a separate test project for these settings. The Formula calculator compares selected original and project calculations and links to their editable rule controls.
 
-The Promotions page lists the 16 promotions read from the original events, with the quest, level and weapon level each one checks and the class the character becomes. Required levels and weapon levels can be changed, and so can the destination class for characters whose events have been checked for it. Promotion changes have not been tested through a full playthrough, so try them on a separate disc image and save.
+The Promotions page lists the 16 promotions read from the original events, with the quest, level and weapon level each one checks and the class the character becomes. Required levels and weapon levels can be changed, and so can the destination class for characters whose events have been checked for it. The promotion comparison shows class stats, permissions and potential equipment conflicts; a comparison is not proof of scripted rewards. Promotion changes have not been tested through a full playthrough, so try them on a separate disc image and save.
 
 ## Bulk edit
 
@@ -20,13 +20,13 @@ Bulk edit (Ctrl+Shift+B) changes many records at once, such as the range of ever
 
 ## Randomizer
 
-The Randomizer page changes starting items, character stat bonuses and growth rates, or starting weapon levels and weapon growth. Each option has its own settings and a seed, so the same settings give the same result. A preview lists every change by character before anything is applied, and applying the changes is a single step you can undo. Horses are never handed out as ordinary items, and items that the game's events give to particular characters are left alone. Settings can be saved as a profile and loaded again later.
+The Randomizer page changes starting items, character stat bonuses and growth rates, or starting weapon levels and weapon growth. Each option has its own settings and a seed, so the same settings give the same result. A preview lists every change by character before anything is applied, and applying the changes is a single step you can undo. Horses are never handed out as ordinary items, and items that the game's events give to particular characters are left alone. Settings can be saved together as a plan and loaded again later. Occupied starting slots 6–8 can be included explicitly; existing plans keep their five-slot behavior.
 
 ## Maps and events
 
 Maps displays the painted battle maps, terrain, deployment hexes, starting units, later arrivals and event spots. Existing unit positions, deployment positions and limits, and some reinforcement locations and turns can be changed there. A starting unit removed in a project can be put back on its original hex; units that have no starting position on the original disc cannot be added.
 
-The Events page opens the game's scripts as readable commands. You can edit numbers, individual commands and complete scripts, including the conditions that determine when units arrive. Some event structures still require direct work in the Events editor rather than a dedicated Maps control.
+The Events page opens the game's scripts as readable commands. You can edit numbers, individual commands and complete scripts, including the conditions that determine when units arrive. Some event structures still require direct work in the Events editor rather than a dedicated Maps control. Characters, Items, Classes, Promotions, Furniture, Shops and Dishes provide links or searches for related scripts. Literal references can be conditional, and computed or indirect references may be missed.
 
 ## Graphics
 

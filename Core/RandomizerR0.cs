@@ -110,6 +110,9 @@ public static class RandomizerR0
         ScriptDependencyIndex? scriptIndex, bool register)
     {
         if (options.Seed < 0) throw new EditException("R0 seed must be nonnegative.");
+        var chosen = options.UnitIds is { Length: > 0 } list ? list.ToHashSet() : null;
+        if (chosen is not null && (chosen.Count != options.UnitIds!.Length || chosen.Any(id => session.Disc.Characters.All(c => c.Id != id))))
+            throw new EditException("The starting item character list names a character twice or one that is not on this disc.");
         var pool = Randomizer.Pool(session).OrderBy(x => x.Id).ToArray();
         var ids = pool.Select(x => x.Id).ToHashSet();
         var allItems = session.EditedItems().ToDictionary(x => x.Id);
@@ -133,9 +136,9 @@ public static class RandomizerR0
             edits.Add(new(table, unitId, usesKey, toUses));
             changes.Add(new(table, unitId, slot, from, to.Id, uses, toUses));
         }
-        foreach (var unit in session.Disc.Characters.OrderBy(x => x.Id))
+        foreach (var unit in session.Disc.Characters.OrderBy(x => x.Id).Where(x => chosen is null || chosen.Contains(x.Id)))
         {
-            for (int slot = 0; slot < CharacterFields.ItemSlots; slot++)
+            for (int slot = 0; slot < (options.ExtendedInventory ? CharacterFields.ItemSlots : CharacterFields.VerifiedItemSlots); slot++)
                 Pick(EditSession.Characters, unit.Id, slot, $"item{slot + 1}", $"item{slot + 1}Uses");
             if (!options.Bags || !session.Disc.BagBytes.ContainsKey(unit.Id)) continue;
             int bagCount = session.Value(EditSession.Bags, unit.Id, "bagCount");

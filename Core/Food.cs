@@ -81,6 +81,7 @@ public static class DishData
     public static string EffectName(int code)
     {
         if (code == 0) return "None";
+        if (SkillGrantBindings.Food(code) is { } grant) return $"Skill: {grant.Skill} (effect {code})";
         string name = GameNames.FoodEffect(code) ?? $"Effect {code}";
         if (name.EndsWith(" became", StringComparison.Ordinal)) name = name[..^7];
         return code is 10 or 29 or 36 or 42 ? $"{name} ({code})" : name;

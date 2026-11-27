@@ -15,8 +15,24 @@ public sealed record R0ProficiencyProfile(
     R0ProficiencyCompatibility Compatibility, int Seed, int MaximumChange,
     int TransferAttempts, int[] UnitIds, string[] Fields)
 {
+    /// <summary>
+    /// Version 1 is the original behaviour, kept exactly for replay: a trained level can be lowered to zero. Version 2 keeps
+    /// every level the character already has training in at or above <see cref="TrainedMinimum"/>.
+    /// </summary>
     public int SchemaVersion { get; init; } = 1;
     public string StreamAlgorithm { get; init; } = R0SeedStreams.Algorithm;
+
+    /// <summary>
+    /// Version 2 only: the lowest a trained channel may go, in whole weapon levels (starting levels) or growth steps (weapon
+    /// growth). A channel already below it is never lowered further and never raised by this rule. Zero in version 1 files.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int TrainedMinimum { get; init; }
+
+    public const int KeepTrainedSchema = 2;
+
+    /// <summary>The same profile as version 2, keeping trained levels at one or more. Its preview must be made again.</summary>
+    public R0ProficiencyProfile Migrated() => this with { SchemaVersion = KeepTrainedSchema, TrainedMinimum = Math.Max(TrainedMinimum, 1) };
 
     // Starting skill numbers are stored in tenths; the growth record contains one
     // 4-bit channel for all shields, not a separate value for each shield size.
@@ -44,8 +60,12 @@ public sealed record R0ProficiencyProfile(
 
     public void Validate()
     {
-        if (SchemaVersion != 1 || StreamAlgorithm != R0SeedStreams.Algorithm)
+        if (SchemaVersion is not (1 or KeepTrainedSchema) || StreamAlgorithm != R0SeedStreams.Algorithm)
             throw new EditException("Unsupported R0 proficiency profile format or stream algorithm.");
+        if (SchemaVersion == 1 && TrainedMinimum != 0)
+            throw new EditException("A trained-level minimum needs a version 2 profile.");
+        if (SchemaVersion == KeepTrainedSchema && TrainedMinimum is < 1 or > 15)
+            throw new EditException("Keep trained levels at 1 to 15.");
         if (string.IsNullOrWhiteSpace(Name) || Name.Length > 100 || Name.Any(char.IsControl))
             throw new EditException("Use a short profile name without control characters.");
         if (!Enum.IsDefined(Mode) || !Enum.IsDefined(Target) || !Enum.IsDefined(Compatibility) ||
@@ -119,6 +139,17 @@ public sealed record R0ProficiencyPreview(int SchemaVersion, string StreamAlgori
 
 public static class R0ProficiencyMath
 {
+    /// <summary>
+    /// The lowest value a channel may be given. Version 1 uses the field minimum, as it always did. Version 2 keeps a
+    /// trained channel (above zero) at the trained minimum, or at its own value when that is already lower, and never
+    /// above the class limit. The bound goes into the algorithm itself, so nothing is clamped afterwards.
+    /// </summary>
+    public static int Floor(int schemaVersion, int trainedMinimum, int before, int fieldMinimum, int maximum, int step)
+    {
+        if (schemaVersion != R0ProficiencyProfile.KeepTrainedSchema || before <= 0) return fieldMinimum;
+        return Math.Max(fieldMinimum, Math.Min(before, Math.Min(maximum, trainedMinimum * step)));
+    }
+
     // Steps: starting proficiencies use 10 stored tenths per point; growths use
     // one 4-bit increment per 10 percentage points shown by Workshop.
     public static int[] Bounded(int seed, string table, int unitId,
@@ -169,6 +200,10 @@ public static class R0ProficiencyMath
 
 public static class R0ProficiencyRandomizer
 {
+    /// <summary>Changes in a preview that take a trained level (above zero) down to zero. Version 2 previews never have any.</summary>
+    public static IReadOnlyList<R0ProficiencyChange> ZeroedTrainedChannels(R0ProficiencyPreview preview) =>
+        preview.Changes.Where(c => c.BeforeRaw > 0 && c.AfterRaw == 0).ToList();
+
     // A class cap describes maximum permitted proficiency. It is not, by itself,
     // evidence that a previously untrained character can equip every listed item.
     private static string CapField(string field)
@@ -229,7 +264,8 @@ public static class R0ProficiencyRandomizer
                     warnings.Add($"{unit.Name}: {fieldKeys[i]} was left unchanged because it is above the {className} class limit.");
                     continue;
                 }
-                indexes.Add(i); current.Add(before); minima.Add(resolved[i].Min); maxima.Add(maximum);
+                indexes.Add(i); current.Add(before); maxima.Add(maximum);
+                minima.Add(R0ProficiencyMath.Floor(profile.SchemaVersion, profile.TrainedMinimum, before, resolved[i].Min, maximum, step));
             }
             if (indexes.Count == 0) continue;
             string[] eligibleFields = indexes.Select(i => fieldKeys[i]).ToArray();
@@ -251,14 +287,15 @@ public static class R0ProficiencyRandomizer
         }
         if (profile.Compatibility == R0ProficiencyCompatibility.AllowClassPermittedChannels)
             warnings.Add("Experimental: class caps do not prove weapon training, equipment permission, or story safety. Review every newly opened proficiency.");
-        return new R0ProficiencyPreview(1, R0SeedStreams.Algorithm, session.Disc.Sha256,
+        return new R0ProficiencyPreview(profile.SchemaVersion, R0SeedStreams.Algorithm, session.Disc.Sha256,
             session.ChangeCount, profile, edits.AsReadOnly(), expected.AsReadOnly(),
             changes.AsReadOnly(), warnings.AsReadOnly());
     }
 
-    public static bool Apply(EditSession session, R0ProficiencyPreview preview)
+    public static bool Apply(EditSession session, R0ProficiencyPreview preview, bool allowZeroedTrainedLevels = false)
     {
-        if (preview.SchemaVersion != 1 || preview.StreamAlgorithm != R0SeedStreams.Algorithm ||
+        if (preview.SchemaVersion is not (1 or R0ProficiencyProfile.KeepTrainedSchema) || preview.SchemaVersion != preview.Profile.SchemaVersion ||
+            preview.StreamAlgorithm != R0SeedStreams.Algorithm ||
             !string.Equals(preview.SourceSha256, session.Disc.Sha256, StringComparison.OrdinalIgnoreCase) ||
             preview.ChangeCountAtGeneration != session.ChangeCount)
             throw new EditException("R0 proficiency source or project changed since preview. Regenerate first.");
@@ -271,6 +308,12 @@ public static class R0ProficiencyRandomizer
             !fresh.Changes.SequenceEqual(preview.Changes) ||
             !fresh.Warnings.SequenceEqual(preview.Warnings))
             throw new EditException("R0 proficiency preview is no longer reproducible.");
+        // A level of zero still lets a character attack (with very low accuracy), so an older profile may do this, but only when
+        // the user confirms it; version 2 profiles never do.
+        if (ZeroedTrainedChannels(fresh).Count > 0 && !allowZeroedTrainedLevels)
+            throw new EditException("This version 1 profile would lower a trained weapon level to zero (" +
+                string.Join(", ", ZeroedTrainedChannels(fresh).Select(c => $"{c.UnitName} {c.Field}")) +
+                "). Those characters can still attack, with very low accuracy. Confirm that this is what you want, or convert the profile to version 2, which keeps trained levels, and preview again.");
         return session.Apply(fresh.FieldEdits);
     }
 }

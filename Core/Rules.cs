@@ -33,8 +33,11 @@ public sealed class GameRule(int id, string key, string name, string description
     public int Default { get; } = @default;
     public IReadOnlyList<string>? Choices { get; } = choices;
     public IReadOnlyList<RuleSite> Sites { get; } = sites;
-    /// <summary>Checked in a running game. Only confirmed rules are offered on the Rules page.</summary>
+    /// <summary>Checked in a running game. Source-bound experimental rules can also be offered separately.</summary>
     public bool Confirmed { get; } = confirmed;
+    /// <summary>Existing source-bound settings offered for deliberate testing. This is not gameplay confirmation.</summary>
+    public bool ExperimentalEditor => !Confirmed && (Id is 230 or 235 or 236 or 237 or 243 or 244 or 245 or 246 or 247 or 248 or 249 or 250 or 142 or 143 or 144 or 145 or 146 or 147 or 252 or 253 or 254 or 255 or 256 or 257 or 258 or 259 or 260 or 261 or 262 or 263 or 264 or 265 or 266);
+    public bool EditorVisible => Confirmed || ExperimentalEditor;
     /// <summary>Rules that share a group are shown together as one formula; Short is the name inside the group.</summary>
     public string Group { get; init; } = "";
     public string Short { get; init; } = "";
@@ -240,6 +243,8 @@ public static partial class GameRules
     public static IReadOnlyDictionary<string, string> GroupDescriptions { get; } = new Dictionary<string, string>
     {
         ["Campaign availability"] = "Promotion quest windows use inclusive campaign counters, separate from chapter and battle turn. Story, phase and quest-history conditions still apply. Changes require an exported image, and existing saves can retain adopted quest candidates.",
+        [ShieldChanceGroup] = "Choose the contribution of shield accuracy and whether shield proficiency contributes to the normal shield chance. Eligibility, skill bonuses and other battle modifiers remain unchanged. These native settings are experimental.",
+        [FurnitureAssignmentGroup] = "Move an existing effect between nine source-mapped furniture triggers. Several effects can use the same piece. Original Reese and story conditions remain. Other furniture pieces and arbitrary new effects are not yet assignable.",
         [FurnitureGroup] = "Furniture bought from the furniture shop goes into Reese's room, where each piece can be shown or put away. While a piece is shown, Reese gets its bonus in every battle; the bonuses go to Reese only. Sword Mount adds to his weapon level growth for every weapon type, not only swords. Big Rug adds to the chance of his Adept extra attack when he has Adept. Deer Mount lowers enemy critical chance against him. Coat of Arms adds to his shield block chance. Tapestry adds to the range of his Commander and Leader auras. Bird Statue adds to his hit in fights on forest terrain. Art \"Hope\" lowers enemy hit against him. Maiden Statue gives him Miracle, a second roll against a hit that would defeat him, at 10 less hit. Art \"Revival\" adds to his chance that a weapon use costs no durability. Porcelain Vase raises the favor female mercenaries gain from 5 to 10 (events 136 and 152 on the Events page). Coffers and Treasure Chest can be opened in the room for items and gold. Luxury Bed is meant to add 10 to his HP growth, but the game checks it and ignores the result, so it does nothing.",
         [ExperienceGroup] = "Experience comes only from defeating an enemy. The game adds the enemy class's experience value (edit it on the Classes page) and a bonus for the level difference below, then adds 20% for a unit with the experience skill and any item bonus, and keeps the result between 0 and the highest amount. 100 experience is one level. The level difference is the enemy's level minus the unit's level; past 7 above or 8 below, the end values apply.",
         ["Iaido"] = "When the unit attacks with a sword, Iaido activates at a chance of half the unit's weapon level plus the base chance. The game's base is 40. The roll is 0 to 99, so a total of 100 or more always activates. After the unit evades a strike, its counter gets extra hit and critical; the game gives 33 hit and 3 critical. Counter bonus after can also count a hit that does 0 damage, a parry, or a hit cancelled by a bane skill such as Swordbane. Weapon chooses which weapons it works with: the game's own choice, one weapon type, or any weapon. The unit must still be able to use the weapon, and a class with no artwork for that weapon type shows an empty hand in the attack animation.",
@@ -311,10 +316,10 @@ public static partial class GameRules
         ["Resistor"] = "Each ally within range gets this much magic defense for every unit with Resistor near it. The game gives 5, and the range is 3 hexes. Who counts: in the game only other units with the skill count, and each one adds its bonus. The holder can be included, so it helps itself, and several holders can count as one.",
         [InjuryGroup] = "When a hit lands, the target may be crippled. The chance is the base, plus the knife bonus when the attacker uses a knife, plus Flourish and item bonuses, rolled against 0 to 99. Units with Robust or Robust+ are never crippled. The game's base is 3 and the knife bonus 6.",
         ["Miracle"] ="When a hit would kill a unit with Miracle, the hit is rolled again with the attacker's hit lowered by this much. The game takes off 10.",
-        ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3.",
+        ["Mug"] = "From an adjacent hex, a hit can take an item the enemy is not using. The chance is the unit's level divided by 10 plus this base, plus any steal bonus on the unit's items, in percent. The game's base is 3. The level contribution can also be changed independently.",
         ["Mug+"] = "Like Mug, but it can also take equipped items while the unit has steals left. The chance is the unit's level divided by 10 plus this base, plus item bonuses; the game's base is 3. A unit with Mug+ starts each map with 2 steals in the game, shared with Steal and Robbery.",
         ["Robbery"] = "On defeating an enemy at close range, the unit may take its items. In the game the chance is 25% and the enemy must be at range 0 or 1; both can be changed. A unit with Robbery starts each map with 3 steals in the game, shared with Steal and Mug+.",
-        ["Maim"] = "Maim activates at a chance of half the weapon level plus this base and doubles the chance that the hit cripples. The game's base is 5, and the skill can be used 5 times per map.",
+        ["Maim"] = "Maim normally activates at half the weapon level plus the base, and doubles the chance that the hit cripples. The base, weapon proficiency contribution and uses per map have experimental controls. The game uses base 5 and 5 uses per map.",
         ["Celerity"] ="A unit with Celerity adds this many hexes to its move while on foot; mounted units, wyvern riders included, do not get it. The game adds 1. Mounted units set to Bonus too gives it to mounted units as well.",
         ["Slow Start"] = "A unit with Slow Start takes this many hexes off its move, mounted or on foot. The game takes 1.",
         ["Critical"] = "A unit with the Critical skill adds its level to its critical chance. The bonus can be changed to twice or four times the level, half of it, or nothing.",
@@ -796,7 +801,7 @@ public static partial class GameRules
         Bane(46, "magicbaneCap", "Magicbane", 0x002277D4, 0x002277E8),
         new GameRule(50, "parryBonus", "Parry chance bonus", "", RuleKind.Limit, 0, 200, 10, null,
             [new RuleSite(0x00177F50, s => 0x24430000u | (uint)s, w => (w & 0xFFFF0000u) == 0x24430000u && (w & 0xFFFF) <= 200 ? (int)(w & 0xFFFF) : null)], confirmed: true)
-            { Group = "Parry", Short = "Bonus", Section = SkillsSection },
+            { Group = "Parry", Short = "Added before halving", Section = SkillsSection },
         new GameRule(53, "sunderCritical", "Sunder critical bonus", "", RuleKind.Limit, 0, 100, 25, null,
             [AddV0(0x0022C0F4, 0, 100), AddV0(0x0022C100, 0, 100), WindowCopy(0x00389CB0, 25, 0, 100)], confirmed: true) { Group = "Sunder", Short = "Critical bonus", Section = SkillsSection },
         new GameRule(54, "desperationHit", "Desperation hit bonus", "", RuleKind.Limit, 0, 100, 22, null,
@@ -1200,6 +1205,7 @@ public static partial class GameRules
         Limit(6, "luckLimit", "Luck limit", "The highest Luck a character can reach.", 31, 20, 0x00174C64, 0x00174734),
         Limit(7, "defenseLimit", "Defense bonus limit", "The most Defense a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C7C, 0x0017474C),
         Limit(8, "mindLimit", "Mind bonus limit", "The most Mind a character can gain above the class base. The game stores at most 15.", 15, 15, 0x00174C94, 0x00174764),
+        ..FormulaTermRules(),
         .. PromotionQuestWindows.Rules,
     ]);
 

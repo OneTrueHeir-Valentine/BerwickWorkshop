@@ -126,6 +126,8 @@ public static class BulkEdit
             "level", "hpBonus", "strengthBonus", "defenseBonus", "agilityBonus", "mindBonus", "luck",
             .. CharacterFields.Record.Where(f => f.Group == "Weapon levels").Select(f => f.Key),
         ],
+        [EditSession.Classes] = ["hp", "strength", "defense", "agility", "mind", "experience"],
+        [EditSession.ArmyUnits] = ["level", "hpBonus", "strengthBonus", "defenseBonus", "agilityBonus", "mindBonus", "luck"],
         [EditSession.Growths] =
         [
             "hpGrowth", "strengthGrowth", "defenseGrowth", "agilityGrowth", MindGrowth.Field,
@@ -139,11 +141,15 @@ public static class BulkEdit
         EditSession.Growths => "%",
         EditSession.Characters when field.Group == "Weapon levels" => "weapon level",
         EditSession.Characters when field.Key.EndsWith("Bonus") || field.Key == "luck" => "points above the class base",
+        EditSession.ArmyUnits when field.Key.EndsWith("Bonus") => "points above the class base",
         EditSession.Items when field.Key == "price" => "gold",
         EditSession.Items when field.Key is "minRange" or "maxRange" => "hexes",
         EditSession.Items when field.Key == "durability" => "grade",
         _ => "",
     };
+
+    public static IReadOnlyList<(int Id, string Name)> Records(EditSession session, string table) =>
+        session.Table(table).Records.Keys.Order().Select(id => (id, RecordName(session, table, id))).ToList();
 
     /// <summary>Records whose name contains the text, or whose number is the text (decimal or 0x hexadecimal).</summary>
     public static IReadOnlyList<(int Id, string Name)> Search(EditSession session, string table, string text)
@@ -192,6 +198,10 @@ public static class BulkEdit
                     .Select(c => $"{ShowRange(c.Key)}: {c.Count}")) + "), so none was left out for its range. Name or exclude records to narrow the selection.");
         }
         bool special = recipe.Selection.IncludeSpecial;
+        if (recipe.Table == EditSession.Classes)
+            warnings.Add("Class changes affect every unit using the selected classes, not just one character or battle. Stored limits do not establish safe effective stats.");
+        if (recipe.Table == EditSession.ArmyUnits)
+            warnings.AddRange(ArmyUseWarnings(session, named.Except(excluded)));
 
         foreach (int id in table.Records.Keys.Order())
         {
@@ -246,6 +256,8 @@ public static class BulkEdit
                 if (status == BulkRowStatus.Changed) edits.Add(new(recipe.Table, id, field.Key, after));
             }
         }
+        if (recipe.Table is EditSession.Classes or EditSession.ArmyUnits)
+            warnings.AddRange(StartingStatWarnings(session, recipe.Table, edits));
         return new(recipe, rows.AsReadOnly(), skipped.AsReadOnly(), warnings.AsReadOnly(), edits.AsReadOnly());
     }
 
@@ -279,6 +291,8 @@ public static class BulkEdit
             EditSession.Items => ItemEncoder.Fields,
             EditSession.Characters => CharacterFields.Record,
             EditSession.Growths => CharacterFields.Growth,
+            EditSession.Classes => ClassFields.Fields,
+            EditSession.ArmyUnits => ArmyData.Fields,
             _ => [],
         };
         var text = new System.Text.StringBuilder(table);
@@ -369,8 +383,95 @@ public static class BulkEdit
     {
         EditSession.Items => session.EditedItem(id).Name,
         EditSession.Characters or EditSession.Growths => session.EditedCharacter(id).Name,
+        EditSession.Classes or EditSession.ArmyUnits => session.RecordName(table, id) ?? $"Record {id}",
         _ => $"Record {id}",
     };
+
+    /// <summary>Filter only the record picker. Saved selections continue to contain explicit record IDs.</summary>
+    public static bool MatchesArmyNameFilter(ArmyUnit unit, int filter) => filter switch
+    {
+        0 => true,
+        1 => unit.Named,
+        2 => !unit.Named,
+        _ => throw new ArgumentOutOfRangeException(nameof(filter)),
+    };
+
+    // Class base plus personal bonus is the starting-stat calculation, not a prediction of combat stats or growth.
+    private static IEnumerable<string> StartingStatWarnings(EditSession session, string table, IReadOnlyList<FieldEdit> edits)
+    {
+        (string Base, string Bonus, string Label, int Minimum)[] stats =
+        [ ("hp", "hpBonus", "HP", 1), ("strength", "strengthBonus", "Strength", 0),
+          ("defense", "defenseBonus", "Defense", 0), ("agility", "agilityBonus", "Agility", 0),
+          ("mind", "mindBonus", "Mind", 0) ];
+        var changes = edits.Where(e => stats.Any(s => table == EditSession.Classes ? s.Base == e.Field : s.Bonus == e.Field))
+            .ToDictionary(e => (e.Id, e.Field), e => e.Value);
+        if (changes.Count == 0) yield break;
+        var affected = changes.Keys.Select(k => k.Id).ToHashSet();
+        int characters = 0, armyUnits = 0, unresolved = 0, suspect = 0;
+        var examples = new List<string>();
+        foreach (string unitTable in new[] { EditSession.Characters, EditSession.ArmyUnits })
+        {
+            if (table == EditSession.ArmyUnits && unitTable != EditSession.ArmyUnits) continue;
+            foreach (int id in session.Table(unitTable).Records.Keys.Order())
+            {
+                int cls = session.Value(unitTable, id, "class");
+                if (!affected.Contains(table == EditSession.Classes ? cls : id)) continue;
+                if (unitTable == EditSession.Characters) characters++; else armyUnits++;
+                if (!session.Table(EditSession.Classes).Records.ContainsKey(cls)) { unresolved++; continue; }
+                foreach (var stat in stats)
+                {
+                    if (!changes.TryGetValue(table == EditSession.Classes ? (cls, stat.Base) : (id, stat.Bonus), out int value)) continue;
+                    int baseValue = session.Value(EditSession.Classes, cls, stat.Base);
+                    int bonus = session.Value(unitTable, id, stat.Bonus);
+                    int before = baseValue + bonus;
+                    int after = table == EditSession.Classes ? value + bonus : baseValue + value;
+                    if (after >= stat.Minimum) continue;
+                    suspect++;
+                    if (examples.Count < 12)
+                        examples.Add($"{RecordName(session, unitTable, id)} ({id}): {stat.Label} starting estimate {before} to {after}.");
+                }
+            }
+        }
+        yield return $"Starting-stat check (class base plus personal bonus): {characters} character records and {armyUnits} army unit records affected. This excludes growth, equipment, skills, events and runtime limits.";
+        if (unresolved > 0) yield return $"Starting stats unknown for {unresolved} affected records without a decoded class.";
+        if (suspect > 0)
+        {
+            yield return $"Review {suspect} starting-stat estimates below {(suspect == 1 ? "a normal minimum" : "normal minima")} (HP 1; other stats 0). Native clamping is not established.";
+            foreach (var example in examples) yield return example;
+            if (suspect > examples.Count) yield return $"{suspect - examples.Count} more estimates below those minima.";
+        }
+    }
+
+    // The event catalogue establishes army-level references, not every individual unit's actual appearance.
+    private static IReadOnlyList<string> ArmyUseWarnings(EditSession session, IEnumerable<int> ids)
+    {
+        var warnings = new List<string> { "Army edits change records wherever they are used, including reinforcements. They are not limited to one map. Stored limits do not establish safe effective stats." };
+        var selected = ids.ToHashSet();
+        if (selected.Count == 0) return warnings;
+        BattlePlacementReferences? references = null;
+        try
+        {
+            using var stream = File.OpenRead(session.Disc.Path);
+            references = BattlePlacementReferences.Read(new EventLibrary(new GameArchives(new IsoImage(stream))), session);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EditException or InvalidDataException)
+        {
+            warnings.Add("Battle references could not be read; other uses are unknown.");
+        }
+        foreach (var army in session.Disc.Armies.Where(a => a.Units.Any(u => selected.Contains(u.Key))).OrderBy(a => a.Id))
+        {
+            var battles = references?.ArmyBattles.GetValueOrDefault(army.Id)?.Order().ToArray() ?? [];
+            if (battles.Length > 1)
+                warnings.Add($"{army.Label}: shared army referenced by battles {string.Join(", ", battles)}.");
+            else if (battles.Length == 1)
+                warnings.Add($"{army.Label}: known army reference in battle {battles[0]}.");
+            else
+                warnings.Add($"{army.Label}: no resolved battle reference; other uses are unknown.");
+            if (references is not null && (references.UnknownArmyUses.Contains(army.Id) || references.Problems.Count > 0))
+                warnings.Add($"{army.Label}: event analysis is incomplete; additional uses may exist.");
+        }
+        return warnings;
+    }
 
     /// <summary>
     /// Works out a field's new stored value. The steps run in order on the shown value without limits; the result is rounded

@@ -13,6 +13,57 @@ public static class RandomizerR0Tests
                 if (Randomizer.IsHorseRecord(item))
                     throw new Exception($"An adjacent non-horse ID was excluded: 0x{item:X}");
         });
+        test("Eight-slot randomization is opt-in and preserves legacy choices and empty slots", () =>
+        {
+            var disc = ChangeReviewTests.Fixture();
+            var bytes = new Dictionary<int, ReadOnlyMemory<byte>>();
+            var items = new List<ItemRecord>();
+            foreach (int id in new[] { 1, 2, 0x205 })
+            {
+                var item = disc.ItemBytes[1].ToArray();
+                FieldCodec.Write(item, ItemEncoder.Fields.Single(f => f.Key == "price"), 100);
+                FieldCodec.Write(item, ItemEncoder.Fields.Single(f => f.Key == "uses"), 20);
+                bytes[id] = item;
+                items.Add(ItemDecoder.Decode(id, $"Test item {id}", item));
+            }
+            var bag = new byte[BagData.RecordLength];
+            "SACK"u8.CopyTo(bag);
+            FieldCodec.Write(bag, BagData.Fields.Single(f => f.Key == "bagCount"), 1);
+            FieldCodec.Write(bag, BagData.Fields.Single(f => f.Key == BagData.ItemKey(0)), 1);
+            FieldCodec.Write(bag, BagData.Fields.Single(f => f.Key == BagData.UsesKey(0)), 20);
+            var session = new EditSession(disc with { Items = items, ItemBytes = bytes,
+                BagBytes = new Dictionary<int, ReadOnlyMemory<byte>> { [1] = bag } });
+            session.Apply(EditSession.Characters, 1, new Dictionary<string, int> {
+                ["item1"] = 1, ["item1Uses"] = 20, ["item6"] = 1, ["item6Uses"] = 20,
+                ["item8"] = 0x205, ["item8Uses"] = 20,
+            });
+            bool isExtra(FieldEdit e) => e.Table == EditSession.Characters &&
+                new[] { "item6", "item6Uses", "item7", "item7Uses", "item8", "item8Uses" }.Contains(e.Field);
+            var old = new RandomizeOptions(7);
+            var extended = old with { ExtendedInventory = true };
+            if (System.Text.Json.JsonSerializer.Serialize(old).Contains("ExtendedInventory") ||
+                System.Text.Json.JsonSerializer.Deserialize<RandomizeOptions>("{\"Seed\":7}")!.ExtendedInventory ||
+                System.Text.Json.JsonSerializer.Deserialize<RandomizeOptions>(System.Text.Json.JsonSerializer.Serialize(extended)) != extended)
+                throw new Exception("Inventory scope did not survive legacy/default serialization.");
+            var legacy = Randomizer.StartingItems(session, old);
+            var expandedLegacy = Randomizer.StartingItems(session, extended);
+            if (!legacy.SequenceEqual(expandedLegacy.Where(e => !isExtra(e))) || legacy.Any(isExtra) ||
+                !expandedLegacy.Any(e => e.Field == "item6") || expandedLegacy.Any(e => e.Field is "item7" or "item8"))
+                throw new Exception("Sequential randomizer changed old draws or selected an excluded slot.");
+            // Try several fixed seeds so the test does not depend on a particular draw selecting a different item.
+            bool changed = false;
+            for (int seed = 0; seed < 32; seed++)
+            {
+                var before = RandomizerR0.PreviewStartingItems(session, old with { Seed = seed });
+                var after = RandomizerR0.PreviewStartingItems(session, extended with { Seed = seed });
+                var repeat = RandomizerR0.PreviewStartingItems(session, extended with { Seed = seed });
+                if (before.FieldEdits.Any(isExtra) || !before.FieldEdits.SequenceEqual(after.FieldEdits.Where(e => !isExtra(e))) ||
+                    !after.FieldEdits.SequenceEqual(repeat.FieldEdits) || after.Replacements.Any(e => e.Table == EditSession.Characters && (e.Slot is 6 or 7)))
+                    throw new Exception("Keyed randomizer changed the old scope or selected an empty/horse slot.");
+                changed |= after.Replacements.Any(e => e.Table == EditSession.Characters && e.Slot == 5);
+            }
+            if (!changed) throw new Exception("No occupied extended slot was randomized.");
+        });
         test("R0 randomizer seeded substreams are deterministic across call ordering", () =>
         {
             ulong a = R0SeedStreams.Word(12345, "starting-items", "characters", 87, 0);

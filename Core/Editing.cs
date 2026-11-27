@@ -124,6 +124,8 @@ public static class ItemEncoder
         (13, "Ignores armor"), (14, "Ignores horse defense"), (20, "No counterattack"), (21, "Not usable after moving"), (60, "Can be thrown"),
         (27, "Drains HP"), (58, "Adds level to damage"), (56, "Cannot kill"), (84, "Cannot attack fliers"), (16, "Miracle"), (17, "Renewal"),
         (45, "Grants Hide"), (46, "Grants Overwatch"), (47, "Grants Parry"), (81, "Grants Horse-Lover"), (66, "Move +1"),
+        (18, "Doubles base cripple rate [experimental]"), (24, "Shieldaxe-style block [experimental]"),
+        (25, "Adjacent Doru-style bonus [experimental]"), (83, "Attacks first [experimental]"),
         (19, "Uses instead of durability"), (34, "Unbreakable"), (86, "Restores uses"), (32, "Personal weapon"), (30, "Infantry only"), (1, "Women only"),
         (29, "General only"), (26, "Gigas Knight only"), (69, "Paladin only"), (72, "Assassin only"), (79, "Black Rider only"), (80, "Apostle only"),
     ];
@@ -157,6 +159,9 @@ public static class ItemEncoder
         new("windResist", "Wind", 19, 2, 6, -32, 31) { Signed = true, Group = "Resistances" },
         new("holyResist", "Holy", 20, 6, 6, -32, 31) { Signed = true, Group = "Resistances" },
         new("darkResist", "Dark", 20, 0, 6, -32, 31) { Signed = true, Group = "Resistances" },
+        // Separate source-observed fields: not the x2/x3 strike flags or the special-effect selector.
+        new("chargeMight", "Might per hex moved [experimental]", 1, 3, 4, 0, 15) { Group = "Combat effects (experimental)" },
+        new("additionalStrikes", "Additional strikes [experimental]", 17, 2, 4, 0, 15) { Group = "Combat effects (experimental)" },
         new("effectKind", "Effect", 27, 0, 8, 0, 255) { Group = "Special effect", Choices = SpecialEffects.Select(e => e.Name).ToArray(), ChoiceValues = SpecialEffects.Select(e => e.Value).ToArray() },
         new("effectAmount", "Chance or amount", 26, 0, 7, 0, 127) { Group = "Special effect" },
     }.Concat(Effects.Select(e => new TableField($"effect{e.Bit}", e.Name, 28 + e.Bit / 8, e.Bit % 8, 1, 0, 1) { Group = "Effects" })).ToArray());
@@ -191,8 +196,11 @@ public static class CharacterFields
 
     public static string Key(string weapon, string suffix) => weapon.ToLowerInvariant().Replace(" ", "") + suffix;
 
-    /// <summary>Starting inventory slots that are proven in use on the disc (the record has room for eight).</summary>
-    public const int ItemSlots = 5;
+    /// <summary>Eight eight-byte starting item records end immediately before the bag structure.</summary>
+    public const int ItemSlots = 8;
+    /// <summary>Slots populated on the original starting records. Legacy randomizer algorithms retain this scope; ordinary editing supports eight.</summary>
+    public const int VerifiedItemSlots = 5;
+    private static string SlotLabel(int slot) => $"Slot {slot + 1}";
 
     public static IEnumerable<TableField> SkillFlags(int offset, string group) =>
         CharacterDecoder.SkillBits.Select((name, i) => (name, i)).Where(s => s.name.Length > 0)
@@ -200,8 +208,8 @@ public static class CharacterFields
 
     private static IEnumerable<TableField> ItemSlotFields() => Enumerable.Range(0, ItemSlots).SelectMany(slot => new[]
     {
-        new TableField($"item{slot + 1}", $"Slot {slot + 1}", 0xBC + slot * 8, 0, 16, 0, 0xFFFF) { Group = "Starting items", ItemReference = true },
-        new TableField($"item{slot + 1}Uses", $"Slot {slot + 1} durability or uses", 0xBC + slot * 8 + 2, 4, 8, 0, 255) { Group = "Starting items" },
+        new TableField($"item{slot + 1}", SlotLabel(slot), 0xBC + slot * 8, 0, 16, 0, 0xFFFF) { Group = "Starting items", ItemReference = true },
+        new TableField($"item{slot + 1}Uses", $"{SlotLabel(slot)} durability or uses", 0xBC + slot * 8 + 2, 4, 8, 0, 255) { Group = "Starting items" },
         new TableField($"item{slot + 1}Lock", $"Slot {slot + 1} mercenary lock [experimental]", 0xBC + slot * 8 + 4, 2, 1, 0, 1) { Group = "Starting item flags (experimental)" },
         new TableField($"item{slot + 1}Drop", $"Slot {slot + 1} drops on defeat [experimental]", 0xBC + slot * 8 + 3, 7, 1, 0, 1) { Group = "Starting item flags (experimental)" },
     });
@@ -407,9 +415,12 @@ public sealed class EditSession
 
     public ChangeEvidence EvidenceFor(ChangeEntry entry) =>
         storedEvidence.TryGetValue((entry.Table, entry.Id, entry.Key), out var evidence)
-            ? evidence : ManualParityGuards.IsExperimentalField(entry.Table, entry.Key)
+            ? evidence : (ManualParityGuards.IsExperimentalField(entry.Table, entry.Key) ||
+                entry.Table == Rules && GameRules.ById(entry.Id).ExperimentalEditor ||
+                entry.Table == Items && ((entry.Key is "chargeMight" or "additionalStrikes" or "effect18" or "effect24" or "effect25" or "effect83") ||
+                    (entry.Key is "effectKind" or "effectAmount") && Value(Items,entry.Id,"effectKind")==112))
                 ? new ChangeEvidence(EvidenceLevel.SourceObserved, EvidenceBinding.ExperimentalBound,
-                    EvidenceAcceptance.Untested, "Experimental field: source bit binding observed; original-edition and gameplay acceptance outstanding.")
+                    EvidenceAcceptance.Untested, "Experimental field: source binding observed; modified-value and gameplay acceptance may be outstanding.")
                 : ChangeEvidence.ForEdit(entry.Table, entry.Kind);
 
     private HashSet<int>? armyClasses, armyItems;

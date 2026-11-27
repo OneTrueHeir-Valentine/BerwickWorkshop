@@ -9,7 +9,11 @@ namespace Berwick.Workshop;
 
 public partial class MainWindow
 {
-    private sealed record RandomizerReviewRow(string Character, string Change, string Before, string After);
+    private sealed record RandomizerReviewRow(string Character, string Change, string Before, string After)
+    {
+        // Read aloud where a grid announces the whole row, instead of the raw record.
+        public override string ToString() => $"{Character}, {Change}: {Before} to {After}";
+    }
 
     private static DataGrid RandomizerReviewGrid(IEnumerable<RandomizerReviewRow> rows, string changeHeader)
     {
@@ -156,6 +160,7 @@ public partial class MainWindow
             ? item.DisplayName : $"Unknown item (ID {id})";
         var headline = new TextBlock {
             Text = $"{preview.Replacements.Count} starting-item changes for {preview.Replacements.Select(c => c.UnitId).Distinct().Count()} characters. Seed: {preview.Options.Seed}. "
+                + $"Inventory scope: {(preview.Options.ExtendedInventory ? "slots 1–8" : "slots 1–5")}. "
                 + "Compare the original and replacement items below. The number in parentheses is the item-use value recorded by the game.",
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8)
         };

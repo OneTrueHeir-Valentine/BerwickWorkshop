@@ -175,6 +175,13 @@
       <TextBlock Text="Each option opens its own settings. You can review the proposed changes before applying them. Nothing is changed by opening a settings window or previewing results." TextWrapping="Wrap" Foreground="{StaticResource Muted}" Margin="0,0,0,20"/>
       <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18" Margin="0,0,0,12">
        <StackPanel>
+        <TextBlock Text="Several parts at once" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,5"/>
+        <TextBlock Text="Set up starting items, stat bonuses, growth rates, weapon levels and weapon growth together, each with its own settings and seed. Lock characters, start from a preset, save the plan, and apply everything as one undo step." TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <Button Content="Set up a plan" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="OpenRandomizerPlan" ToolTip="Combine several Randomizer parts, review them grouped by part, and apply them together."/>
+       </StackPanel>
+      </Border>
+      <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="5" Padding="18" Margin="0,0,0,12">
+       <StackPanel>
         <TextBlock Text="Starting items" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,5"/>
         <TextBlock Text="Change the equipment and supplies that characters start with. Choose which item types to include. Mounted horses and horse pickups are excluded from ordinary starting-item randomization." TextWrapping="Wrap" Margin="0,0,0,12"/>
         <Button Content="Set up starting items" HorizontalAlignment="Left" Style="{StaticResource PrimaryButton}" Click="RandomizeItems" ToolTip="Choose item categories and a random seed, then review the changes."/>

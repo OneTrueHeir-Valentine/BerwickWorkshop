@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Berwick Workshop</AssemblyName>
     <RootNamespace>Berwick.Workshop</RootNamespace>
-    <Version>0.122.0</Version>
+    <Version>0.123.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Berwick Workshop</Product>
     <Copyright>Copyright © 2026 Berwick Workshop contributors</Copyright>

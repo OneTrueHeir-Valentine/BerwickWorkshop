@@ -38,6 +38,8 @@ internal sealed class BulkEditWindow : Window
         new(EditSession.Items, "Items"),
         new(EditSession.Characters, "Characters: level, stat bonuses and weapon levels"),
         new(EditSession.Growths, "Characters: growth rates and weapon growth"),
+        new(EditSession.Classes, "Classes: base stats and experience"),
+        new(EditSession.ArmyUnits, "Army units: level and stat bonuses"),
     ];
     private static readonly OperationChoice[] Operations =
     [
@@ -46,6 +48,8 @@ internal sealed class BulkEditWindow : Window
 
     private readonly ComboBox table = new() { DisplayMemberPath = "Label", MinWidth = 320 };
     private readonly TextBox search = new() { MinWidth = 220 };
+    private readonly ComboBox armyNameFilter = new() { ItemsSource = new[] { "All army records", "Named records", "Records not marked named" }, SelectedIndex = 0 };
+    private readonly StackPanel armyPicker = new() { Visibility = Visibility.Collapsed };
     private readonly ListBox records = new() { DisplayMemberPath = "Label", SelectionMode = SelectionMode.Extended, Height = 170 };
     private readonly ListBox included = new() { DisplayMemberPath = "Label", SelectionMode = SelectionMode.Extended, Height = 75 };
     private readonly ListBox excluded = new() { DisplayMemberPath = "Label", SelectionMode = SelectionMode.Extended, Height = 75 };
@@ -83,6 +87,7 @@ internal sealed class BulkEditWindow : Window
         table.ItemsSource = Tables;
         table.SelectionChanged += (_, _) => TableChanged();
         search.TextChanged += (_, _) => FillRecords();
+        armyNameFilter.SelectionChanged += (_, _) => FillRecords();
         operation.SelectionChanged += (_, _) => upper.Visibility = andText.Visibility = Clamp ? Visibility.Visible : Visibility.Collapsed;
         rounding.SelectionChanged += (_, _) => Stale();
         includeUnused.Checked += (_, _) => Stale();
@@ -113,6 +118,9 @@ internal sealed class BulkEditWindow : Window
         selection.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var left = new StackPanel();
         left.Children.Add(Labeled("Search by name or number", search));
+        armyPicker.Children.Add(Labeled("Show army records", armyNameFilter));
+        armyPicker.Children.Add(Wrap("This filters the picker only. A named record is not necessarily a boss; other records are not necessarily ordinary enemies. Included and excluded records stay selected.", new(0, 4, 0, 4)));
+        left.Children.Add(armyPicker);
         Label(records, "Records found");
         left.Children.Add(records);
         left.Children.Add(Row(Button("Include selected", () => Move(records, included)), Button("Exclude selected", () => Move(records, excluded))));
@@ -209,6 +217,7 @@ internal sealed class BulkEditWindow : Window
     {
         bool items = Table == EditSession.Items;
         itemFilters.Visibility = items ? Visibility.Visible : Visibility.Collapsed;
+        armyPicker.Visibility = Table == EditSession.ArmyUnits ? Visibility.Visible : Visibility.Collapsed;
         var allowed = BulkEdit.SupportedFields[Table];
         var fields = session.Table(Table).Fields.Where(f => allowed.Contains(f.Key)).Select(f => new FieldChoice(f, BulkEdit.Unit(Table, f))).ToList();
         field.ItemsSource = fields;
@@ -227,7 +236,14 @@ internal sealed class BulkEditWindow : Window
         string text = search.Text.Trim();
         var found = text.Length > 0 ? BulkEdit.Search(session, Table, text)
             : Table == EditSession.Items ? session.EditedItems().Select(i => (i.Id, i.Name)).ToList()
+            : Table is EditSession.Classes or EditSession.ArmyUnits ? BulkEdit.Records(session, Table)
             : session.EditedCharacters().Select(c => (c.Id, c.Name)).ToList();
+        if (Table == EditSession.ArmyUnits && armyNameFilter.SelectedIndex > 0)
+        {
+            var ids = session.Disc.Armies.SelectMany(a => a.Units)
+                .Where(u => BulkEdit.MatchesArmyNameFilter(u, armyNameFilter.SelectedIndex)).Select(u => u.Key).ToHashSet();
+            found = found.Where(r => ids.Contains(r.Id)).ToList();
+        }
         records.ItemsSource = found.Select(r => new RecordChoice(r.Id, r.Name)).ToList();
     }
 

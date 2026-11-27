@@ -116,7 +116,7 @@ public static class SkillCatalog
             "Attacks with a range 1 thrown weapon and 10 more hit, then switches back to the weapon the unit was holding.",
             "Hit bonus and when it can be chosen: checked in a running game. The rest: from the game's own description"),
         new("Parry", "Chance", "May turn a hit aside completely.",
-            "When attacked with a physical weapon while holding one, the unit may cancel the hit. The chance is half of the weapon level plus 10, and a parry costs the weapon some durability. A weapon with the Grants Parry effect gives the skill as well.",
+            "When attacked with a physical weapon while holding one, the unit may cancel the hit. The chance is half of the weapon level plus 5, and a parry costs the weapon some durability. A weapon with the Grants Parry effect gives the skill as well.",
             "Chance: checked in a running game. Grants Parry weapons: read from the game program. Durability: from the game's own description"),
         new("Prepared", "Always on", "Switches to a weapon that can counter.",
             "When an enemy attacks from where the unit's weapon cannot reach, the unit counterattacks with another weapon it carries that can, such as a javelin against an archer two hexes away. The weapon it was holding stays first in its items.", Game),
